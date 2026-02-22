@@ -7,7 +7,7 @@ test('launches app and renders main window', async () => {
   });
 
   const page = await app.firstWindow();
-  await expect(page.getByText('Paste, Drop, or Click')).toBeVisible();
+  await expect(page.getByText('Paste, Drop or Click')).toBeVisible();
 
   await app.close();
 });

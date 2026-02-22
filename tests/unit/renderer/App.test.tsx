@@ -37,7 +37,7 @@ describe('App', () => {
   it('renders empty-state prompt by default', () => {
     render(<App />);
 
-    expect(screen.getByText('Paste, Drop, or Click')).toBeInTheDocument();
+    expect(screen.getByTestId('empty-state-cta')).toHaveTextContent(/^Paste, Drop or Click$/);
   });
 
   it('opens file dialog when click action is pressed', async () => {

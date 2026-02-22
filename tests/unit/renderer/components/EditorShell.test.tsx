@@ -4,6 +4,8 @@ import { EditorShell } from '../../../../src/renderer/components/EditorShell';
 
 describe('EditorShell', () => {
   it('renders empty state when input is empty', () => {
+    const onOpenFile = vi.fn().mockResolvedValue(undefined);
+
     render(
       <EditorShell
         paneMode="input"
@@ -11,11 +13,17 @@ describe('EditorShell', () => {
         outputText=""
         searchQuery=""
         onInputChange={vi.fn()}
-        onOpenFile={vi.fn().mockResolvedValue(undefined)}
+        onOpenFile={onOpenFile}
       />,
     );
 
-    expect(screen.getByText('Paste, Drop, or Click')).toBeInTheDocument();
+    const cta = screen.getByTestId('empty-state-cta');
+
+    expect(screen.getAllByTestId('empty-state-cta')).toHaveLength(1);
+    expect(cta).toHaveTextContent(/^Paste, Drop or Click$/);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Click' }));
+    expect(onOpenFile).toHaveBeenCalledTimes(1);
   });
 
   it('renders editable input textarea in input mode', () => {

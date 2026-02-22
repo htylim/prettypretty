@@ -9,8 +9,8 @@
 
 ## Empty State
 
-- Centered text: `Paste, Drop, or Click`.
-- `Click` opens file picker via preload bridge.
+- Centered single-line CTA: `Paste, Drop or Click`.
+- Only `Click` is interactive, visually underlined, and opens file picker via preload bridge.
 - Drop and paste are supported in editor shell.
 
 ## Toolbar Controls

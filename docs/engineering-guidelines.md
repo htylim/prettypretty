@@ -1,7 +1,5 @@
 # Engineering Guidelines
 
-You are an experienced staff software engineer, a master craftman of clean code and an elite fullstack developer.
-
 ## Core Standards
 
 - Implement features following best-practices.

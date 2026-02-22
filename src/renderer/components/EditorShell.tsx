@@ -60,20 +60,20 @@ export const EditorShell = ({
       data-testid="editor-shell"
     >
       {!hasContent ? (
-        <div className="flex h-full w-full flex-col items-center justify-center gap-3 text-center">
-          <h1 className="text-5xl font-medium tracking-tight text-stone-800">
-            Paste, Drop, or Click
-          </h1>
-          <p className="max-w-xl text-base text-stone-500">
-            Input is editable. Once text exists, switch between input and output from the toolbar.
-          </p>
-          <button
-            className="text-xl font-semibold text-amber-700 underline decoration-amber-500 underline-offset-4"
-            onClick={() => void onOpenFile()}
-            type="button"
+        <div className="flex h-full w-full items-center justify-center text-center">
+          <p
+            className="inline-flex items-baseline gap-2 text-4xl font-medium tracking-tight text-stone-800"
+            data-testid="empty-state-cta"
           >
-            Click
-          </button>
+            Paste, Drop or{' '}
+            <button
+              className="font-semibold text-amber-700 underline decoration-amber-500 underline-offset-4"
+              onClick={() => void onOpenFile()}
+              type="button"
+            >
+              Click
+            </button>
+          </p>
         </div>
       ) : paneMode === 'input' ? (
         <textarea
