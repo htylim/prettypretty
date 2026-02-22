@@ -10,10 +10,10 @@
 
 **Always update documents as project evolves**
 
-- [Engineering Guidelines](./docs/engineering-guidelines.md)
-- [Project Architecture](./docs/architecture.md)
-- [Dependencies and tools](./docs/dependencies-and-tools.md)
 - [Learnings](./docs/learnings.md)
+- [Engineering Guidelines](./docs/engineering-guidelines.md)
+- [Dependencies and tools](./docs/dependencies-and-tools.md)
+- [Project Architecture](./docs/architecture.md)
 - [UI Specifications](./docs/ui-spec.md)
 - [User Stories](./docs/user-stories.md)
 - [Documentation Writing Instructions](./docs/documentation-writing.md)
