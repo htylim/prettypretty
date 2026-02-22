@@ -1,0 +1,32 @@
+@import 'tailwindcss';
+
+:root {
+  --app-bg: #f5f1eb;
+  --app-fg: #2f261f;
+}
+
+:root[data-theme='dark'] {
+  --app-bg: #191919;
+  --app-fg: #f6f0e8;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--app-bg);
+  color: var(--app-fg);
+  font-family: 'IBM Plex Sans', 'Segoe UI', sans-serif;
+}
+
+.bg-app-base {
+  background: var(--app-bg);
+}
+
+.text-app-foreground {
+  color: var(--app-fg);
+}

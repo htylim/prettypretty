@@ -1,0 +1,20 @@
+- **Follow best practices** - Use industry-standard patterns and conventions.
+- **Run tests** - `pnpm test` after any code change.
+- **Run lint checks** - `pnpm check` before completing work.
+- **Update documentation** - Keep this file and docs in sync as code changes.
+- **Update `./docs/learnings.md`** - With discovered patterns for future iterations.
+- **Code in spec files (`./docs/specs/*`) are reference code** - don't use it blindly.
+- **`./docs/specs/*` can be ambiguous or incomplete** - Always ask clarifying questions.
+
+## Project Documentation
+
+**Always update documents as project evolves**
+
+- [Engineering Guidelines](./docs/engineering-guidelines.md)
+- [Project Architecture](./docs/architecture.md)
+- [Dependencies and tools](./docs/dependencies-and-tools.md)
+- [Learnings](./docs/learnings.md)
+- [UI Specifications](./docs/ui-spec.md)
+- [User Stories](./docs/user-stories.md)
+- [Documentation Writing Instructions](./docs/documentation-writing.md)
+- [Specs Writing Instructions](./docs/specs-guidelines.md)

@@ -1,0 +1,15 @@
+# User Stories
+
+## Step 1 Stories
+
+1. As a developer, I can run one command to start a local desktop shell for feature development.
+2. As a developer, I can run checks locally and get deterministic pass/fail feedback.
+3. As a developer, I can run unit and Electron E2E tests locally.
+4. As a user, I can see a clear empty state and open a file via a click action.
+5. As a user, I can switch between input and output panes after content exists.
+
+## Future Stories (Out of Scope for Step 1)
+
+1. As a user, I can prettify JSON, JS object literals, Python dict-like text, and others.
+2. As a user, I can use syntax highlighting and folding in output mode.
+3. As a user, I can collapse/expand nested structures globally.

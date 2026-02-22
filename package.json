@@ -1,0 +1,80 @@
+{
+  "name": "prettypretty",
+  "version": "0.1.0",
+  "author": "prettypretty contributors",
+  "private": true,
+  "description": "Desktop text prettifier for data structures",
+  "main": "out/main/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "dist": "pnpm build && electron-builder",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc -b",
+    "test:unit": "vitest run --coverage",
+    "test:e2e": "pnpm build && playwright test",
+    "test": "pnpm test:unit && pnpm test:e2e",
+    "test:pairing": "node ./scripts/verify-test-pairs.mjs",
+    "check": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test:unit && pnpm test:pairing",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx,mjs,cjs}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,css,yml,yaml,html}": [
+      "prettier --write"
+    ]
+  },
+  "devDependencies": {
+    "@commitlint/cli": "20.4.2",
+    "@commitlint/config-conventional": "20.4.2",
+    "@eslint/js": "9.39.3",
+    "@playwright/test": "1.58.2",
+    "@tailwindcss/postcss": "4.2.0",
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.2",
+    "@testing-library/user-event": "14.6.1",
+    "@types/node": "25.3.0",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "5.1.4",
+    "@vitest/coverage-v8": "4.0.18",
+    "autoprefixer": "10.4.24",
+    "electron": "40.6.0",
+    "electron-builder": "26.8.1",
+    "electron-vite": "5.0.0",
+    "eslint": "9.39.3",
+    "eslint-plugin-react-hooks": "7.0.1",
+    "eslint-plugin-react-refresh": "0.5.0",
+    "globals": "17.3.0",
+    "husky": "9.1.7",
+    "jsdom": "28.1.0",
+    "lint-staged": "16.2.7",
+    "playwright": "1.58.2",
+    "postcss": "8.5.6",
+    "prettier": "3.8.1",
+    "tailwindcss": "4.2.0",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.56.0",
+    "vite": "7.3.1",
+    "vitest": "4.0.18"
+  },
+  "dependencies": {
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "zustand": "5.0.11"
+  },
+  "packageManager": "pnpm@10.30.1+sha512.3590e550d5384caa39bd5c7c739f72270234b2f6059e13018f975c313b1eb9fefcc09714048765d4d9efe961382c312e624572c0420762bdc5d5940cdf9be73a",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "electron-winstaller",
+      "esbuild"
+    ]
+  }
+}

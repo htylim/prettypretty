@@ -1,0 +1,1 @@
+- when giving a file to read and load content do a check for file size limits
