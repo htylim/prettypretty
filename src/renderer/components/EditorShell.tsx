@@ -6,7 +6,8 @@ type EditorShellProps = {
   inputText: string;
   outputText: string;
   searchQuery: string;
-  onInputChange: (value: string) => void;
+  onEditInputChange: (value: string) => void;
+  onIngestInput: (value: string) => void;
   onOpenFile: () => Promise<void>;
 };
 
@@ -24,7 +25,8 @@ export const EditorShell = ({
   inputText,
   outputText,
   searchQuery,
-  onInputChange,
+  onEditInputChange,
+  onIngestInput,
   onOpenFile,
 }: EditorShellProps) => {
   const hasContent = inputText.trim().length > 0;
@@ -38,15 +40,12 @@ export const EditorShell = ({
     }
 
     const fileText = await file.text();
-    onInputChange(fileText);
+    onIngestInput(fileText);
   };
 
   const handlePaste: ClipboardEventHandler<HTMLDivElement> = (event) => {
     const pastedText = event.clipboardData.getData('text');
-
-    if (pastedText) {
-      onInputChange(pastedText);
-    }
+    onIngestInput(pastedText);
   };
 
   const displayOutput = highlightQuery(outputText, searchQuery);
@@ -79,7 +78,7 @@ export const EditorShell = ({
         <textarea
           className="h-full w-full resize-none border-0 bg-white p-4 font-mono text-sm leading-6 text-stone-900 outline-none"
           value={inputText}
-          onChange={(event) => onInputChange(event.target.value)}
+          onChange={(event) => onEditInputChange(event.target.value)}
           spellCheck={false}
           data-testid="input-editor"
         />

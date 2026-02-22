@@ -6,17 +6,22 @@ type ToolbarProps = {
   hasContent: boolean;
   searchQuery: string;
   onNew: () => void;
-  onTogglePane: () => void;
+  onPaneModeChange: (nextMode: PaneMode) => void;
   onCollapseAll: () => void;
   onExpandAll: () => void;
   onSave: () => void;
   onCopy: () => void;
   onSearchChange: (value: string) => void;
-  onToggleTheme: () => void;
+  onThemeModeChange: (nextMode: ThemeMode) => void;
 };
 
 const buttonClass =
   'rounded-xl border border-stone-300 bg-stone-100 px-3 py-1.5 text-sm font-medium text-stone-800 transition hover:bg-stone-200 disabled:cursor-not-allowed disabled:opacity-50';
+const segmentedContainerClass = 'flex rounded-xl border border-stone-300 bg-stone-100 p-1';
+const segmentButtonClass =
+  'rounded-lg px-3 py-1 text-sm font-semibold text-stone-700 transition disabled:cursor-not-allowed disabled:opacity-50';
+const activeSegmentClass = 'bg-stone-200 text-stone-900 shadow-sm';
+const inactiveSegmentClass = 'bg-transparent hover:bg-stone-200/70';
 
 export const Toolbar = ({
   paneMode,
@@ -24,15 +29,16 @@ export const Toolbar = ({
   hasContent,
   searchQuery,
   onNew,
-  onTogglePane,
+  onPaneModeChange,
   onCollapseAll,
   onExpandAll,
   onSave,
   onCopy,
   onSearchChange,
-  onToggleTheme,
+  onThemeModeChange,
 }: ToolbarProps) => {
   const isOutput = paneMode === 'output';
+  const isOutputSegmentDisabled = paneMode === 'input' && !hasContent;
 
   return (
     <header className="flex items-center gap-2 rounded-2xl border border-stone-300 bg-stone-50 p-3 shadow-sm">
@@ -40,15 +46,35 @@ export const Toolbar = ({
         New
       </button>
 
-      <button
-        className={buttonClass}
-        disabled={!hasContent}
-        onClick={onTogglePane}
-        type="button"
-        data-testid="toggle-pane"
-      >
-        {isOutput ? 'Input' : 'Output'}
-      </button>
+      <div className={segmentedContainerClass} data-testid="input-output-toggle" role="group">
+        <button
+          aria-pressed={paneMode === 'input'}
+          className={`${segmentButtonClass} ${paneMode === 'input' ? activeSegmentClass : inactiveSegmentClass}`}
+          data-testid="pane-segment-input"
+          onClick={() => {
+            if (paneMode !== 'input') {
+              onPaneModeChange('input');
+            }
+          }}
+          type="button"
+        >
+          Input
+        </button>
+        <button
+          aria-pressed={paneMode === 'output'}
+          className={`${segmentButtonClass} ${paneMode === 'output' ? activeSegmentClass : inactiveSegmentClass}`}
+          data-testid="pane-segment-output"
+          disabled={isOutputSegmentDisabled}
+          onClick={() => {
+            if (paneMode !== 'output') {
+              onPaneModeChange('output');
+            }
+          }}
+          type="button"
+        >
+          Output
+        </button>
+      </div>
 
       <button className={buttonClass} disabled={!isOutput} onClick={onCollapseAll} type="button">
         Collapse
@@ -79,14 +105,34 @@ export const Toolbar = ({
           data-testid="search-input"
         />
 
-        <button
-          className={buttonClass}
-          onClick={onToggleTheme}
-          type="button"
-          data-testid="theme-toggle"
-        >
-          {themeMode === 'light' ? 'Dark' : 'Light'}
-        </button>
+        <div className={segmentedContainerClass} data-testid="theme-toggle" role="group">
+          <button
+            aria-pressed={themeMode === 'light'}
+            className={`${segmentButtonClass} ${themeMode === 'light' ? activeSegmentClass : inactiveSegmentClass}`}
+            data-testid="theme-segment-light"
+            onClick={() => {
+              if (themeMode !== 'light') {
+                onThemeModeChange('light');
+              }
+            }}
+            type="button"
+          >
+            Light
+          </button>
+          <button
+            aria-pressed={themeMode === 'dark'}
+            className={`${segmentButtonClass} ${themeMode === 'dark' ? activeSegmentClass : inactiveSegmentClass}`}
+            data-testid="theme-segment-dark"
+            onClick={() => {
+              if (themeMode !== 'dark') {
+                onThemeModeChange('dark');
+              }
+            }}
+            type="button"
+          >
+            Dark
+          </button>
+        </div>
       </div>
     </header>
   );

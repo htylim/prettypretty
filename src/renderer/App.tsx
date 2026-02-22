@@ -30,13 +30,16 @@ export const App = () => {
   const searchQuery = useUiStore((state) => state.searchQuery);
   const reset = useUiStore((state) => state.reset);
   const setPaneMode = useUiStore((state) => state.setPaneMode);
-  const togglePaneMode = useUiStore((state) => state.togglePaneMode);
-  const toggleThemeMode = useUiStore((state) => state.toggleThemeMode);
+  const setThemeMode = useUiStore((state) => state.setThemeMode);
   const setInputText = useUiStore((state) => state.setInputText);
   const setSearchQuery = useUiStore((state) => state.setSearchQuery);
 
   const outputText = useMemo(() => formatText(inputText), [inputText]);
   const hasContent = inputText.trim().length > 0;
+  const ingestInputText = (nextText: string): void => {
+    setInputText(nextText);
+    setPaneMode('output');
+  };
 
   const openFile = async (): Promise<void> => {
     const api = getWindowApi();
@@ -46,8 +49,7 @@ export const App = () => {
 
     const file = await api.dialog.openFile();
     if (file) {
-      setInputText(file.content);
-      setPaneMode('output');
+      ingestInputText(file.content);
     }
   };
 
@@ -86,13 +88,13 @@ export const App = () => {
           hasContent={hasContent}
           searchQuery={searchQuery}
           onNew={handleNew}
-          onTogglePane={togglePaneMode}
+          onPaneModeChange={setPaneMode}
           onCollapseAll={() => {}}
           onExpandAll={() => {}}
           onSave={() => void saveOutput()}
           onCopy={() => void copyOutput()}
           onSearchChange={setSearchQuery}
-          onToggleTheme={toggleThemeMode}
+          onThemeModeChange={setThemeMode}
         />
 
         <EditorShell
@@ -100,7 +102,8 @@ export const App = () => {
           inputText={inputText}
           outputText={outputText}
           searchQuery={searchQuery}
-          onInputChange={setInputText}
+          onEditInputChange={setInputText}
+          onIngestInput={ingestInputText}
           onOpenFile={openFile}
         />
       </div>
