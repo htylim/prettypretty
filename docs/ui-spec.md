@@ -20,8 +20,7 @@
 - Pane/content sync rule: input pane visible means `Input` active, output pane visible means `Output` active.
 - Empty-content rule in input mode: `Input` stays active and `Output` is disabled until content exists.
 - Empty-content exception in output mode: if ingestion sets empty text and switches to output, `Output` stays active and enabled.
-- `Collapse` and `Expand`: visible, enabled only in output mode (placeholder behavior in step 1).
-- `Save` and `Copy`: visible only in output mode.
+- `Collapse`, `Expand`, `Save`, and `Copy`: visible only in output mode, enabled when visible.
 - Search field on the right.
 - Theme mode control on the right: segmented `Light/Dark` toggle with explicit active segment.
 

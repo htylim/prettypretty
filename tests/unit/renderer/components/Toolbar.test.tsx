@@ -23,14 +23,18 @@ const createProps = (
 });
 
 describe('Toolbar', () => {
-  it('shows save and copy only in output mode', () => {
+  it('shows output actions only in output mode', () => {
     const { rerender } = render(<Toolbar {...createProps({ paneMode: 'input' })} />);
 
+    expect(screen.queryByRole('button', { name: 'Collapse' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Expand' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Copy' })).not.toBeInTheDocument();
 
     rerender(<Toolbar {...createProps({ paneMode: 'output' })} />);
 
+    expect(screen.getByRole('button', { name: 'Collapse' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Expand' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Copy' })).toBeInTheDocument();
   });
