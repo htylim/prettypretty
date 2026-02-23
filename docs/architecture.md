@@ -7,6 +7,12 @@
 - `src/renderer`: React UI.
 - `src/shared`: cross-process contracts and shared types.
 
+## Renderer Styling
+
+- Visual tokens and component skinning live in `src/renderer/styles/tailwind.css`.
+- Light/dark theming is driven by `document.documentElement.dataset.theme`, consumed through `:root[data-theme='dark']`.
+- React components (`Toolbar`, `EditorShell`, `App`) bind semantic class names while keeping behavior/state logic separate from styling.
+
 ## Runtime Flow
 
 1. App starts in `src/main/index.ts`.

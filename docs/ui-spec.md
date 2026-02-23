@@ -7,6 +7,26 @@
 - One editor pane below toolbar.
 - Input and output views are mutually exclusive.
 
+## Visual Language
+
+- Theme tokens are centralized in `src/renderer/styles/tailwind.css` and keyed by `:root` + `:root[data-theme='dark']`.
+- Typography:
+  - Display: `Bodoni MT`, fallback `Didot`, serif (empty-state CTA emphasis).
+  - UI: `Avenir Next`, fallback `Segoe UI`, sans-serif.
+  - Code: `SFMono-Regular`, fallback `Menlo`, `Consolas`, monospace.
+- Light mode uses a warm parchment palette:
+  - Background gradient from `#f6f2eb` / `#eee6d8`.
+  - Panel surfaces `#f8f4ec` / `#fffdf8`.
+  - Accent `#b8733b`.
+- Dark mode uses a VS Code-like neutral palette:
+  - Background `#1e1e1e` / `#252526`.
+  - Panel surfaces `#252526` / `#1f1f1f`.
+  - Accent `#3794ff`.
+- Shared component geometry:
+  - Toolbar radius `20px`, editor shell radius `24px`.
+  - Controls use rounded pills (`12px`) and segmented active state tinting.
+  - Focus-visible rings use accent-mixed outlines for keyboard navigation.
+
 ## Empty State
 
 - Centered single-line CTA: `Paste, Drop or Click`.

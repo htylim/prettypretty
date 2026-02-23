@@ -15,13 +15,12 @@ type ToolbarProps = {
   onThemeModeChange: (nextMode: ThemeMode) => void;
 };
 
-const buttonClass =
-  'rounded-xl border border-stone-300 bg-stone-100 px-3 py-1.5 text-sm font-medium text-stone-800 transition hover:bg-stone-200 disabled:cursor-not-allowed disabled:opacity-50';
-const segmentedContainerClass = 'flex rounded-xl border border-stone-300 bg-stone-100 p-1';
-const segmentButtonClass =
-  'rounded-lg px-3 py-1 text-sm font-semibold text-stone-700 transition disabled:cursor-not-allowed disabled:opacity-50';
-const activeSegmentClass = 'bg-stone-200 text-stone-900 shadow-sm';
-const inactiveSegmentClass = 'bg-transparent hover:bg-stone-200/70';
+const buttonClass = 'btn';
+const subtleButtonClass = `${buttonClass} btn-subtle`;
+const segmentedContainerClass = 'segmented';
+const segmentButtonClass = 'seg';
+const activeSegmentClass = 'seg-active';
+const inactiveSegmentClass = 'seg-inactive';
 
 export const Toolbar = ({
   paneMode,
@@ -41,61 +40,63 @@ export const Toolbar = ({
   const isOutputSegmentDisabled = paneMode === 'input' && !hasContent;
 
   return (
-    <header className="flex items-center gap-2 rounded-2xl border border-stone-300 bg-stone-50 p-3 shadow-sm">
-      <button className={buttonClass} onClick={onNew} type="button">
-        New
-      </button>
+    <header className="toolbar">
+      <div className="toolbar-left">
+        <button className={buttonClass} onClick={onNew} type="button">
+          New
+        </button>
 
-      <div className={segmentedContainerClass} data-testid="input-output-toggle" role="group">
-        <button
-          aria-pressed={paneMode === 'input'}
-          className={`${segmentButtonClass} ${paneMode === 'input' ? activeSegmentClass : inactiveSegmentClass}`}
-          data-testid="pane-segment-input"
-          onClick={() => {
-            if (paneMode !== 'input') {
-              onPaneModeChange('input');
-            }
-          }}
-          type="button"
-        >
-          Input
-        </button>
-        <button
-          aria-pressed={paneMode === 'output'}
-          className={`${segmentButtonClass} ${paneMode === 'output' ? activeSegmentClass : inactiveSegmentClass}`}
-          data-testid="pane-segment-output"
-          disabled={isOutputSegmentDisabled}
-          onClick={() => {
-            if (paneMode !== 'output') {
-              onPaneModeChange('output');
-            }
-          }}
-          type="button"
-        >
-          Output
-        </button>
+        <div className={segmentedContainerClass} data-testid="input-output-toggle" role="group">
+          <button
+            aria-pressed={paneMode === 'input'}
+            className={`${segmentButtonClass} ${paneMode === 'input' ? activeSegmentClass : inactiveSegmentClass}`}
+            data-testid="pane-segment-input"
+            onClick={() => {
+              if (paneMode !== 'input') {
+                onPaneModeChange('input');
+              }
+            }}
+            type="button"
+          >
+            Input
+          </button>
+          <button
+            aria-pressed={paneMode === 'output'}
+            className={`${segmentButtonClass} ${paneMode === 'output' ? activeSegmentClass : inactiveSegmentClass}`}
+            data-testid="pane-segment-output"
+            disabled={isOutputSegmentDisabled}
+            onClick={() => {
+              if (paneMode !== 'output') {
+                onPaneModeChange('output');
+              }
+            }}
+            type="button"
+          >
+            Output
+          </button>
+        </div>
+
+        {isOutput ? (
+          <>
+            <button className={subtleButtonClass} onClick={onCollapseAll} type="button">
+              Collapse
+            </button>
+            <button className={subtleButtonClass} onClick={onExpandAll} type="button">
+              Expand
+            </button>
+            <button className={buttonClass} onClick={onSave} type="button">
+              Save
+            </button>
+            <button className={buttonClass} onClick={onCopy} type="button">
+              Copy
+            </button>
+          </>
+        ) : null}
       </div>
 
-      {isOutput ? (
-        <>
-          <button className={buttonClass} onClick={onCollapseAll} type="button">
-            Collapse
-          </button>
-          <button className={buttonClass} onClick={onExpandAll} type="button">
-            Expand
-          </button>
-          <button className={buttonClass} onClick={onSave} type="button">
-            Save
-          </button>
-          <button className={buttonClass} onClick={onCopy} type="button">
-            Copy
-          </button>
-        </>
-      ) : null}
-
-      <div className="ml-auto flex items-center gap-2">
+      <div className="toolbar-right">
         <input
-          className="w-72 rounded-xl border border-stone-300 bg-white px-3 py-1.5 text-sm text-stone-900 outline-none ring-amber-200 focus:ring"
+          className="toolbar-search"
           placeholder={isOutput ? 'Search output' : 'Search input'}
           type="search"
           value={searchQuery}

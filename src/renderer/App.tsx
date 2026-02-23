@@ -80,8 +80,9 @@ export const App = () => {
   }, [themeMode]);
 
   return (
-    <main className="h-screen w-screen bg-app-base px-3 pb-3 pt-2 text-app-foreground">
-      <div className="flex h-full flex-col">
+    <main className="app-root">
+      <div className="app-backdrop" aria-hidden="true" />
+      <div className="app-shell">
         <Toolbar
           paneMode={paneMode}
           themeMode={themeMode}
