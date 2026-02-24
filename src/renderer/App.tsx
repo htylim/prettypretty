@@ -1,6 +1,8 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import type { WindowApi } from '../shared/window-api';
 import { EditorShell } from './components/EditorShell';
+import type { OutputEditorHandle } from './components/OutputEditor';
+import { OUTPUT_INDENT_SIZE } from './output/outputEditorConfig';
 import { Toolbar } from './components/Toolbar';
 import { useUiStore } from './state/uiStore';
 
@@ -12,7 +14,7 @@ const formatText = (rawText: string): string => {
 
   try {
     const parsed = JSON.parse(trimmed);
-    return JSON.stringify(parsed, null, 2);
+    return JSON.stringify(parsed, null, OUTPUT_INDENT_SIZE);
   } catch {
     return rawText;
   }
@@ -23,7 +25,19 @@ const getWindowApi = (): WindowApi | null => {
   return candidate ?? null;
 };
 
+const getOutputDocumentId = (value: string): string => {
+  let hash = 2166136261;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return `output-${(hash >>> 0).toString(16)}-${value.length}`;
+};
+
 export const App = () => {
+  const outputEditorRef = useRef<OutputEditorHandle>(null);
   const paneMode = useUiStore((state) => state.paneMode);
   const themeMode = useUiStore((state) => state.themeMode);
   const inputText = useUiStore((state) => state.inputText);
@@ -35,6 +49,7 @@ export const App = () => {
   const setSearchQuery = useUiStore((state) => state.setSearchQuery);
 
   const outputText = useMemo(() => formatText(inputText), [inputText]);
+  const outputDocumentId = useMemo(() => getOutputDocumentId(outputText), [outputText]);
   const hasContent = inputText.trim().length > 0;
   const ingestInputText = (nextText: string): void => {
     setInputText(nextText);
@@ -90,8 +105,8 @@ export const App = () => {
           searchQuery={searchQuery}
           onNew={handleNew}
           onPaneModeChange={setPaneMode}
-          onCollapseAll={() => {}}
-          onExpandAll={() => {}}
+          onCollapseAll={() => outputEditorRef.current?.collapseAll()}
+          onExpandAll={() => outputEditorRef.current?.expandAll()}
           onSave={() => void saveOutput()}
           onCopy={() => void copyOutput()}
           onSearchChange={setSearchQuery}
@@ -100,9 +115,12 @@ export const App = () => {
 
         <EditorShell
           paneMode={paneMode}
+          themeMode={themeMode}
           inputText={inputText}
           outputText={outputText}
+          outputDocumentId={outputDocumentId}
           searchQuery={searchQuery}
+          outputEditorRef={outputEditorRef}
           onEditInputChange={setInputText}
           onIngestInput={ingestInputText}
           onOpenFile={openFile}

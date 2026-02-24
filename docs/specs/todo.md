@@ -6,3 +6,4 @@
 - add loading bar
 - Have a dropdown/toggle to select which AI to fallback to in the UI
 - Have a macos menu bar component to keep prettypretty loaded into memory (and hidden), and have a shortcut key (configurable) that would automatically copy text into clipboard, launch the UI and pate the clipboard into the app.
+- Create e2e tests that verify the layout of the indented text and that all is as should be

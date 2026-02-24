@@ -26,7 +26,8 @@
 - Pane/content sync rule: input pane visible means `Input` active, output pane visible means `Output` active.
 - Empty-content rule in input mode: `Input` stays active and `Output` is disabled until content exists.
 - Empty-content exception in output mode: if ingestion sets empty text and switches to output, `Output` stays active and enabled.
-- `Collapse`, `Expand`, `Save`, and `Copy`: always visible; disabled in input mode and enabled in output mode.
+- `Expand`, `Collapse`, `Save`, and `Copy`: always visible; disabled in input mode and enabled in output mode.
+- `Expand`/`Collapse` are wired to output editor unfold-all/fold-all actions in output mode.
 - Toolbar action visual treatment follows the design-style button pattern.
 - Search field on the right.
 - Theme mode control on the right: segmented `Light/Dark` toggle with explicit active segment.
@@ -34,8 +35,14 @@
 ## Editing Rules
 
 - Input pane: editable textarea.
-- Output pane: read-only display.
+- Output pane: Monaco-based read-only code viewer.
 - Output is derived from input and updates with input changes.
 - Unified ingestion flow: drop, paste, and click-open all set input through the same ingestion path.
 - Ingestion behavior: load input text, apply existing prettify logic, and switch pane mode to output.
 - Manual typing behavior: updates input text without forcing output mode.
+- Output mode language detection is heuristic and parser-independent, with malformed JSON-like content preferring JSON highlighting.
+- Output mode line numbers are always visible in current scope.
+- Output mode minimap is enabled for document-level navigation.
+- Output mode search highlights use Monaco decorations (text content is never mutated).
+- Output mode fold/view state persists for the current document identity during the app session.
+- Output-mode JSON prettify indentation and Monaco tab/guide indentation are sourced from the same renderer constant so they stay synchronized.

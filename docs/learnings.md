@@ -23,3 +23,10 @@
 - For IDE-grade output upgrades, capture package choice in spec first (Monaco vs alternatives) and lock explicit reasons (parity, ecosystem maturity, malformed-input behavior) before implementation tasks.
 - For malformed structured text, language detection should be heuristic and parser-independent so syntax highlighting can still work even when prettification fails.
 - When optional UX controls are deferred (for example line-number visibility), keep a dedicated config seam in the implementation instead of adding premature state/settings plumbing.
+- Monaco search highlighting should use editor decorations rather than mutating output strings, so copy/save behavior stays content-accurate.
+- Fold/view persistence for read-only output works reliably when keyed to deterministic output identity (hash + length) and restored through Monaco view state APIs.
+- When output text is app-formatted JSON, Monaco indentation settings (`tabSize`, `detectIndentation`, `insertSpaces`) should share the same source constant as JSON stringify spacing to avoid visual guide drift.
+- Do not style Monaco text metrics (`font-size`, `line-height`, font family) through external CSS selectors like `.view-lines`; set them through Monaco editor options instead, or cursor/selection columns can drift from visible text.
+- Keep toolbar fold controls in semantic action order (`Expand` before `Collapse`) so action scan follows open-then-close flow, and lock it with a unit test that asserts `.btn` render order.
+- Enable output-editor minimap through Monaco options instead of CSS overlays to preserve native document navigation and stay compatible with read-only mode.
+- If commit-message schema enforcement slows local iteration, disable the `commit-msg` hook and keep quality guarantees concentrated in `pre-commit` and `pre-push` checks.

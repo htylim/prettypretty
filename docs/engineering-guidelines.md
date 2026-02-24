@@ -23,7 +23,7 @@
 
 ## Commit Policy
 
-- Conventional Commits enforced via commit hook.
+- Conventional Commits are optional and not enforced by hook.
 - Keep commits scoped and atomic.
 
 ## Hooks

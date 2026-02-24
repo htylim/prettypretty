@@ -7,6 +7,8 @@ Dependencies and tools used in this project. Use these when coding; avoid introd
 - **electron** — Desktop app shell, main process, window lifecycle, IPC.
 - **react** / **react-dom** — Renderer UI.
 - **zustand** — Client-side state (renderer).
+- **monaco-editor** — VS Code editor core for read-only output rendering (syntax highlighting, gutter, folding, guides, theming).
+- **@monaco-editor/react** — React wrapper for Monaco integration in renderer components.
 
 ## Build and Bundling
 
@@ -44,7 +46,7 @@ Dependencies and tools used in this project. Use these when coding; avoid introd
 
 - **husky** — Git hooks.
 - **lint-staged** — Run lint/format on staged files.
-- **@commitlint/cli** / **@commitlint/config-conventional** — Commit message conventions.
+- **@commitlint/cli** / **@commitlint/config-conventional** — Conventional commit lint tooling (currently not hook-enforced).
 - **electron-builder** — Packaging and distributables.
 
 ## Package Manager

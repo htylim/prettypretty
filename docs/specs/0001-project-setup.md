@@ -30,7 +30,7 @@ Establish a production-grade baseline for `prettypretty` so feature development 
 - Lint/format: `ESLint + Prettier`
 - Unit tests: `Vitest + Testing Library`
 - E2E tests: `Playwright` with Electron launcher
-- Commit policy: `Conventional Commits`
+- Commit policy: scoped, atomic commit messages (Conventional Commits optional)
 
 ## Required Files
 
@@ -68,7 +68,6 @@ Establish a production-grade baseline for `prettypretty` so feature development 
 - Coverage report always generated.
 - `test:pairing` enforces test files for renderer modules/components.
 - `pre-commit`: lint-staged.
-- `commit-msg`: commitlint.
 - `pre-push`: `pnpm check` + `pnpm test:e2e`.
 
 ## Verification Checklist

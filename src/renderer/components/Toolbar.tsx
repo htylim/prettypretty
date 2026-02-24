@@ -80,18 +80,18 @@ export const Toolbar = ({
           <button
             className={buttonClass}
             disabled={areOutputActionsDisabled}
-            onClick={onCollapseAll}
-            type="button"
-          >
-            Collapse
-          </button>
-          <button
-            className={buttonClass}
-            disabled={areOutputActionsDisabled}
             onClick={onExpandAll}
             type="button"
           >
             Expand
+          </button>
+          <button
+            className={buttonClass}
+            disabled={areOutputActionsDisabled}
+            onClick={onCollapseAll}
+            type="button"
+          >
+            Collapse
           </button>
           <button
             className={buttonClass}

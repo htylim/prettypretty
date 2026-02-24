@@ -1,6 +1,20 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { createRef } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { EditorShell } from '../../../../src/renderer/components/EditorShell';
+import type { OutputEditorHandle } from '../../../../src/renderer/components/OutputEditor';
+
+vi.mock('../../../../src/renderer/components/OutputEditor', async () => {
+  const React = await import('react');
+
+  return {
+    OutputEditor: React.forwardRef(() =>
+      React.createElement('div', { 'data-testid': 'output-editor' }),
+    ),
+  };
+});
+
+const createOutputEditorRef = () => createRef<OutputEditorHandle>();
 
 describe('EditorShell', () => {
   it('renders empty state when input is empty', () => {
@@ -9,9 +23,12 @@ describe('EditorShell', () => {
     render(
       <EditorShell
         paneMode="input"
+        themeMode="light"
         inputText=""
         outputText=""
+        outputDocumentId="doc-1"
         searchQuery=""
+        outputEditorRef={createOutputEditorRef()}
         onEditInputChange={vi.fn()}
         onIngestInput={vi.fn()}
         onOpenFile={onOpenFile}
@@ -34,9 +51,12 @@ describe('EditorShell', () => {
     render(
       <EditorShell
         paneMode="input"
+        themeMode="light"
         inputText="alpha"
         outputText=""
+        outputDocumentId="doc-2"
         searchQuery=""
+        outputEditorRef={createOutputEditorRef()}
         onEditInputChange={onEditInputChange}
         onIngestInput={onIngestInput}
         onOpenFile={vi.fn().mockResolvedValue(undefined)}
@@ -58,9 +78,12 @@ describe('EditorShell', () => {
     render(
       <EditorShell
         paneMode="input"
+        themeMode="light"
         inputText=""
         outputText=""
+        outputDocumentId="doc-3"
         searchQuery=""
+        outputEditorRef={createOutputEditorRef()}
         onEditInputChange={vi.fn()}
         onIngestInput={onIngestInput}
         onOpenFile={vi.fn().mockResolvedValue(undefined)}
@@ -85,9 +108,12 @@ describe('EditorShell', () => {
     render(
       <EditorShell
         paneMode="input"
+        themeMode="light"
         inputText=""
         outputText=""
+        outputDocumentId="doc-4"
         searchQuery=""
+        outputEditorRef={createOutputEditorRef()}
         onEditInputChange={vi.fn()}
         onIngestInput={onIngestInput}
         onOpenFile={vi.fn().mockResolvedValue(undefined)}
@@ -109,9 +135,12 @@ describe('EditorShell', () => {
     render(
       <EditorShell
         paneMode="input"
+        themeMode="light"
         inputText=""
         outputText=""
+        outputDocumentId="doc-5"
         searchQuery=""
+        outputEditorRef={createOutputEditorRef()}
         onEditInputChange={vi.fn()}
         onIngestInput={onIngestInput}
         onOpenFile={vi.fn().mockResolvedValue(undefined)}
@@ -133,9 +162,12 @@ describe('EditorShell', () => {
     render(
       <EditorShell
         paneMode="input"
+        themeMode="light"
         inputText=""
         outputText=""
+        outputDocumentId="doc-6"
         searchQuery=""
+        outputEditorRef={createOutputEditorRef()}
         onEditInputChange={vi.fn()}
         onIngestInput={onIngestInput}
         onOpenFile={vi.fn().mockResolvedValue(undefined)}
@@ -155,9 +187,12 @@ describe('EditorShell', () => {
     render(
       <EditorShell
         paneMode="output"
+        themeMode="dark"
         inputText="alpha"
         outputText="alpha"
+        outputDocumentId="doc-7"
         searchQuery=""
+        outputEditorRef={createOutputEditorRef()}
         onEditInputChange={vi.fn()}
         onIngestInput={vi.fn()}
         onOpenFile={vi.fn().mockResolvedValue(undefined)}

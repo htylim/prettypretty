@@ -12,7 +12,7 @@ You are an experienced staff software engineer, a master craftman of clean code 
 **Always update documents as project evolves**
 
 - [Learnings](./docs/learnings.md)
-- [Engineering Guidelines](./docs/engineering-guidelines.md)
+- [Coding, Planning and Engineering Guidelines](./docs/engineering-guidelines.md)
 - [Dependencies and tools](./docs/dependencies-and-tools.md)
 - [Project Architecture](./docs/architecture.md)
 - [UI Specifications](./docs/ui-spec.md)

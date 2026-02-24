@@ -30,7 +30,7 @@ This makes long structured outputs harder to scan and navigate.
 
 - Create `OutputEditor` component and replace `<pre className="output-editor">` path in `EditorShell`.
 - Keep `EditorShell` as orchestration surface (drop/paste/open/input), but move output rendering concerns into `OutputEditor`.
-- Keep output editor strictly read-only (`readOnly: true`, no minimap, no inline suggestions, no diagnostics popups).
+- Keep output editor strictly read-only (`readOnly: true`, minimap enabled for navigation, no inline suggestions, no diagnostics popups).
 
 ### Line number scope (current vs future)
 
@@ -52,7 +52,7 @@ This makes long structured outputs harder to scan and navigate.
 
 - Line numbers are always shown in left gutter in current scope.
 - Fold controls visible in gutter on hover only (match requested behavior).
-- Wire toolbar `Collapse` / `Expand` actions to Monaco fold-all and unfold-all actions in output mode.
+- Wire toolbar `Expand` / `Collapse` actions to Monaco unfold-all and fold-all actions in output mode.
 - Maintain current rule: those actions stay disabled in input mode.
 - Persist fold state for the current loaded document while the app session is active and the document identity has not changed.
 
@@ -97,7 +97,7 @@ Reference note for implementation agents: any code snippets in specs are intent 
 - [ ] Malformed JSON-like text still receives JSON-style tokenization heuristically.
 - [ ] Left gutter displays line numbers by default.
 - [ ] Fold controls appear on gutter hover and can collapse/expand nested blocks.
-- [ ] `Collapse` toolbar action folds all output blocks; `Expand` unfolds all output blocks.
+- [ ] `Expand` toolbar action unfolds all output blocks; `Collapse` folds all output blocks.
 - [ ] Colored vertical nesting guides are visible and depth-based in both light and dark themes.
 - [ ] App light/dark toggle updates Monaco theme in output mode.
 - [ ] Line numbers are always visible in current scope, with output-editor configuration seam ready for future settings-driven toggle work.

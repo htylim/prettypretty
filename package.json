@@ -65,6 +65,8 @@
     "vitest": "4.0.18"
   },
   "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
+    "monaco-editor": "^0.55.1",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "zustand": "5.0.11"

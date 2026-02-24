@@ -31,7 +31,7 @@
 
 ## Buttons
 
-- Toolbar action buttons (`New`, `Collapse`, `Expand`, `Save`, `Copy`) must use class `.btn`.
+- Toolbar action buttons (`New`, `Expand`, `Collapse`, `Save`, `Copy`) must use class `.btn`.
 - `.btn` is the default action button style:
   - Height `36px`, radius `12px`.
   - Border `1px solid var(--line)`.
@@ -66,6 +66,21 @@
   - Toolbar radius `20px`.
   - Editor radius `24px`.
   - Toolbar button/input controls use `12px` radius pills.
+
+## Output Editor (Monaco)
+
+- Output mode is rendered by Monaco, not a plain `<pre>`.
+- Monaco theme IDs are fixed: `prettypretty-light` and `prettypretty-dark`.
+- Monaco themes must align with token direction from `src/renderer/styles/tailwind.css`:
+  - light mode uses warm parchment tones,
+  - dark mode uses neutral VS Code-like tones.
+- Output editor must keep visible:
+  - line-number gutter,
+  - document minimap,
+  - fold controls on gutter hover,
+  - indentation guides + bracket-pair guides.
+- Bracket pair colorization must define at least six depth colors before repeating.
+- Search match highlight should use `.output-search-match` and token-derived color mixing (no hardcoded per-theme overrides).
 
 ## Focus and Accessibility
 

@@ -1,0 +1,34 @@
+import { describe, expect, it } from 'vitest';
+import {
+  OUTPUT_INDENT_SIZE,
+  OUTPUT_EDITOR_FONT_FAMILY,
+  OUTPUT_EDITOR_FONT_SIZE,
+  OUTPUT_EDITOR_LINE_HEIGHT,
+  getLineNumbersOption,
+  getOutputEditorOptions,
+} from '../../../../src/renderer/output/outputEditorConfig';
+
+describe('outputEditorConfig', () => {
+  it('enables line numbers through a dedicated seam', () => {
+    expect(getLineNumbersOption()).toBe('on');
+  });
+
+  it('returns read-only Monaco options for output mode', () => {
+    const options = getOutputEditorOptions();
+
+    expect(options.readOnly).toBe(true);
+    expect(options.minimap?.enabled).toBe(true);
+    expect(options.folding).toBe(true);
+    expect(options.showFoldingControls).toBe('mouseover');
+    expect(options.wordWrap).toBe('off');
+    expect(options.renderValidationDecorations).toBe('off');
+    expect(options.lineNumbers).toBe('on');
+    expect(options.guides?.bracketPairsHorizontal).toBe(false);
+    expect(options.tabSize).toBe(OUTPUT_INDENT_SIZE);
+    expect(options.insertSpaces).toBe(true);
+    expect(options.detectIndentation).toBe(false);
+    expect(options.fontFamily).toBe(OUTPUT_EDITOR_FONT_FAMILY);
+    expect(options.fontSize).toBe(OUTPUT_EDITOR_FONT_SIZE);
+    expect(options.lineHeight).toBe(OUTPUT_EDITOR_LINE_HEIGHT);
+  });
+});

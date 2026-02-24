@@ -1,30 +1,28 @@
-import type { ClipboardEventHandler, DragEventHandler } from 'react';
-import type { PaneMode } from '../../shared/types';
+import type { ClipboardEventHandler, DragEventHandler, RefObject } from 'react';
+import type { PaneMode, ThemeMode } from '../../shared/types';
+import { OutputEditor, type OutputEditorHandle } from './OutputEditor';
 
 type EditorShellProps = {
   paneMode: PaneMode;
+  themeMode: ThemeMode;
   inputText: string;
   outputText: string;
+  outputDocumentId: string;
   searchQuery: string;
+  outputEditorRef: RefObject<OutputEditorHandle | null>;
   onEditInputChange: (value: string) => void;
   onIngestInput: (value: string) => void;
   onOpenFile: () => Promise<void>;
 };
 
-const highlightQuery = (value: string, query: string): string => {
-  if (!query) {
-    return value;
-  }
-
-  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return value.replace(new RegExp(escaped, 'gi'), (match) => `<<${match}>>`);
-};
-
 export const EditorShell = ({
   paneMode,
+  themeMode,
   inputText,
   outputText,
+  outputDocumentId,
   searchQuery,
+  outputEditorRef,
   onEditInputChange,
   onIngestInput,
   onOpenFile,
@@ -47,8 +45,6 @@ export const EditorShell = ({
     const pastedText = event.clipboardData.getData('text');
     onIngestInput(pastedText);
   };
-
-  const displayOutput = highlightQuery(outputText, searchQuery);
 
   return (
     <section
@@ -76,9 +72,13 @@ export const EditorShell = ({
           data-testid="input-editor"
         />
       ) : (
-        <pre className="output-editor" data-testid="output-editor">
-          {displayOutput}
-        </pre>
+        <OutputEditor
+          ref={outputEditorRef}
+          documentId={outputDocumentId}
+          searchQuery={searchQuery}
+          themeMode={themeMode}
+          value={outputText}
+        />
       )}
     </section>
   );

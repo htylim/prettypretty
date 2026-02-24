@@ -67,12 +67,24 @@ describe('Toolbar', () => {
   it('uses one shared style for toolbar action buttons', () => {
     render(<Toolbar {...createProps({ paneMode: 'output' })} />);
 
-    const actionButtons = ['New', 'Collapse', 'Expand', 'Save', 'Copy'] as const;
+    const actionButtons = ['New', 'Expand', 'Collapse', 'Save', 'Copy'] as const;
 
     for (const label of actionButtons) {
       const button = screen.getByRole('button', { name: label });
       expect(button.className).toBe('btn');
     }
+  });
+
+  it('renders output actions in expand-then-collapse order', () => {
+    render(<Toolbar {...createProps({ paneMode: 'output' })} />);
+
+    const expandButton = screen.getByRole('button', { name: 'Expand' });
+    const toolbarLeft = expandButton.closest('.toolbar-left');
+    const actionLabels = Array.from(toolbarLeft?.querySelectorAll('button.btn') ?? []).map(
+      (button) => button.textContent?.trim(),
+    );
+
+    expect(actionLabels).toEqual(['New', 'Expand', 'Collapse', 'Save', 'Copy']);
   });
 
   it('renders pane segments with active/disabled states and explicit mode changes', async () => {

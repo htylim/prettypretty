@@ -7,11 +7,41 @@ import { useUiStore } from '../../../src/renderer/state/uiStore';
 const openFileMock = vi.fn();
 const saveMock = vi.fn();
 const copyMock = vi.fn();
+const collapseAllMock = vi.fn();
+const expandAllMock = vi.fn();
+
+vi.mock('../../../src/renderer/components/OutputEditor', async () => {
+  const React = await import('react');
+
+  return {
+    OutputEditor: React.forwardRef(
+      (
+        props: {
+          value: string;
+        },
+        ref,
+      ) => {
+        React.useImperativeHandle(
+          ref,
+          () => ({
+            collapseAll: collapseAllMock,
+            expandAll: expandAllMock,
+          }),
+          [],
+        );
+
+        return React.createElement('div', { 'data-testid': 'output-editor' }, props.value);
+      },
+    ),
+  };
+});
 
 beforeEach(() => {
   openFileMock.mockReset();
   saveMock.mockReset();
   copyMock.mockReset();
+  collapseAllMock.mockReset();
+  expandAllMock.mockReset();
   openFileMock.mockResolvedValue(null);
   saveMock.mockResolvedValue(null);
   copyMock.mockResolvedValue(undefined);
@@ -171,5 +201,24 @@ describe('App', () => {
 
     expect(screen.getByTestId('theme-segment-dark')).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByTestId('theme-segment-light')).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('wires collapse and expand toolbar actions to output editor controller', async () => {
+    const user = userEvent.setup();
+
+    act(() => {
+      useUiStore.setState({
+        paneMode: 'output',
+        inputText: '{"a":1}',
+      });
+    });
+
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: 'Collapse' }));
+    await user.click(screen.getByRole('button', { name: 'Expand' }));
+
+    expect(collapseAllMock).toHaveBeenCalledTimes(1);
+    expect(expandAllMock).toHaveBeenCalledTimes(1);
   });
 });
