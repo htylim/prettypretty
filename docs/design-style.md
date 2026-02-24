@@ -32,6 +32,7 @@
 ## Buttons
 
 - Toolbar action buttons (`New`, `Expand`, `Collapse`, `Save`, `Copy`) must use class `.btn`.
+- Toolbar controls should include `title` tooltips that describe the action and include keyboard shortcut hints where available.
 - `.btn` is the default action button style:
   - Height `36px`, radius `12px`.
   - Border `1px solid var(--line)`.
@@ -48,7 +49,6 @@
 
 ## Inputs
 
-- Toolbar search input must use `.toolbar-search`.
 - Shared form geometry for toolbar controls:
   - Height aligned to action buttons (`36px`).
   - Rounded corners and tokenized border/background.
@@ -80,7 +80,7 @@
   - fold controls on gutter hover,
   - indentation guides + bracket-pair guides.
 - Bracket pair colorization must define at least six depth colors before repeating.
-- Search match highlight should use `.output-search-match` and token-derived color mixing (no hardcoded per-theme overrides).
+- Search in output mode should use Monaco's native find widget (no custom decoration class for search matches).
 
 ## Focus and Accessibility
 

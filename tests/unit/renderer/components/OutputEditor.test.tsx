@@ -14,14 +14,14 @@ const {
   editorRenderSpy,
   foldRunMock,
   unfoldRunMock,
+  findRunMock,
+  focusMock,
   restoreViewStateMock,
   saveViewStateMock,
-  deltaDecorationsMock,
   setScrollTopMock,
   setScrollLeftMock,
   setPositionMock,
   getActionMock,
-  currentValueRef,
 } = vi.hoisted(() => ({
   configureMonacoMock: vi.fn(),
   registerMonacoThemesMock: vi.fn(),
@@ -32,14 +32,14 @@ const {
   editorRenderSpy: vi.fn(),
   foldRunMock: vi.fn(async () => undefined),
   unfoldRunMock: vi.fn(async () => undefined),
+  findRunMock: vi.fn(async () => undefined),
+  focusMock: vi.fn(),
   restoreViewStateMock: vi.fn(),
   saveViewStateMock: vi.fn(),
-  deltaDecorationsMock: vi.fn(),
   setScrollTopMock: vi.fn(),
   setScrollLeftMock: vi.fn(),
   setPositionMock: vi.fn(),
   getActionMock: vi.fn(),
-  currentValueRef: { current: '' },
 }));
 
 vi.mock('../../../../src/renderer/output/configureMonaco', () => ({
@@ -71,35 +71,9 @@ type MonacoRenderProps = {
   ) => void;
 };
 
-let decorationCounter = 0;
 let viewStateCounter = 0;
 
-const getPositionAt = (offset: number): { lineNumber: number; column: number } => {
-  const bounded = Math.max(0, Math.min(offset, currentValueRef.current.length));
-  const before = currentValueRef.current.slice(0, bounded);
-  const lines = before.split('\n');
-  const lastLine = lines.at(-1) ?? '';
-
-  return {
-    lineNumber: lines.length,
-    column: lastLine.length + 1,
-  };
-};
-
-const modelMock = {
-  getValue: () => currentValueRef.current,
-  getPositionAt,
-};
-
 const editorMock = {
-  getModel: () => modelMock,
-  deltaDecorations: (
-    _oldDecorations: string[],
-    nextDecorations: MonacoEditor.IModelDeltaDecoration[],
-  ): string[] => {
-    deltaDecorationsMock(_oldDecorations, nextDecorations);
-    return nextDecorations.map(() => `decoration-${decorationCounter++}`);
-  },
   getAction: (id: string): { run: () => Promise<void> } | undefined => {
     getActionMock(id);
     if (id === 'editor.foldAll') {
@@ -108,6 +82,10 @@ const editorMock = {
 
     if (id === 'editor.unfoldAll') {
       return { run: unfoldRunMock };
+    }
+
+    if (id === 'actions.find') {
+      return { run: findRunMock };
     }
 
     return undefined;
@@ -121,6 +99,7 @@ const editorMock = {
   setScrollTop: setScrollTopMock,
   setScrollLeft: setScrollLeftMock,
   setPosition: setPositionMock,
+  focus: focusMock,
 } as unknown as MonacoEditor.IStandaloneCodeEditor;
 
 const monacoMock = {
@@ -142,10 +121,6 @@ vi.mock('@monaco-editor/react', async () => {
     });
 
     React.useEffect(() => {
-      currentValueRef.current = value ?? '';
-    }, [value]);
-
-    React.useEffect(() => {
       onMount?.(editorMock, monacoMock);
       return () => {
         onUnmount?.(editorMock, monacoMock);
@@ -160,8 +135,6 @@ vi.mock('@monaco-editor/react', async () => {
 
 describe('OutputEditor', () => {
   beforeEach(() => {
-    currentValueRef.current = '';
-    decorationCounter = 0;
     viewStateCounter = 0;
     configureMonacoMock.mockClear();
     registerMonacoThemesMock.mockClear();
@@ -169,9 +142,10 @@ describe('OutputEditor', () => {
     editorRenderSpy.mockClear();
     foldRunMock.mockClear();
     unfoldRunMock.mockClear();
+    findRunMock.mockClear();
+    focusMock.mockClear();
     restoreViewStateMock.mockClear();
     saveViewStateMock.mockClear();
-    deltaDecorationsMock.mockClear();
     setScrollTopMock.mockClear();
     setScrollLeftMock.mockClear();
     setPositionMock.mockClear();
@@ -179,14 +153,7 @@ describe('OutputEditor', () => {
   });
 
   it('renders Monaco in read-only mode with line numbers seam', () => {
-    render(
-      <OutputEditor
-        documentId="doc-readonly-1"
-        searchQuery=""
-        themeMode="light"
-        value={'{"a":1}'}
-      />,
-    );
+    render(<OutputEditor documentId="doc-readonly-1" themeMode="light" value={'{"a":1}'} />);
 
     expect(configureMonacoMock).toHaveBeenCalledTimes(1);
     expect(registerMonacoThemesMock).toHaveBeenCalledTimes(1);
@@ -200,57 +167,26 @@ describe('OutputEditor', () => {
 
   it('updates Monaco theme without mutating content', () => {
     const { rerender } = render(
-      <OutputEditor
-        documentId="doc-theme-1"
-        searchQuery=""
-        themeMode="light"
-        value={'{"alpha":"beta"}'}
-      />,
+      <OutputEditor documentId="doc-theme-1" themeMode="light" value='{"alpha":"beta"}' />,
     );
 
     let lastRender = editorRenderSpy.mock.calls.at(-1)?.[0] as MonacoRenderProps;
     expect(lastRender.theme).toBe('prettypretty-light');
     expect(lastRender.value).toBe('{"alpha":"beta"}');
 
-    rerender(
-      <OutputEditor
-        documentId="doc-theme-1"
-        searchQuery=""
-        themeMode="dark"
-        value={'{"alpha":"beta"}'}
-      />,
-    );
+    rerender(<OutputEditor documentId="doc-theme-1" themeMode="dark" value='{"alpha":"beta"}' />);
 
     lastRender = editorRenderSpy.mock.calls.at(-1)?.[0] as MonacoRenderProps;
     expect(lastRender.theme).toBe('prettypretty-dark');
     expect(lastRender.value).toBe('{"alpha":"beta"}');
   });
 
-  it('decorates search matches without mutating text', () => {
-    render(
-      <OutputEditor
-        documentId="doc-search-1"
-        searchQuery="alpha"
-        themeMode="light"
-        value={'{"a":"Alpha"}\n{"b":"alpha"}'}
-      />,
-    );
-
-    const lastDeltaCall = deltaDecorationsMock.mock.calls.at(-1);
-    expect(lastDeltaCall).toBeDefined();
-    const decorations = lastDeltaCall?.[1] as MonacoEditor.IModelDeltaDecoration[];
-    expect(decorations).toHaveLength(2);
-    expect(decorations[0]?.options.inlineClassName).toBe('output-search-match');
-    expect(currentValueRef.current).toBe('{"a":"Alpha"}\n{"b":"alpha"}');
-  });
-
-  it('exposes collapse and expand actions through ref handle', async () => {
+  it('exposes collapse, expand, and find actions through ref handle', async () => {
     const handleRef = createRef<OutputEditorHandle>();
     render(
       <OutputEditor
         ref={handleRef}
         documentId="doc-actions-1"
-        searchQuery=""
         themeMode="light"
         value="const x = 1;"
       />,
@@ -258,25 +194,25 @@ describe('OutputEditor', () => {
 
     await handleRef.current?.collapseAll();
     await handleRef.current?.expandAll();
+    await handleRef.current?.openFind();
 
     expect(getActionMock).toHaveBeenCalledWith('editor.foldAll');
     expect(getActionMock).toHaveBeenCalledWith('editor.unfoldAll');
+    expect(getActionMock).toHaveBeenCalledWith('actions.find');
     expect(foldRunMock).toHaveBeenCalledTimes(1);
     expect(unfoldRunMock).toHaveBeenCalledTimes(1);
+    expect(findRunMock).toHaveBeenCalledTimes(1);
+    expect(focusMock).toHaveBeenCalledTimes(1);
   });
 
   it('persists and restores view state by document id', () => {
     const { rerender } = render(
-      <OutputEditor documentId="doc-fold-A" searchQuery="" themeMode="light" value={'{"a":1}'} />,
+      <OutputEditor documentId="doc-fold-A" themeMode="light" value='{"a":1}' />,
     );
 
-    rerender(
-      <OutputEditor documentId="doc-fold-B" searchQuery="" themeMode="light" value={'{"b":2}'} />,
-    );
+    rerender(<OutputEditor documentId="doc-fold-B" themeMode="light" value='{"b":2}' />);
 
-    rerender(
-      <OutputEditor documentId="doc-fold-A" searchQuery="" themeMode="light" value={'{"a":1}'} />,
-    );
+    rerender(<OutputEditor documentId="doc-fold-A" themeMode="light" value='{"a":1}' />);
 
     const restoredStates = restoreViewStateMock.mock.calls.map(
       (args) => args[0] as { token?: string },

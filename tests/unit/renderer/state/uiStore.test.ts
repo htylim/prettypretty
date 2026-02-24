@@ -7,7 +7,6 @@ describe('uiStore', () => {
       paneMode: 'input',
       themeMode: 'light',
       inputText: '',
-      searchQuery: '',
     });
 
     useUiStore.getState().togglePaneMode();
@@ -17,18 +16,16 @@ describe('uiStore', () => {
     expect(useUiStore.getState().themeMode).toBe('dark');
   });
 
-  it('reset clears content and search', () => {
+  it('reset clears content and returns to input mode', () => {
     useUiStore.setState({
       paneMode: 'output',
       themeMode: 'dark',
       inputText: 'content',
-      searchQuery: 'q',
     });
 
     useUiStore.getState().reset();
 
     expect(useUiStore.getState().paneMode).toBe('input');
     expect(useUiStore.getState().inputText).toBe('');
-    expect(useUiStore.getState().searchQuery).toBe('');
   });
 });

@@ -30,3 +30,5 @@
 - Keep toolbar fold controls in semantic action order (`Expand` before `Collapse`) so action scan follows open-then-close flow, and lock it with a unit test that asserts `.btn` render order.
 - Enable output-editor minimap through Monaco options instead of CSS overlays to preserve native document navigation and stay compatible with read-only mode.
 - If commit-message schema enforcement slows local iteration, disable the `commit-msg` hook and keep quality guarantees concentrated in `pre-commit` and `pre-push` checks.
+- Register keyboard shortcuts at app scope and gate execution with the same mode checks as the corresponding toolbar controls, so disabled UI states and shortcut behavior stay consistent.
+- When Monaco is the output viewer, prefer native editor find (`Cmd+F` -> `actions.find`) over duplicating search UI and custom decoration plumbing.

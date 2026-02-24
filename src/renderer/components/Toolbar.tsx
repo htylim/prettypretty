@@ -4,14 +4,12 @@ type ToolbarProps = {
   paneMode: PaneMode;
   themeMode: ThemeMode;
   hasContent: boolean;
-  searchQuery: string;
   onNew: () => void;
   onPaneModeChange: (nextMode: PaneMode) => void;
   onCollapseAll: () => void;
   onExpandAll: () => void;
   onSave: () => void;
   onCopy: () => void;
-  onSearchChange: (value: string) => void;
   onThemeModeChange: (nextMode: ThemeMode) => void;
 };
 
@@ -20,19 +18,28 @@ const segmentedContainerClass = 'segmented';
 const segmentButtonClass = 'seg';
 const activeSegmentClass = 'seg-active';
 const inactiveSegmentClass = 'seg-inactive';
+const tooltips = {
+  new: 'New (Cmd+N)',
+  input: 'Switch to input (Cmd+I)',
+  output: 'Switch to output (Cmd+O)',
+  expand: 'Expand all',
+  collapse: 'Collapse all',
+  save: 'Save (Cmd+S)',
+  copy: 'Copy (Cmd+Shift+C)',
+  lightTheme: 'Switch to light theme',
+  darkTheme: 'Switch to dark theme',
+} as const;
 
 export const Toolbar = ({
   paneMode,
   themeMode,
   hasContent,
-  searchQuery,
   onNew,
   onPaneModeChange,
   onCollapseAll,
   onExpandAll,
   onSave,
   onCopy,
-  onSearchChange,
   onThemeModeChange,
 }: ToolbarProps) => {
   const isOutput = paneMode === 'output';
@@ -42,7 +49,7 @@ export const Toolbar = ({
   return (
     <header className="toolbar">
       <div className="toolbar-left">
-        <button className={buttonClass} onClick={onNew} type="button">
+        <button className={buttonClass} onClick={onNew} title={tooltips.new} type="button">
           New
         </button>
 
@@ -56,6 +63,7 @@ export const Toolbar = ({
                 onPaneModeChange('input');
               }
             }}
+            title={tooltips.input}
             type="button"
           >
             Input
@@ -70,6 +78,7 @@ export const Toolbar = ({
                 onPaneModeChange('output');
               }
             }}
+            title={tooltips.output}
             type="button"
           >
             Output
@@ -81,6 +90,7 @@ export const Toolbar = ({
             className={buttonClass}
             disabled={areOutputActionsDisabled}
             onClick={onExpandAll}
+            title={tooltips.expand}
             type="button"
           >
             Expand
@@ -89,6 +99,7 @@ export const Toolbar = ({
             className={buttonClass}
             disabled={areOutputActionsDisabled}
             onClick={onCollapseAll}
+            title={tooltips.collapse}
             type="button"
           >
             Collapse
@@ -97,6 +108,7 @@ export const Toolbar = ({
             className={buttonClass}
             disabled={areOutputActionsDisabled}
             onClick={onSave}
+            title={tooltips.save}
             type="button"
           >
             Save
@@ -105,6 +117,7 @@ export const Toolbar = ({
             className={buttonClass}
             disabled={areOutputActionsDisabled}
             onClick={onCopy}
+            title={tooltips.copy}
             type="button"
           >
             Copy
@@ -113,15 +126,6 @@ export const Toolbar = ({
       </div>
 
       <div className="toolbar-right">
-        <input
-          className="toolbar-search"
-          placeholder={isOutput ? 'Search output' : 'Search input'}
-          type="search"
-          value={searchQuery}
-          onChange={(event) => onSearchChange(event.target.value)}
-          data-testid="search-input"
-        />
-
         <div className={segmentedContainerClass} data-testid="theme-toggle" role="group">
           <button
             aria-pressed={themeMode === 'light'}
@@ -132,6 +136,7 @@ export const Toolbar = ({
                 onThemeModeChange('light');
               }
             }}
+            title={tooltips.lightTheme}
             type="button"
           >
             Light
@@ -145,6 +150,7 @@ export const Toolbar = ({
                 onThemeModeChange('dark');
               }
             }}
+            title={tooltips.darkTheme}
             type="button"
           >
             Dark

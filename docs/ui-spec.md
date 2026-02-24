@@ -28,8 +28,14 @@
 - Empty-content exception in output mode: if ingestion sets empty text and switches to output, `Output` stays active and enabled.
 - `Expand`, `Collapse`, `Save`, and `Copy`: always visible; disabled in input mode and enabled in output mode.
 - `Expand`/`Collapse` are wired to output editor unfold-all/fold-all actions in output mode.
+- Keyboard shortcuts:
+  - `Cmd+N`: trigger `New`.
+  - `Cmd+I`: switch to `Input`.
+  - `Cmd+O`: switch to `Output` only when output mode is available (same enable/disable rule as `Output` segment).
+  - `Cmd+S`: trigger `Save` only in output mode.
+  - `Cmd+Shift+C`: trigger `Copy` only in output mode.
+  - `Cmd+F`: open Monaco find widget in output mode, regardless of current DOM focus.
 - Toolbar action visual treatment follows the design-style button pattern.
-- Search field on the right.
 - Theme mode control on the right: segmented `Light/Dark` toggle with explicit active segment.
 
 ## Editing Rules
@@ -43,6 +49,6 @@
 - Output mode language detection is heuristic and parser-independent, with malformed JSON-like content preferring JSON highlighting.
 - Output mode line numbers are always visible in current scope.
 - Output mode minimap is enabled for document-level navigation.
-- Output mode search highlights use Monaco decorations (text content is never mutated).
+- Output mode search uses Monaco native find widget (triggered by `Cmd+F` in output mode).
 - Output mode fold/view state persists for the current document identity during the app session.
 - Output-mode JSON prettify indentation and Monaco tab/guide indentation are sourced from the same renderer constant so they stay synchronized.

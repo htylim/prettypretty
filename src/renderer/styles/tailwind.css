@@ -158,21 +158,6 @@ body {
   cursor: not-allowed;
 }
 
-.toolbar-search {
-  height: 36px;
-  width: min(430px, 46vw);
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--panel-alt);
-  color: var(--text);
-  padding: 0 14px;
-}
-
-.toolbar-search::placeholder {
-  color: var(--muted);
-}
-
-.toolbar-search:focus-visible,
 .btn:focus-visible,
 .seg:focus-visible,
 .empty-state-link:focus-visible {
@@ -251,11 +236,6 @@ body {
   background: transparent !important;
 }
 
-.output-search-match {
-  background: color-mix(in oklab, var(--accent) 22%, transparent);
-  border-radius: 3px;
-}
-
 @media (max-width: 1240px) {
   .app-root {
     overflow: auto;
@@ -269,10 +249,6 @@ body {
   .toolbar {
     flex-direction: column;
     align-items: stretch;
-  }
-
-  .toolbar-search {
-    width: 100%;
   }
 
   .editor-shell {

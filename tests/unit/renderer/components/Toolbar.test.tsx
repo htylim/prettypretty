@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import { type ComponentProps, useState } from 'react';
+import { type ComponentProps } from 'react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { Toolbar } from '../../../../src/renderer/components/Toolbar';
@@ -10,14 +10,12 @@ const createProps = (
   paneMode: 'input',
   themeMode: 'light',
   hasContent: true,
-  searchQuery: '',
   onNew: vi.fn(),
   onPaneModeChange: vi.fn(),
   onCollapseAll: vi.fn(),
   onExpandAll: vi.fn(),
   onSave: vi.fn(),
   onCopy: vi.fn(),
-  onSearchChange: vi.fn(),
   onThemeModeChange: vi.fn(),
   ...overrides,
 });
@@ -85,6 +83,30 @@ describe('Toolbar', () => {
     );
 
     expect(actionLabels).toEqual(['New', 'Expand', 'Collapse', 'Save', 'Copy']);
+  });
+
+  it('shows tooltips with shortcut hints for primary controls', () => {
+    render(<Toolbar {...createProps({ paneMode: 'output' })} />);
+
+    expect(screen.getByRole('button', { name: 'New' })).toHaveAttribute('title', 'New (Cmd+N)');
+    expect(screen.getByTestId('pane-segment-input')).toHaveAttribute(
+      'title',
+      'Switch to input (Cmd+I)',
+    );
+    expect(screen.getByTestId('pane-segment-output')).toHaveAttribute(
+      'title',
+      'Switch to output (Cmd+O)',
+    );
+    expect(screen.getByRole('button', { name: 'Save' })).toHaveAttribute('title', 'Save (Cmd+S)');
+    expect(screen.getByRole('button', { name: 'Copy' })).toHaveAttribute(
+      'title',
+      'Copy (Cmd+Shift+C)',
+    );
+  });
+
+  it('does not render a toolbar search input', () => {
+    render(<Toolbar {...createProps({ paneMode: 'output' })} />);
+    expect(screen.queryByTestId('search-input')).not.toBeInTheDocument();
   });
 
   it('renders pane segments with active/disabled states and explicit mode changes', async () => {
@@ -173,31 +195,5 @@ describe('Toolbar', () => {
 
     expect(onThemeModeChange).toHaveBeenCalledTimes(2);
     expect(onThemeModeChange).toHaveBeenNthCalledWith(2, 'light');
-  });
-
-  it('emits search value changes', async () => {
-    const user = userEvent.setup();
-    const onSearchChange = vi.fn();
-
-    const Harness = () => {
-      const [searchQuery, setSearchQuery] = useState('');
-      return (
-        <Toolbar
-          {...createProps({
-            searchQuery,
-            onSearchChange: (next) => {
-              setSearchQuery(next);
-              onSearchChange(next);
-            },
-          })}
-        />
-      );
-    };
-
-    render(<Harness />);
-
-    await user.type(screen.getByTestId('search-input'), 'abc');
-
-    expect(onSearchChange).toHaveBeenLastCalledWith('abc');
   });
 });

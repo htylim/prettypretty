@@ -8,7 +8,6 @@ type EditorShellProps = {
   inputText: string;
   outputText: string;
   outputDocumentId: string;
-  searchQuery: string;
   outputEditorRef: RefObject<OutputEditorHandle | null>;
   onEditInputChange: (value: string) => void;
   onIngestInput: (value: string) => void;
@@ -21,7 +20,6 @@ export const EditorShell = ({
   inputText,
   outputText,
   outputDocumentId,
-  searchQuery,
   outputEditorRef,
   onEditInputChange,
   onIngestInput,
@@ -75,7 +73,6 @@ export const EditorShell = ({
         <OutputEditor
           ref={outputEditorRef}
           documentId={outputDocumentId}
-          searchQuery={searchQuery}
           themeMode={themeMode}
           value={outputText}
         />

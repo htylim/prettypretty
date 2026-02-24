@@ -9,6 +9,7 @@ const saveMock = vi.fn();
 const copyMock = vi.fn();
 const collapseAllMock = vi.fn();
 const expandAllMock = vi.fn();
+const openFindMock = vi.fn();
 
 vi.mock('../../../src/renderer/components/OutputEditor', async () => {
   const React = await import('react');
@@ -26,6 +27,7 @@ vi.mock('../../../src/renderer/components/OutputEditor', async () => {
           () => ({
             collapseAll: collapseAllMock,
             expandAll: expandAllMock,
+            openFind: openFindMock,
           }),
           [],
         );
@@ -42,6 +44,7 @@ beforeEach(() => {
   copyMock.mockReset();
   collapseAllMock.mockReset();
   expandAllMock.mockReset();
+  openFindMock.mockReset();
   openFileMock.mockResolvedValue(null);
   saveMock.mockResolvedValue(null);
   copyMock.mockResolvedValue(undefined);
@@ -61,7 +64,6 @@ beforeEach(() => {
       paneMode: 'input',
       themeMode: 'light',
       inputText: '',
-      searchQuery: '',
     });
   });
 });
@@ -172,7 +174,6 @@ describe('App', () => {
       useUiStore.setState({
         paneMode: 'output',
         inputText: '{"a":1}',
-        searchQuery: 'a',
       });
     });
 
@@ -220,5 +221,50 @@ describe('App', () => {
 
     expect(collapseAllMock).toHaveBeenCalledTimes(1);
     expect(expandAllMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('supports command shortcuts for pane switching, save/copy, and reset', () => {
+    act(() => {
+      useUiStore.setState({
+        paneMode: 'output',
+        inputText: '{"a":1}',
+      });
+    });
+
+    render(<App />);
+
+    fireEvent.keyDown(window, { key: 'i', metaKey: true });
+    expect(screen.getByTestId('pane-segment-input')).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.keyDown(window, { key: 'o', metaKey: true });
+    expect(screen.getByTestId('pane-segment-output')).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.keyDown(window, { key: 's', metaKey: true });
+    fireEvent.keyDown(window, { key: 'c', metaKey: true, shiftKey: true });
+    fireEvent.keyDown(window, { key: 'f', metaKey: true });
+    expect(saveMock).toHaveBeenCalledTimes(1);
+    expect(copyMock).toHaveBeenCalledTimes(1);
+    expect(openFindMock).toHaveBeenCalledTimes(1);
+
+    fireEvent.keyDown(window, { key: 'n', metaKey: true });
+    expect(screen.getByTestId('empty-state-cta')).toHaveTextContent(/^Paste, Drop or Click$/);
+    expect(screen.getByTestId('pane-segment-input')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('pane-segment-output')).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('keeps output-only shortcuts disabled in input mode', () => {
+    render(<App />);
+
+    fireEvent.keyDown(window, { key: 's', metaKey: true });
+    fireEvent.keyDown(window, { key: 'c', metaKey: true, shiftKey: true });
+    fireEvent.keyDown(window, { key: 'f', metaKey: true });
+    fireEvent.keyDown(window, { key: 'o', metaKey: true });
+
+    expect(saveMock).not.toHaveBeenCalled();
+    expect(copyMock).not.toHaveBeenCalled();
+    expect(openFindMock).not.toHaveBeenCalled();
+    expect(screen.getByTestId('pane-segment-input')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('pane-segment-output')).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByTestId('pane-segment-output')).toBeDisabled();
   });
 });

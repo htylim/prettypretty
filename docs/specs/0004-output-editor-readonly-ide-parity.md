@@ -71,9 +71,9 @@ This makes long structured outputs harder to scan and navigate.
 
 ### Search behavior integration
 
-- Remove output string mutation marker approach (`<<query>>`) for output mode.
-- Render search matches via Monaco decorations so text content remains unchanged.
-- Preserve existing search input behavior and synchronization.
+- Use Monaco native find widget for output search behavior.
+- Keep output text unchanged by avoiding any custom search marker/decorations pipeline.
+- Support `Cmd+F` opening Monaco find in output mode even when focus is outside editor content.
 
 ### Accessibility and UX constraints
 
@@ -101,7 +101,7 @@ Reference note for implementation agents: any code snippets in specs are intent 
 - [ ] Colored vertical nesting guides are visible and depth-based in both light and dark themes.
 - [ ] App light/dark toggle updates Monaco theme in output mode.
 - [ ] Line numbers are always visible in current scope, with output-editor configuration seam ready for future settings-driven toggle work.
-- [ ] Search highlighting in output mode uses non-mutating Monaco decorations.
+- [ ] Search in output mode uses Monaco native find with no custom search decoration pipeline.
 - [ ] Existing ingestion flow (drop/paste/open -> output mode) remains intact.
 - [ ] `pnpm test` passes.
 - [ ] `pnpm check` passes.

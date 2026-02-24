@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { WindowApi } from '../shared/window-api';
 import { EditorShell } from './components/EditorShell';
 import type { OutputEditorHandle } from './components/OutputEditor';
@@ -41,22 +41,24 @@ export const App = () => {
   const paneMode = useUiStore((state) => state.paneMode);
   const themeMode = useUiStore((state) => state.themeMode);
   const inputText = useUiStore((state) => state.inputText);
-  const searchQuery = useUiStore((state) => state.searchQuery);
   const reset = useUiStore((state) => state.reset);
   const setPaneMode = useUiStore((state) => state.setPaneMode);
   const setThemeMode = useUiStore((state) => state.setThemeMode);
   const setInputText = useUiStore((state) => state.setInputText);
-  const setSearchQuery = useUiStore((state) => state.setSearchQuery);
 
   const outputText = useMemo(() => formatText(inputText), [inputText]);
   const outputDocumentId = useMemo(() => getOutputDocumentId(outputText), [outputText]);
   const hasContent = inputText.trim().length > 0;
-  const ingestInputText = (nextText: string): void => {
-    setInputText(nextText);
-    setPaneMode('output');
-  };
+  const isOutputMode = paneMode === 'output';
+  const ingestInputText = useCallback(
+    (nextText: string): void => {
+      setInputText(nextText);
+      setPaneMode('output');
+    },
+    [setInputText, setPaneMode],
+  );
 
-  const openFile = async (): Promise<void> => {
+  const openFile = useCallback(async (): Promise<void> => {
     const api = getWindowApi();
     if (!api) {
       return;
@@ -66,33 +68,108 @@ export const App = () => {
     if (file) {
       ingestInputText(file.content);
     }
-  };
+  }, [ingestInputText]);
 
-  const saveOutput = async (): Promise<void> => {
+  const saveOutput = useCallback(async (): Promise<void> => {
     const api = getWindowApi();
     if (!api || !outputText) {
       return;
     }
 
     await api.file.save(outputText);
-  };
+  }, [outputText]);
 
-  const copyOutput = async (): Promise<void> => {
+  const copyOutput = useCallback(async (): Promise<void> => {
     const api = getWindowApi();
     if (!api || !outputText) {
       return;
     }
 
     await api.clipboard.copy(outputText);
-  };
+  }, [outputText]);
 
-  const handleNew = (): void => {
+  const handleNew = useCallback((): void => {
     reset();
-  };
+  }, [reset]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = themeMode;
   }, [themeMode]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (event.defaultPrevented || event.isComposing) {
+        return;
+      }
+
+      if (!event.metaKey || event.ctrlKey || event.altKey) {
+        return;
+      }
+
+      const key = event.key.toLowerCase();
+
+      if (event.shiftKey && key === 'c') {
+        event.preventDefault();
+        if (!isOutputMode) {
+          return;
+        }
+        void copyOutput();
+        return;
+      }
+
+      if (event.shiftKey) {
+        return;
+      }
+
+      if (key === 'n') {
+        event.preventDefault();
+        handleNew();
+        return;
+      }
+
+      if (key === 'i') {
+        event.preventDefault();
+        if (paneMode !== 'input') {
+          setPaneMode('input');
+        }
+        return;
+      }
+
+      if (key === 'o') {
+        event.preventDefault();
+        const canSwitchToOutput = paneMode === 'output' || hasContent;
+        if (!canSwitchToOutput) {
+          return;
+        }
+        if (paneMode !== 'output') {
+          setPaneMode('output');
+        }
+        return;
+      }
+
+      if (key === 's') {
+        event.preventDefault();
+        if (!isOutputMode) {
+          return;
+        }
+        void saveOutput();
+        return;
+      }
+
+      if (key === 'f') {
+        if (!isOutputMode) {
+          return;
+        }
+        event.preventDefault();
+        outputEditorRef.current?.openFind();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [copyOutput, handleNew, hasContent, isOutputMode, paneMode, saveOutput, setPaneMode]);
 
   return (
     <main className="app-root">
@@ -102,14 +179,12 @@ export const App = () => {
           paneMode={paneMode}
           themeMode={themeMode}
           hasContent={hasContent}
-          searchQuery={searchQuery}
           onNew={handleNew}
           onPaneModeChange={setPaneMode}
           onCollapseAll={() => outputEditorRef.current?.collapseAll()}
           onExpandAll={() => outputEditorRef.current?.expandAll()}
           onSave={() => void saveOutput()}
           onCopy={() => void copyOutput()}
-          onSearchChange={setSearchQuery}
           onThemeModeChange={setThemeMode}
         />
 
@@ -119,7 +194,6 @@ export const App = () => {
           inputText={inputText}
           outputText={outputText}
           outputDocumentId={outputDocumentId}
-          searchQuery={searchQuery}
           outputEditorRef={outputEditorRef}
           onEditInputChange={setInputText}
           onIngestInput={ingestInputText}

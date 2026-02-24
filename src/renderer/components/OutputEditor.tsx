@@ -14,71 +14,20 @@ import { getOutputEditorOptions } from '../output/outputEditorConfig';
 export type OutputEditorHandle = {
   collapseAll: () => void;
   expandAll: () => void;
+  openFind: () => void;
 };
 
 type OutputEditorProps = {
   value: string;
-  searchQuery: string;
   themeMode: ThemeMode;
   documentId: string;
 };
 
 const viewStateByDocumentId = new Map<string, MonacoEditor.ICodeEditorViewState | null>();
 
-const escapeForRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-const buildSearchDecorations = (
-  editor: MonacoEditor.IStandaloneCodeEditor,
-  query: string,
-): MonacoEditor.IModelDeltaDecoration[] => {
-  const model = editor.getModel();
-  if (!model || !query) {
-    return [];
-  }
-
-  const pattern = new RegExp(escapeForRegex(query), 'gi');
-  const text = model.getValue();
-  const decorations: MonacoEditor.IModelDeltaDecoration[] = [];
-
-  for (const match of text.matchAll(pattern)) {
-    const startIndex = match.index ?? -1;
-    if (startIndex < 0 || match[0].length === 0) {
-      continue;
-    }
-
-    const endIndex = startIndex + match[0].length;
-    const start = model.getPositionAt(startIndex);
-    const end = model.getPositionAt(endIndex);
-
-    decorations.push({
-      range: {
-        startLineNumber: start.lineNumber,
-        startColumn: start.column,
-        endLineNumber: end.lineNumber,
-        endColumn: end.column,
-      },
-      options: {
-        inlineClassName: 'output-search-match',
-      },
-    });
-  }
-
-  return decorations;
-};
-
-const updateSearchDecorations = (
-  editor: MonacoEditor.IStandaloneCodeEditor,
-  currentDecorationIds: string[],
-  query: string,
-): string[] => {
-  const nextDecorations = buildSearchDecorations(editor, query);
-  return editor.deltaDecorations(currentDecorationIds, nextDecorations);
-};
-
 export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
-  ({ value, searchQuery, themeMode, documentId }, ref) => {
+  ({ value, themeMode, documentId }, ref) => {
     const editorRef = useRef<MonacoEditor.IStandaloneCodeEditor | null>(null);
-    const decorationIdsRef = useRef<string[]>([]);
     const currentDocumentIdRef = useRef(documentId);
     const options = useMemo(() => getOutputEditorOptions(), []);
     const language = useMemo(() => detectOutputLanguage(value), [value]);
@@ -94,19 +43,6 @@ export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
 
       viewStateByDocumentId.set(currentDocumentIdRef.current, editor.saveViewState());
     };
-
-    useEffect(() => {
-      const editor = editorRef.current;
-      if (!editor) {
-        return;
-      }
-
-      decorationIdsRef.current = updateSearchDecorations(
-        editor,
-        decorationIdsRef.current,
-        searchQuery,
-      );
-    }, [searchQuery, value]);
 
     useEffect(() => {
       const editor = editorRef.current;
@@ -134,8 +70,6 @@ export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
         }
 
         viewStateByDocumentId.set(currentDocumentIdRef.current, editor.saveViewState());
-        editor.deltaDecorations(decorationIdsRef.current, []);
-        decorationIdsRef.current = [];
         editorRef.current = null;
       },
       [],
@@ -150,6 +84,15 @@ export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
         expandAll: () => {
           void editorRef.current?.getAction('editor.unfoldAll')?.run();
         },
+        openFind: () => {
+          const editor = editorRef.current;
+          if (!editor) {
+            return;
+          }
+
+          editor.focus();
+          void editor.getAction('actions.find')?.run();
+        },
       }),
       [],
     );
@@ -162,11 +105,6 @@ export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
       if (initialViewState) {
         editor.restoreViewState(initialViewState);
       }
-      decorationIdsRef.current = updateSearchDecorations(
-        editor,
-        decorationIdsRef.current,
-        searchQuery,
-      );
     };
 
     return (
