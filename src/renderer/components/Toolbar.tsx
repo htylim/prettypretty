@@ -44,7 +44,8 @@ export const Toolbar = ({
 }: ToolbarProps) => {
   const isOutput = paneMode === 'output';
   const isOutputSegmentDisabled = paneMode === 'input' && !hasContent;
-  const areOutputActionsDisabled = !isOutput;
+  const areFoldActionsDisabled = !hasContent;
+  const areOutputPersistenceActionsDisabled = !isOutput;
 
   return (
     <header className="toolbar">
@@ -88,7 +89,7 @@ export const Toolbar = ({
         <>
           <button
             className={buttonClass}
-            disabled={areOutputActionsDisabled}
+            disabled={areFoldActionsDisabled}
             onClick={onExpandAll}
             title={tooltips.expand}
             type="button"
@@ -97,7 +98,7 @@ export const Toolbar = ({
           </button>
           <button
             className={buttonClass}
-            disabled={areOutputActionsDisabled}
+            disabled={areFoldActionsDisabled}
             onClick={onCollapseAll}
             title={tooltips.collapse}
             type="button"
@@ -106,7 +107,7 @@ export const Toolbar = ({
           </button>
           <button
             className={buttonClass}
-            disabled={areOutputActionsDisabled}
+            disabled={areOutputPersistenceActionsDisabled}
             onClick={onSave}
             title={tooltips.save}
             type="button"
@@ -115,7 +116,7 @@ export const Toolbar = ({
           </button>
           <button
             className={buttonClass}
-            disabled={areOutputActionsDisabled}
+            disabled={areOutputPersistenceActionsDisabled}
             onClick={onCopy}
             title={tooltips.copy}
             type="button"

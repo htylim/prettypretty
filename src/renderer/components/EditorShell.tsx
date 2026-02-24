@@ -1,5 +1,6 @@
 import type { ClipboardEventHandler, DragEventHandler, RefObject } from 'react';
 import type { PaneMode, ThemeMode } from '../../shared/types';
+import { InputEditor, type InputEditorHandle } from './InputEditor';
 import { OutputEditor, type OutputEditorHandle } from './OutputEditor';
 
 type EditorShellProps = {
@@ -8,6 +9,7 @@ type EditorShellProps = {
   inputText: string;
   outputText: string;
   outputDocumentId: string;
+  inputEditorRef: RefObject<InputEditorHandle | null>;
   outputEditorRef: RefObject<OutputEditorHandle | null>;
   onEditInputChange: (value: string) => void;
   onIngestInput: (value: string) => void;
@@ -20,6 +22,7 @@ export const EditorShell = ({
   inputText,
   outputText,
   outputDocumentId,
+  inputEditorRef,
   outputEditorRef,
   onEditInputChange,
   onIngestInput,
@@ -62,12 +65,11 @@ export const EditorShell = ({
           </p>
         </div>
       ) : paneMode === 'input' ? (
-        <textarea
-          className="input-editor"
+        <InputEditor
+          ref={inputEditorRef}
           value={inputText}
-          onChange={(event) => onEditInputChange(event.target.value)}
-          spellCheck={false}
-          data-testid="input-editor"
+          themeMode={themeMode}
+          onChange={onEditInputChange}
         />
       ) : (
         <OutputEditor

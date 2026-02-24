@@ -67,14 +67,16 @@
   - Editor radius `24px`.
   - Toolbar button/input controls use `12px` radius pills.
 
-## Output Editor (Monaco)
+## Monaco Editors
 
-- Output mode is rendered by Monaco, not a plain `<pre>`.
+- Input and output modes are both rendered by Monaco (separate instances).
 - Monaco theme IDs are fixed: `prettypretty-light` and `prettypretty-dark`.
 - Monaco themes must align with token direction from `src/renderer/styles/tailwind.css`:
   - light mode uses warm parchment tones,
   - dark mode uses neutral VS Code-like tones.
-- Output editor must keep visible:
+- Input and output editors should share the same Monaco preference set.
+- Output editor stays read-only; input editor stays editable.
+- Monaco editors must keep visible:
   - line-number gutter,
   - document minimap,
   - fold controls on gutter hover,

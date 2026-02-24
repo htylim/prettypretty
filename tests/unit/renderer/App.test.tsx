@@ -7,9 +7,36 @@ import { useUiStore } from '../../../src/renderer/state/uiStore';
 const openFileMock = vi.fn();
 const saveMock = vi.fn();
 const copyMock = vi.fn();
-const collapseAllMock = vi.fn();
-const expandAllMock = vi.fn();
+const outputCollapseAllMock = vi.fn();
+const outputExpandAllMock = vi.fn();
+const inputCollapseAllMock = vi.fn();
+const inputExpandAllMock = vi.fn();
 const openFindMock = vi.fn();
+
+vi.mock('../../../src/renderer/components/InputEditor', async () => {
+  const React = await import('react');
+
+  return {
+    InputEditor: React.forwardRef(
+      ({ value, onChange }: { value: string; onChange: (value: string) => void }, ref) => {
+        React.useImperativeHandle(
+          ref,
+          () => ({
+            collapseAll: inputCollapseAllMock,
+            expandAll: inputExpandAllMock,
+          }),
+          [],
+        );
+
+        return React.createElement('textarea', {
+          'data-testid': 'input-editor',
+          value,
+          onChange: (event: { target: { value: string } }) => onChange(event.target.value),
+        });
+      },
+    ),
+  };
+});
 
 vi.mock('../../../src/renderer/components/OutputEditor', async () => {
   const React = await import('react');
@@ -25,8 +52,8 @@ vi.mock('../../../src/renderer/components/OutputEditor', async () => {
         React.useImperativeHandle(
           ref,
           () => ({
-            collapseAll: collapseAllMock,
-            expandAll: expandAllMock,
+            collapseAll: outputCollapseAllMock,
+            expandAll: outputExpandAllMock,
             openFind: openFindMock,
           }),
           [],
@@ -42,8 +69,10 @@ beforeEach(() => {
   openFileMock.mockReset();
   saveMock.mockReset();
   copyMock.mockReset();
-  collapseAllMock.mockReset();
-  expandAllMock.mockReset();
+  outputCollapseAllMock.mockReset();
+  outputExpandAllMock.mockReset();
+  inputCollapseAllMock.mockReset();
+  inputExpandAllMock.mockReset();
   openFindMock.mockReset();
   openFileMock.mockResolvedValue(null);
   saveMock.mockResolvedValue(null);
@@ -76,6 +105,8 @@ describe('App', () => {
     expect(screen.getByTestId('pane-segment-input')).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByTestId('pane-segment-output')).toHaveAttribute('aria-pressed', 'false');
     expect(screen.getByTestId('pane-segment-output')).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Expand' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Collapse' })).toBeDisabled();
   });
 
   it('opens file dialog when click action is pressed', async () => {
@@ -146,6 +177,8 @@ describe('App', () => {
 
     expect(screen.getByTestId('pane-segment-output')).not.toBeDisabled();
     expect(screen.getByTestId('empty-state-cta')).toHaveTextContent(/^Paste, Drop or Click$/);
+    expect(screen.getByRole('button', { name: 'Expand' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Collapse' })).toBeDisabled();
   });
 
   it('typing in input editor updates text without forcing output mode', () => {
@@ -204,7 +237,7 @@ describe('App', () => {
     expect(screen.getByTestId('theme-segment-light')).toHaveAttribute('aria-pressed', 'false');
   });
 
-  it('wires collapse and expand toolbar actions to output editor controller', async () => {
+  it('wires collapse and expand toolbar actions to output editor in output mode', async () => {
     const user = userEvent.setup();
 
     act(() => {
@@ -219,8 +252,31 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: 'Collapse' }));
     await user.click(screen.getByRole('button', { name: 'Expand' }));
 
-    expect(collapseAllMock).toHaveBeenCalledTimes(1);
-    expect(expandAllMock).toHaveBeenCalledTimes(1);
+    expect(outputCollapseAllMock).toHaveBeenCalledTimes(1);
+    expect(outputExpandAllMock).toHaveBeenCalledTimes(1);
+    expect(inputCollapseAllMock).not.toHaveBeenCalled();
+    expect(inputExpandAllMock).not.toHaveBeenCalled();
+  });
+
+  it('wires collapse and expand toolbar actions to input editor in input mode', async () => {
+    const user = userEvent.setup();
+
+    act(() => {
+      useUiStore.setState({
+        paneMode: 'input',
+        inputText: 'alpha',
+      });
+    });
+
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: 'Collapse' }));
+    await user.click(screen.getByRole('button', { name: 'Expand' }));
+
+    expect(inputCollapseAllMock).toHaveBeenCalledTimes(1);
+    expect(inputExpandAllMock).toHaveBeenCalledTimes(1);
+    expect(outputCollapseAllMock).not.toHaveBeenCalled();
+    expect(outputExpandAllMock).not.toHaveBeenCalled();
   });
 
   it('supports command shortcuts for pane switching, save/copy, and reset', () => {

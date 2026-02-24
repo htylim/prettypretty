@@ -7,6 +7,7 @@
 3. As a developer, I can run unit and Electron E2E tests locally.
 4. As a user, I can see a clear empty state and open a file via a click action.
 5. As a user, I can switch between input and output panes after content exists.
+6. As a user, I can edit input content in a Monaco editor with the same visual/editor preferences as output mode.
 
 ## Future Stories (Out of Scope for Step 1)
 

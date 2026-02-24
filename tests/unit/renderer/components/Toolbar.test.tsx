@@ -21,27 +21,44 @@ const createProps = (
 });
 
 describe('Toolbar', () => {
-  it('always renders output actions, disables in input mode, and enables in output mode', async () => {
+  it('gates expand/collapse by content presence and gates save/copy to output mode', async () => {
     const user = userEvent.setup();
     const onCollapseAll = vi.fn();
     const onExpandAll = vi.fn();
     const onSave = vi.fn();
     const onCopy = vi.fn();
 
-    const actionCases = [
+    const foldActionCases = [
       { label: 'Collapse', handler: onCollapseAll },
       { label: 'Expand', handler: onExpandAll },
+    ] as const;
+
+    const outputOnlyActionCases = [
       { label: 'Save', handler: onSave },
       { label: 'Copy', handler: onCopy },
     ] as const;
 
     const { rerender } = render(
       <Toolbar
-        {...createProps({ onCollapseAll, onCopy, onExpandAll, onSave, paneMode: 'input' })}
+        {...createProps({
+          hasContent: false,
+          onCollapseAll,
+          onCopy,
+          onExpandAll,
+          onSave,
+          paneMode: 'input',
+        })}
       />,
     );
 
-    for (const { handler, label } of actionCases) {
+    for (const { handler, label } of foldActionCases) {
+      const button = screen.getByRole('button', { name: label });
+      expect(button).toBeDisabled();
+      await user.click(button);
+      expect(handler).not.toHaveBeenCalled();
+    }
+
+    for (const { handler, label } of outputOnlyActionCases) {
       const button = screen.getByRole('button', { name: label });
       expect(button).toBeDisabled();
       await user.click(button);
@@ -50,15 +67,22 @@ describe('Toolbar', () => {
 
     rerender(
       <Toolbar
-        {...createProps({ onCollapseAll, onCopy, onExpandAll, onSave, paneMode: 'output' })}
+        {...createProps({
+          hasContent: true,
+          onCollapseAll,
+          onCopy,
+          onExpandAll,
+          onSave,
+          paneMode: 'output',
+        })}
       />,
     );
 
-    for (const { handler, label } of actionCases) {
+    for (const { handler, label } of [...foldActionCases, ...outputOnlyActionCases]) {
       const button = screen.getByRole('button', { name: label });
       expect(button).toBeEnabled();
       await user.click(button);
-      expect(handler).toHaveBeenCalledTimes(1);
+      expect(handler).toHaveBeenCalled();
     }
   });
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { WindowApi } from '../shared/window-api';
 import { EditorShell } from './components/EditorShell';
+import type { InputEditorHandle } from './components/InputEditor';
 import type { OutputEditorHandle } from './components/OutputEditor';
 import { OUTPUT_INDENT_SIZE } from './output/outputEditorConfig';
 import { Toolbar } from './components/Toolbar';
@@ -37,6 +38,7 @@ const getOutputDocumentId = (value: string): string => {
 };
 
 export const App = () => {
+  const inputEditorRef = useRef<InputEditorHandle>(null);
   const outputEditorRef = useRef<OutputEditorHandle>(null);
   const paneMode = useUiStore((state) => state.paneMode);
   const themeMode = useUiStore((state) => state.themeMode);
@@ -91,6 +93,24 @@ export const App = () => {
   const handleNew = useCallback((): void => {
     reset();
   }, [reset]);
+
+  const collapseActiveEditor = useCallback((): void => {
+    if (paneMode === 'input') {
+      inputEditorRef.current?.collapseAll();
+      return;
+    }
+
+    outputEditorRef.current?.collapseAll();
+  }, [paneMode]);
+
+  const expandActiveEditor = useCallback((): void => {
+    if (paneMode === 'input') {
+      inputEditorRef.current?.expandAll();
+      return;
+    }
+
+    outputEditorRef.current?.expandAll();
+  }, [paneMode]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = themeMode;
@@ -181,8 +201,8 @@ export const App = () => {
           hasContent={hasContent}
           onNew={handleNew}
           onPaneModeChange={setPaneMode}
-          onCollapseAll={() => outputEditorRef.current?.collapseAll()}
-          onExpandAll={() => outputEditorRef.current?.expandAll()}
+          onCollapseAll={collapseActiveEditor}
+          onExpandAll={expandActiveEditor}
           onSave={() => void saveOutput()}
           onCopy={() => void copyOutput()}
           onThemeModeChange={setThemeMode}
@@ -194,6 +214,7 @@ export const App = () => {
           inputText={inputText}
           outputText={outputText}
           outputDocumentId={outputDocumentId}
+          inputEditorRef={inputEditorRef}
           outputEditorRef={outputEditorRef}
           onEditInputChange={setInputText}
           onIngestInput={ingestInputText}

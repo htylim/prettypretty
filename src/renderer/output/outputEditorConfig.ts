@@ -7,9 +7,7 @@ export const OUTPUT_EDITOR_LINE_HEIGHT = 23;
 
 export const getLineNumbersOption = (): editor.LineNumbersType => 'on';
 
-export const getOutputEditorOptions = (): editor.IStandaloneEditorConstructionOptions => ({
-  readOnly: true,
-  domReadOnly: true,
+const getSharedEditorOptions = (): editor.IStandaloneEditorConstructionOptions => ({
   minimap: { enabled: true },
   lineNumbers: getLineNumbersOption(),
   glyphMargin: true,
@@ -45,4 +43,16 @@ export const getOutputEditorOptions = (): editor.IStandaloneEditorConstructionOp
     horizontal: 'auto',
     vertical: 'auto',
   },
+});
+
+export const getOutputEditorOptions = (): editor.IStandaloneEditorConstructionOptions => ({
+  ...getSharedEditorOptions(),
+  readOnly: true,
+  domReadOnly: true,
+});
+
+export const getInputEditorOptions = (): editor.IStandaloneEditorConstructionOptions => ({
+  ...getSharedEditorOptions(),
+  readOnly: false,
+  domReadOnly: false,
 });

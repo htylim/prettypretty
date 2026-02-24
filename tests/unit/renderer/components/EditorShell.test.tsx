@@ -2,7 +2,28 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { createRef } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { EditorShell } from '../../../../src/renderer/components/EditorShell';
+import type { InputEditorHandle } from '../../../../src/renderer/components/InputEditor';
 import type { OutputEditorHandle } from '../../../../src/renderer/components/OutputEditor';
+
+vi.mock('../../../../src/renderer/components/InputEditor', async () => {
+  const React = await import('react');
+
+  return {
+    InputEditor: React.forwardRef(
+      (
+        { value, onChange }: { value: string; onChange: (value: string) => void },
+        ref: React.ForwardedRef<unknown>,
+      ) => {
+        void ref;
+        return React.createElement('textarea', {
+          'data-testid': 'input-editor',
+          value,
+          onChange: (event: { target: { value: string } }) => onChange(event.target.value),
+        });
+      },
+    ),
+  };
+});
 
 vi.mock('../../../../src/renderer/components/OutputEditor', async () => {
   const React = await import('react');
@@ -15,6 +36,7 @@ vi.mock('../../../../src/renderer/components/OutputEditor', async () => {
 });
 
 const createOutputEditorRef = () => createRef<OutputEditorHandle>();
+const createInputEditorRef = () => createRef<InputEditorHandle>();
 
 describe('EditorShell', () => {
   it('renders empty state when input is empty', () => {
@@ -27,6 +49,7 @@ describe('EditorShell', () => {
         inputText=""
         outputText=""
         outputDocumentId="doc-1"
+        inputEditorRef={createInputEditorRef()}
         outputEditorRef={createOutputEditorRef()}
         onEditInputChange={vi.fn()}
         onIngestInput={vi.fn()}
@@ -43,7 +66,7 @@ describe('EditorShell', () => {
     expect(onOpenFile).toHaveBeenCalledTimes(1);
   });
 
-  it('renders editable input textarea and uses edit callback only', () => {
+  it('renders editable input editor and uses edit callback only', () => {
     const onEditInputChange = vi.fn();
     const onIngestInput = vi.fn();
 
@@ -54,6 +77,7 @@ describe('EditorShell', () => {
         inputText="alpha"
         outputText=""
         outputDocumentId="doc-2"
+        inputEditorRef={createInputEditorRef()}
         outputEditorRef={createOutputEditorRef()}
         onEditInputChange={onEditInputChange}
         onIngestInput={onIngestInput}
@@ -80,6 +104,7 @@ describe('EditorShell', () => {
         inputText=""
         outputText=""
         outputDocumentId="doc-3"
+        inputEditorRef={createInputEditorRef()}
         outputEditorRef={createOutputEditorRef()}
         onEditInputChange={vi.fn()}
         onIngestInput={onIngestInput}
@@ -109,6 +134,7 @@ describe('EditorShell', () => {
         inputText=""
         outputText=""
         outputDocumentId="doc-4"
+        inputEditorRef={createInputEditorRef()}
         outputEditorRef={createOutputEditorRef()}
         onEditInputChange={vi.fn()}
         onIngestInput={onIngestInput}
@@ -135,6 +161,7 @@ describe('EditorShell', () => {
         inputText=""
         outputText=""
         outputDocumentId="doc-5"
+        inputEditorRef={createInputEditorRef()}
         outputEditorRef={createOutputEditorRef()}
         onEditInputChange={vi.fn()}
         onIngestInput={onIngestInput}
@@ -161,6 +188,7 @@ describe('EditorShell', () => {
         inputText=""
         outputText=""
         outputDocumentId="doc-6"
+        inputEditorRef={createInputEditorRef()}
         outputEditorRef={createOutputEditorRef()}
         onEditInputChange={vi.fn()}
         onIngestInput={onIngestInput}
@@ -185,6 +213,7 @@ describe('EditorShell', () => {
         inputText="alpha"
         outputText="alpha"
         outputDocumentId="doc-7"
+        inputEditorRef={createInputEditorRef()}
         outputEditorRef={createOutputEditorRef()}
         onEditInputChange={vi.fn()}
         onIngestInput={vi.fn()}

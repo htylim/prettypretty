@@ -31,5 +31,6 @@
 ## Future Data Flow (Feature Work)
 
 - Input text ingestion (paste/drop/open file).
+- Input rendering through Monaco editable editor instance.
 - Parse + prettify pipeline.
-- Output rendering with syntax/highlighting/folding.
+- Output rendering through Monaco read-only editor instance with syntax/highlighting/folding.

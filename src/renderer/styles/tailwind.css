@@ -209,13 +209,8 @@ body {
 .input-editor {
   width: 100%;
   height: 100%;
-  border: 0;
-  margin: 0;
-  padding: 16px;
+  min-height: 0;
   background: transparent;
-  font-family: var(--font-code);
-  font-size: 0.94rem;
-  line-height: 1.55;
 }
 
 .output-editor {
@@ -225,11 +220,9 @@ body {
   background: transparent;
 }
 
-.input-editor {
-  resize: none;
-  color: var(--text);
-}
-
+.input-editor .monaco-editor,
+.input-editor .monaco-editor-background,
+.input-editor .margin,
 .output-editor .monaco-editor,
 .output-editor .monaco-editor-background,
 .output-editor .margin {

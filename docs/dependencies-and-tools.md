@@ -7,7 +7,7 @@ Dependencies and tools used in this project. Use these when coding; avoid introd
 - **electron** — Desktop app shell, main process, window lifecycle, IPC.
 - **react** / **react-dom** — Renderer UI.
 - **zustand** — Client-side state (renderer).
-- **monaco-editor** — VS Code editor core for read-only output rendering (syntax highlighting, gutter, folding, guides, theming).
+- **monaco-editor** — VS Code editor core for input/output rendering (syntax highlighting, gutter, folding, guides, theming).
 - **@monaco-editor/react** — React wrapper for Monaco integration in renderer components.
 
 ## Build and Bundling
