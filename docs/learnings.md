@@ -17,3 +17,9 @@
 - Action buttons in the toolbar should use one shared style (`.btn`) for consistent affordance; use segmented controls (`.segmented` + `.seg`) for toggle behavior instead of button variants.
 - Documentation split works best when `docs/ui-spec.md` defines interaction/state behavior and `docs/design-style.md` owns visual tokens, palettes, typography, and component styling rules.
 - For visual consistency tests, assert exact class parity (not partial class inclusion) so style variants cannot silently diverge.
+
+## 2026-02-24
+
+- For IDE-grade output upgrades, capture package choice in spec first (Monaco vs alternatives) and lock explicit reasons (parity, ecosystem maturity, malformed-input behavior) before implementation tasks.
+- For malformed structured text, language detection should be heuristic and parser-independent so syntax highlighting can still work even when prettification fails.
+- When optional UX controls are deferred (for example line-number visibility), keep a dedicated config seam in the implementation instead of adding premature state/settings plumbing.
