@@ -20,3 +20,5 @@ Do not add routine status updates, implementation history, or one-time decisions
 - Do not maintain separate Monaco option sets for input/output that can drift; use one shared base and derive editable/read-only variants.
 - Do not enable fold actions when there is no content; fold controls should be content-aware and no-op states should stay disabled.
 - Do not bypass Monaco built-ins with CSS overlays for editor primitives (for example minimap); use Monaco options for stability and compatibility.
+- Do not persist app preferences in renderer localStorage or install directories; keep main-process ownership and store in Electron `app.getPath('userData')` for OS-correct, writable config behavior.
+- Do not implement optimistic preference writes without request sequencing; stale async failures can rollback newer user selections.

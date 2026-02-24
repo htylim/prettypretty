@@ -7,6 +7,9 @@ import { useUiStore } from '../../../src/renderer/state/uiStore';
 const openFileMock = vi.fn();
 const saveMock = vi.fn();
 const copyMock = vi.fn();
+const preferencesGetAllMock = vi.fn();
+const preferencesUpdateMock = vi.fn();
+const preferencesResetMock = vi.fn();
 const outputCollapseAllMock = vi.fn();
 const outputExpandAllMock = vi.fn();
 const inputCollapseAllMock = vi.fn();
@@ -69,6 +72,9 @@ beforeEach(() => {
   openFileMock.mockReset();
   saveMock.mockReset();
   copyMock.mockReset();
+  preferencesGetAllMock.mockReset();
+  preferencesUpdateMock.mockReset();
+  preferencesResetMock.mockReset();
   outputCollapseAllMock.mockReset();
   outputExpandAllMock.mockReset();
   inputCollapseAllMock.mockReset();
@@ -77,6 +83,12 @@ beforeEach(() => {
   openFileMock.mockResolvedValue(null);
   saveMock.mockResolvedValue(null);
   copyMock.mockResolvedValue(undefined);
+  preferencesGetAllMock.mockResolvedValue({ version: 1, themeMode: 'light' });
+  preferencesUpdateMock.mockImplementation(async (patch: { themeMode?: string }) => ({
+    version: 1,
+    themeMode: patch.themeMode ?? 'light',
+  }));
+  preferencesResetMock.mockResolvedValue({ version: 1, themeMode: 'light' });
 
   Object.defineProperty(window, 'prettypretty', {
     configurable: true,
@@ -85,6 +97,11 @@ beforeEach(() => {
       file: { save: saveMock },
       clipboard: { copy: copyMock },
       app: { getInfo: vi.fn().mockResolvedValue({ name: 'prettypretty', version: '0.1.0' }) },
+      preferences: {
+        getAll: preferencesGetAllMock,
+        update: preferencesUpdateMock,
+        reset: preferencesResetMock,
+      },
     },
   });
 
@@ -235,6 +252,38 @@ describe('App', () => {
 
     expect(screen.getByTestId('theme-segment-dark')).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByTestId('theme-segment-light')).toHaveAttribute('aria-pressed', 'false');
+    expect(preferencesUpdateMock).toHaveBeenCalledWith({ themeMode: 'dark' });
+  });
+
+  it('hydrates theme mode from persisted preferences at startup', async () => {
+    preferencesGetAllMock.mockResolvedValue({ version: 1, themeMode: 'dark' });
+
+    render(<App />);
+
+    await waitFor(() => {
+      expect(document.documentElement.dataset.theme).toBe('dark');
+    });
+
+    expect(preferencesGetAllMock).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('theme-segment-dark')).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('rolls back optimistic theme change if persistence fails for latest request', async () => {
+    const user = userEvent.setup();
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    preferencesUpdateMock.mockRejectedValue(new Error('disk write failed'));
+
+    render(<App />);
+
+    await user.click(screen.getByTestId('theme-segment-dark'));
+
+    await waitFor(() => {
+      expect(document.documentElement.dataset.theme).toBe('light');
+    });
+
+    expect(preferencesUpdateMock).toHaveBeenCalledWith({ themeMode: 'dark' });
+    expect(errorSpy).toHaveBeenCalled();
+    errorSpy.mockRestore();
   });
 
   it('wires collapse and expand toolbar actions to output editor in output mode', async () => {

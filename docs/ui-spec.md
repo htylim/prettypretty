@@ -38,6 +38,7 @@
   - `Cmd+F`: open Monaco find widget in output mode, regardless of current DOM focus.
 - Toolbar action visual treatment follows the design-style button pattern.
 - Theme mode control on the right: segmented `Light/Dark` toggle with explicit active segment.
+- Theme preference persistence: selected theme is stored through preload/main preferences APIs and restored on next app launch.
 
 ## Editing Rules
 
@@ -55,3 +56,4 @@
 - Output mode search uses Monaco native find widget (triggered by `Cmd+F` in output mode).
 - Output mode fold/view state persists for the current document identity during the app session.
 - Output-mode JSON prettify indentation and Monaco tab/guide indentation are sourced from the same renderer constant so they stay synchronized.
+- Theme persistence behavior: renderer hydrates `themeMode` from persisted preferences at startup and uses optimistic updates with rollback on failed writes.

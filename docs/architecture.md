@@ -17,9 +17,21 @@
 
 1. App starts in `src/main/index.ts`.
 2. Main window is created from `src/main/windows/mainWindow.ts`.
-3. Preload script exposes `window.prettypretty`.
-4. Renderer calls preload APIs for open/save/copy/info.
-5. Main process handles IPC and performs side effects.
+3. Main process initializes `PreferencesStore` + `PreferencesService` using `app.getPath('userData')/preferences.json`.
+4. Preload script exposes `window.prettypretty`.
+5. Renderer calls preload APIs for open/save/copy/info/preferences.
+6. Main process handles IPC and performs side effects.
+
+## Preferences Data Flow
+
+- Source of truth is main-process `PreferencesService` (`src/main/preferences`).
+- Disk persistence is JSON at `<userData>/preferences.json`.
+- Renderer reads/writes preferences only via preload IPC channels:
+  - `preferences:get-all`
+  - `preferences:update`
+  - `preferences:reset`
+- Store writes are serialized and atomic (temp file + flush + rename).
+- Invalid/corrupt preferences files are rolled to `preferences.corrupt.<timestamp>.json` and replaced with defaults.
 
 ## Security
 

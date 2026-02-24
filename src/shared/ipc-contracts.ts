@@ -17,4 +17,7 @@ export const IPCChannels = {
   fileSave: 'file:save',
   clipboardCopy: 'clipboard:copy',
   appGetInfo: 'app:get-info',
+  preferencesGetAll: 'preferences:get-all',
+  preferencesUpdate: 'preferences:update',
+  preferencesReset: 'preferences:reset',
 } as const;

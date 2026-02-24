@@ -25,8 +25,8 @@
     "src/renderer/**/*.tsx",
     "src/renderer/**/*.d.ts",
     "src/shared/**/*.ts",
-    "tests/unit/**/*.ts",
-    "tests/unit/**/*.tsx",
+    "tests/unit/renderer/**/*.ts",
+    "tests/unit/renderer/**/*.tsx",
     "vitest.setup.ts"
   ]
 }

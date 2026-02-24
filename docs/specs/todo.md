@@ -1,5 +1,4 @@
 - when giving a file to read and load content do a check for file size limits
-- add a Preferences abstraction to stores user preferences on disk
 - add a prettifying logic, local only for now, later fallback to AI.
 - add AI prettifying logic, there should be preference for which AI to use, there should be preferences for listing the AI providers and how to run them
 - wire the AI prettifying logic now to the UI having it be a fallback from the other

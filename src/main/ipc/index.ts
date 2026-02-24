@@ -1,8 +1,14 @@
 import { app, clipboard, dialog, ipcMain } from 'electron';
 import { readFile, writeFile } from 'node:fs/promises';
 import { IPCChannels } from '../../shared/ipc-contracts';
+import { isPreferencesPatch } from '../preferences/preferencesTypes';
+import type { PreferencesService } from '../preferences/preferencesService';
 
-export const registerIpcHandlers = (): void => {
+type IpcDependencies = {
+  preferencesService: Pick<PreferencesService, 'getAll' | 'update' | 'reset'>;
+};
+
+export const registerIpcHandlers = ({ preferencesService }: IpcDependencies): void => {
   ipcMain.handle(IPCChannels.dialogOpenFile, async () => {
     const result = await dialog.showOpenDialog({
       title: 'Open file',
@@ -63,5 +69,21 @@ export const registerIpcHandlers = (): void => {
       name: app.getName(),
       version: app.getVersion(),
     };
+  });
+
+  ipcMain.handle(IPCChannels.preferencesGetAll, async () => {
+    return await preferencesService.getAll();
+  });
+
+  ipcMain.handle(IPCChannels.preferencesUpdate, async (_event, patch: unknown) => {
+    if (!isPreferencesPatch(patch)) {
+      throw new Error('Invalid preferences patch payload');
+    }
+
+    return await preferencesService.update(patch);
+  });
+
+  ipcMain.handle(IPCChannels.preferencesReset, async () => {
+    return await preferencesService.reset();
   });
 };

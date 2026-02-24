@@ -17,6 +17,11 @@ const api: WindowApi = {
   app: {
     getInfo: () => ipcRenderer.invoke(IPCChannels.appGetInfo),
   },
+  preferences: {
+    getAll: () => ipcRenderer.invoke(IPCChannels.preferencesGetAll),
+    update: (patch) => ipcRenderer.invoke(IPCChannels.preferencesUpdate, patch),
+    reset: () => ipcRenderer.invoke(IPCChannels.preferencesReset),
+  },
 };
 
 contextBridge.exposeInMainWorld('prettypretty', api);
