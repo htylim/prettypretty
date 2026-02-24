@@ -1,1 +1,8 @@
 - when giving a file to read and load content do a check for file size limits
+- add a Preferences abstraction to stores user preferences on disk
+- add a prettifying logic, local only for now, later fallback to AI.
+- add AI prettifying logic, there should be preference for which AI to use, there should be preferences for listing the AI providers and how to run them
+- wire the AI prettifying logic now to the UI having it be a fallback from the other
+- add loading bar
+- Have a dropdown/toggle to select which AI to fallback to in the UI
+- Have a macos menu bar component to keep prettypretty loaded into memory (and hidden), and have a shortcut key (configurable) that would automatically copy text into clipboard, launch the UI and pate the clipboard into the app.
