@@ -23,20 +23,56 @@ const createProps = (
 });
 
 describe('Toolbar', () => {
-  it('shows output actions only in output mode', () => {
-    const { rerender } = render(<Toolbar {...createProps({ paneMode: 'input' })} />);
+  it('always renders output actions, disables in input mode, and enables in output mode', async () => {
+    const user = userEvent.setup();
+    const onCollapseAll = vi.fn();
+    const onExpandAll = vi.fn();
+    const onSave = vi.fn();
+    const onCopy = vi.fn();
 
-    expect(screen.queryByRole('button', { name: 'Collapse' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Expand' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Copy' })).not.toBeInTheDocument();
+    const actionCases = [
+      { label: 'Collapse', handler: onCollapseAll },
+      { label: 'Expand', handler: onExpandAll },
+      { label: 'Save', handler: onSave },
+      { label: 'Copy', handler: onCopy },
+    ] as const;
 
-    rerender(<Toolbar {...createProps({ paneMode: 'output' })} />);
+    const { rerender } = render(
+      <Toolbar
+        {...createProps({ onCollapseAll, onCopy, onExpandAll, onSave, paneMode: 'input' })}
+      />,
+    );
 
-    expect(screen.getByRole('button', { name: 'Collapse' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'Expand' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Copy' })).toBeInTheDocument();
+    for (const { handler, label } of actionCases) {
+      const button = screen.getByRole('button', { name: label });
+      expect(button).toBeDisabled();
+      await user.click(button);
+      expect(handler).not.toHaveBeenCalled();
+    }
+
+    rerender(
+      <Toolbar
+        {...createProps({ onCollapseAll, onCopy, onExpandAll, onSave, paneMode: 'output' })}
+      />,
+    );
+
+    for (const { handler, label } of actionCases) {
+      const button = screen.getByRole('button', { name: label });
+      expect(button).toBeEnabled();
+      await user.click(button);
+      expect(handler).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it('uses one shared style for toolbar action buttons', () => {
+    render(<Toolbar {...createProps({ paneMode: 'output' })} />);
+
+    const actionButtons = ['New', 'Collapse', 'Expand', 'Save', 'Copy'] as const;
+
+    for (const label of actionButtons) {
+      const button = screen.getByRole('button', { name: label });
+      expect(button.className).toBe('btn');
+    }
   });
 
   it('renders pane segments with active/disabled states and explicit mode changes', async () => {

@@ -16,7 +16,6 @@ type ToolbarProps = {
 };
 
 const buttonClass = 'btn';
-const subtleButtonClass = `${buttonClass} btn-subtle`;
 const segmentedContainerClass = 'segmented';
 const segmentButtonClass = 'seg';
 const activeSegmentClass = 'seg-active';
@@ -38,6 +37,7 @@ export const Toolbar = ({
 }: ToolbarProps) => {
   const isOutput = paneMode === 'output';
   const isOutputSegmentDisabled = paneMode === 'input' && !hasContent;
+  const areOutputActionsDisabled = !isOutput;
 
   return (
     <header className="toolbar">
@@ -76,22 +76,40 @@ export const Toolbar = ({
           </button>
         </div>
 
-        {isOutput ? (
-          <>
-            <button className={subtleButtonClass} onClick={onCollapseAll} type="button">
-              Collapse
-            </button>
-            <button className={subtleButtonClass} onClick={onExpandAll} type="button">
-              Expand
-            </button>
-            <button className={buttonClass} onClick={onSave} type="button">
-              Save
-            </button>
-            <button className={buttonClass} onClick={onCopy} type="button">
-              Copy
-            </button>
-          </>
-        ) : null}
+        <>
+          <button
+            className={buttonClass}
+            disabled={areOutputActionsDisabled}
+            onClick={onCollapseAll}
+            type="button"
+          >
+            Collapse
+          </button>
+          <button
+            className={buttonClass}
+            disabled={areOutputActionsDisabled}
+            onClick={onExpandAll}
+            type="button"
+          >
+            Expand
+          </button>
+          <button
+            className={buttonClass}
+            disabled={areOutputActionsDisabled}
+            onClick={onSave}
+            type="button"
+          >
+            Save
+          </button>
+          <button
+            className={buttonClass}
+            disabled={areOutputActionsDisabled}
+            onClick={onCopy}
+            type="button"
+          >
+            Copy
+          </button>
+        </>
       </div>
 
       <div className="toolbar-right">

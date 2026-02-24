@@ -19,7 +19,7 @@ Users cannot see the active mode without inferring it from surrounding UI.
 - Theme control callback: `onThemeModeChange(nextMode: ThemeMode)`.
 - Keep pane toggle state synchronized to rendered content: input pane visible means `Input` is active; output pane visible means `Output` is active.
 - Keep theme toggle state synchronized to applied theme: `data-theme="light"` means `Light` is active; `data-theme="dark"` means `Dark` is active.
-- Preserve existing toolbar behavior: `Collapse`, `Expand`, `Save`, and `Copy` are visible only in output mode and enabled when visible.
+- Preserve existing toolbar behavior: `Collapse`, `Expand`, `Save`, and `Copy` are always visible, disabled in input mode, and enabled in output mode.
 - Keep `inputOutputToggle` visible at all times.
 - Empty-input behavior in input mode: `Input` remains active and `Output` is disabled until content exists.
 - Empty-ingestion behavior in output mode: if ingestion sets empty text and pane mode is output, `Output` remains active and enabled.

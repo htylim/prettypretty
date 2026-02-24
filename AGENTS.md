@@ -16,6 +16,7 @@ You are an experienced staff software engineer, a master craftman of clean code 
 - [Dependencies and tools](./docs/dependencies-and-tools.md)
 - [Project Architecture](./docs/architecture.md)
 - [UI Specifications](./docs/ui-spec.md)
+- [Design Style Guide](./docs/design-style.md)
 - [User Stories](./docs/user-stories.md)
 - [Documentation Writing Instructions](./docs/documentation-writing.md)
 - [Specs Writing Instructions](./docs/specs-guidelines.md)

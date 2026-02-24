@@ -114,11 +114,6 @@ body {
   transition: transform 140ms ease;
 }
 
-.btn-subtle {
-  font-weight: 500;
-  background: var(--panel-alt);
-}
-
 .btn:hover {
   transform: translateY(-1px);
 }

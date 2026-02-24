@@ -11,6 +11,9 @@
 
 ## 2026-02-23
 
-- Toolbar actions that are output-only should share one visibility rule: hide all output actions in input mode and show them enabled in output mode to avoid mixed disabled/hidden states.
+- Toolbar actions that depend on output context should stay visible and use disabled state in input mode, then become enabled in output mode to preserve stable toolbar layout.
 - When porting a visual direction from a mockup, extract semantic theme tokens first (typography, surfaces, accents, borders) and map them onto existing component structure instead of reusing mockup feature logic.
 - Keep theme switching architecture stable (`data-theme` on root), and move UI parity work to CSS tokens + semantic class names so behavior tests stay unchanged.
+- Action buttons in the toolbar should use one shared style (`.btn`) for consistent affordance; use segmented controls (`.segmented` + `.seg`) for toggle behavior instead of button variants.
+- Documentation split works best when `docs/ui-spec.md` defines interaction/state behavior and `docs/design-style.md` owns visual tokens, palettes, typography, and component styling rules.
+- For visual consistency tests, assert exact class parity (not partial class inclusion) so style variants cannot silently diverge.
