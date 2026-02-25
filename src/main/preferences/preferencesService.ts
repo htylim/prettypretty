@@ -7,6 +7,61 @@ export interface PreferencesPersistence {
   save: (preferences: Preferences) => Promise<void>;
 }
 
+const cloneAgents = (agents: Preferences['agents']): Preferences['agents'] => {
+  return agents.map((agent) => ({
+    ...agent,
+    argsTemplate: [...agent.argsTemplate],
+  }));
+};
+
+const clonePreferences = (preferences: Preferences): Preferences => ({
+  ...preferences,
+  agents: cloneAgents(preferences.agents),
+});
+
+const areAgentsEqual = (left: Preferences['agents'], right: Preferences['agents']): boolean => {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  return left.every((agent, index) => {
+    const other = right[index];
+    if (!other) {
+      return false;
+    }
+
+    if (
+      agent.id !== other.id ||
+      agent.name !== other.name ||
+      agent.executable !== other.executable ||
+      agent.promptTemplate !== other.promptTemplate ||
+      agent.promptDelivery !== other.promptDelivery ||
+      agent.enabled !== other.enabled ||
+      agent.timeoutMs !== other.timeoutMs ||
+      agent.maxOutputBytes !== other.maxOutputBytes ||
+      agent.argsTemplate.length !== other.argsTemplate.length
+    ) {
+      return false;
+    }
+
+    return agent.argsTemplate.every(
+      (argument, argIndex) => argument === other.argsTemplate[argIndex],
+    );
+  });
+};
+
+const resolveFallbackAgentId = (
+  fallbackAgentId: string | null,
+  agents: Preferences['agents'],
+): string | null => {
+  if (fallbackAgentId === null) {
+    return null;
+  }
+
+  const agent = agents.find((entry) => entry.id === fallbackAgentId);
+  return agent && agent.enabled ? fallbackAgentId : null;
+};
+
 export class PreferencesService {
   private cache: Preferences | null = null;
   private writeQueue: Promise<void> = Promise.resolve();
@@ -16,7 +71,7 @@ export class PreferencesService {
   async getAll(): Promise<Preferences> {
     await this.writeQueue;
     const current = await this.loadCurrent();
-    return { ...current };
+    return clonePreferences(current);
   }
 
   async update(patch: PreferencesPatch): Promise<Preferences> {
@@ -28,20 +83,41 @@ export class PreferencesService {
       const current = await this.loadCurrent();
       const nextThemeMode = patch.themeMode ?? current.themeMode;
       const nextIndentSize = patch.indentSize ?? current.indentSize;
+      const nextAgents = patch.agents ? cloneAgents(patch.agents) : current.agents;
+      const isFallbackAgentIdPatched = patch.fallbackAgentId !== undefined;
+      const requestedFallbackAgentId: string | null = isFallbackAgentIdPatched
+        ? (patch.fallbackAgentId ?? null)
+        : current.fallbackAgentId;
+      const nextFallbackAgentId = resolveFallbackAgentId(requestedFallbackAgentId, nextAgents);
 
-      if (nextThemeMode === current.themeMode && nextIndentSize === current.indentSize) {
-        return { ...current };
+      if (
+        isFallbackAgentIdPatched &&
+        requestedFallbackAgentId !== null &&
+        requestedFallbackAgentId !== nextFallbackAgentId
+      ) {
+        throw new Error('Invalid fallback agent id');
+      }
+
+      if (
+        nextThemeMode === current.themeMode &&
+        nextIndentSize === current.indentSize &&
+        nextFallbackAgentId === current.fallbackAgentId &&
+        areAgentsEqual(nextAgents, current.agents)
+      ) {
+        return clonePreferences(current);
       }
 
       const next: Preferences = {
         ...current,
         themeMode: nextThemeMode,
         indentSize: nextIndentSize,
+        agents: cloneAgents(nextAgents),
+        fallbackAgentId: nextFallbackAgentId,
       };
 
       await this.store.save(next);
       this.cache = next;
-      return { ...next };
+      return clonePreferences(next);
     });
   }
 
@@ -50,7 +126,7 @@ export class PreferencesService {
       const defaults = createDefaultPreferences();
       await this.store.save(defaults);
       this.cache = defaults;
-      return { ...defaults };
+      return clonePreferences(defaults);
     });
   }
 
@@ -60,8 +136,8 @@ export class PreferencesService {
     }
 
     const loaded = await this.store.load();
-    this.cache = loaded;
-    return loaded;
+    this.cache = clonePreferences(loaded);
+    return this.cache;
   }
 
   private async enqueue<T>(operation: () => Promise<T>): Promise<T> {

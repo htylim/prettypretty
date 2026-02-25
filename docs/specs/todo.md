@@ -1,5 +1,8 @@
+- light/dark mode to switch with input/output mode
+- Have cmd+ and cmd- to collapse and expand one level at a time (and tie to buttons)
+- add cmd+click or ctrl+click to collapse the block you are clicking (and expanding it)
+- have prettyfying logic to trigger now when input text change, but when output pane is activated (maybe is already like that, check)
 - when giving a file to read and load content do a check for file size limits
-- add a prettifying logic, local only for now, later fallback to AI. (specified in `docs/specs/0006-prettifier-service-local-parser-and-app-integration.md`)
 - add AI prettifying logic, there should be preference for which AI to use, there should be preferences for listing the AI providers and how to run them
 - wire the AI prettifying logic now to the UI having it be a fallback from the other
 - add loading bar

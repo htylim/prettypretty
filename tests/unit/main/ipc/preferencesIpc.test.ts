@@ -3,6 +3,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { IPCChannels } from '../../../../src/shared/ipc-contracts';
 import type { Preferences } from '../../../../src/shared/preferences';
+import { createDefaultPreferences } from '../../../../src/main/preferences/preferencesDefaults';
 import { registerIpcHandlers } from '../../../../src/main/ipc';
 
 const { handleMock } = vi.hoisted(() => {
@@ -45,7 +46,8 @@ const getRegisteredHandler = (channel: string): ((...args: unknown[]) => unknown
 };
 
 describe('registerIpcHandlers preferences channels', () => {
-  const preferences: Preferences = { version: 1, themeMode: 'dark', indentSize: 4 };
+  const defaults = createDefaultPreferences();
+  const preferences: Preferences = { ...defaults, themeMode: 'dark', indentSize: 4 };
   const preferencesService = {
     getAll: vi.fn(),
     update: vi.fn(),
@@ -56,11 +58,7 @@ describe('registerIpcHandlers preferences channels', () => {
     handleMock.mockReset();
     preferencesService.getAll.mockReset().mockResolvedValue(preferences);
     preferencesService.update.mockReset().mockResolvedValue(preferences);
-    preferencesService.reset.mockReset().mockResolvedValue({
-      version: 1,
-      themeMode: 'light',
-      indentSize: 2,
-    });
+    preferencesService.reset.mockReset().mockResolvedValue(defaults);
 
     registerIpcHandlers({ preferencesService });
   });

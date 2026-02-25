@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { Preferences } from '../../../../src/shared/preferences';
+import { createDefaultPreferences } from '../../../../src/main/preferences/preferencesDefaults';
 import { PreferencesStore } from '../../../../src/main/preferences/preferencesStore';
 
 const readJson = async (path: string): Promise<unknown> => {
@@ -13,6 +14,7 @@ const readJson = async (path: string): Promise<unknown> => {
 
 describe('PreferencesStore', () => {
   const createdDirs: string[] = [];
+  const createDefaults = (): Preferences => createDefaultPreferences();
 
   afterEach(async () => {
     await Promise.all(
@@ -37,20 +39,17 @@ describe('PreferencesStore', () => {
 
   it('creates defaults when the file does not exist', async () => {
     const { filePath, store } = await createStore();
+    const defaults = createDefaults();
 
     const preferences = await store.load();
 
-    expect(preferences).toEqual({ version: 1, themeMode: 'light', indentSize: 2 });
-    await expect(readJson(filePath)).resolves.toEqual({
-      version: 1,
-      themeMode: 'light',
-      indentSize: 2,
-    });
+    expect(preferences).toEqual(defaults);
+    await expect(readJson(filePath)).resolves.toEqual(defaults);
   });
 
   it('persists and reloads saved preferences', async () => {
     const { directory, store } = await createStore();
-    const persisted: Preferences = { version: 1, themeMode: 'dark', indentSize: 4 };
+    const persisted: Preferences = { ...createDefaults(), themeMode: 'dark', indentSize: 4 };
 
     await store.save(persisted);
 
@@ -61,50 +60,49 @@ describe('PreferencesStore', () => {
   it('recovers from malformed JSON by archiving the file and restoring defaults', async () => {
     const timestamp = 1730000000000;
     const { directory, filePath, store } = await createStore(() => timestamp);
+    const defaults = createDefaults();
     await writeFile(filePath, '{"themeMode":', 'utf8');
 
     const recovered = await store.load();
     const corruptPath = join(directory, `preferences.corrupt.${timestamp.toString()}.json`);
 
-    expect(recovered).toEqual({ version: 1, themeMode: 'light', indentSize: 2 });
+    expect(recovered).toEqual(defaults);
     await expect(readFile(corruptPath, 'utf8')).resolves.toBe('{"themeMode":');
-    await expect(readJson(filePath)).resolves.toEqual({
-      version: 1,
-      themeMode: 'light',
-      indentSize: 2,
-    });
+    await expect(readJson(filePath)).resolves.toEqual(defaults);
   });
 
   it('recovers when stored values are invalid or unsupported', async () => {
     const timestamp = 1730000000001;
     const { directory, filePath, store } = await createStore(() => timestamp);
-    await writeFile(filePath, JSON.stringify({ version: 2, themeMode: 'dark' }), 'utf8');
+    const defaults = createDefaults();
+    await writeFile(filePath, JSON.stringify({ version: 99, themeMode: 'dark' }), 'utf8');
 
     const recovered = await store.load();
     const files = await readdir(directory);
 
-    expect(recovered).toEqual({ version: 1, themeMode: 'light', indentSize: 2 });
+    expect(recovered).toEqual(defaults);
     expect(files).toContain(`preferences.corrupt.${timestamp.toString()}.json`);
-    await expect(readJson(filePath)).resolves.toEqual({
-      version: 1,
-      themeMode: 'light',
-      indentSize: 2,
-    });
+    await expect(readJson(filePath)).resolves.toEqual(defaults);
   });
 
-  it('migrates legacy version-1 payloads missing indent size without rolling file to corrupt', async () => {
+  it('migrates legacy version-1 payloads with defaults for new fields', async () => {
     const { directory, filePath, store } = await createStore();
+    const defaults = createDefaults();
     await writeFile(filePath, JSON.stringify({ version: 1, themeMode: 'dark' }), 'utf8');
 
     const loaded = await store.load();
     const files = await readdir(directory);
 
-    expect(loaded).toEqual({ version: 1, themeMode: 'dark', indentSize: 2 });
+    expect(loaded).toEqual({
+      ...defaults,
+      themeMode: 'dark',
+    });
     expect(files.some((name) => name.startsWith('preferences.corrupt.'))).toBe(false);
   });
 
   it('migrates invalid indent size in version-1 payload to default without rolling file to corrupt', async () => {
     const { directory, filePath, store } = await createStore();
+    const defaults = createDefaults();
     await writeFile(
       filePath,
       JSON.stringify({ version: 1, themeMode: 'dark', indentSize: 99 }),
@@ -114,13 +112,78 @@ describe('PreferencesStore', () => {
     const loaded = await store.load();
     const files = await readdir(directory);
 
-    expect(loaded).toEqual({ version: 1, themeMode: 'dark', indentSize: 2 });
+    expect(loaded).toEqual({
+      ...defaults,
+      themeMode: 'dark',
+    });
+    expect(files.some((name) => name.startsWith('preferences.corrupt.'))).toBe(false);
+  });
+
+  it('migrates invalid fallback agent id in current version payload to null', async () => {
+    const { directory, filePath, store } = await createStore();
+    const defaults = createDefaults();
+    await writeFile(
+      filePath,
+      JSON.stringify({
+        ...defaults,
+        fallbackAgentId: 'missing',
+      }),
+      'utf8',
+    );
+
+    const loaded = await store.load();
+    const files = await readdir(directory);
+
+    expect(loaded.fallbackAgentId).toBeNull();
+    expect(loaded.agents).toEqual(defaults.agents);
+    expect(files.some((name) => name.startsWith('preferences.corrupt.'))).toBe(false);
+  });
+
+  it('migrates fallback agent id to null when target agent is disabled', async () => {
+    const { directory, filePath, store } = await createStore();
+    const defaults = createDefaults();
+    const agents = defaults.agents.map((agent) =>
+      agent.id === 'amp' ? { ...agent, enabled: false } : agent,
+    );
+    await writeFile(
+      filePath,
+      JSON.stringify({
+        ...defaults,
+        agents,
+        fallbackAgentId: 'amp',
+      }),
+      'utf8',
+    );
+
+    const loaded = await store.load();
+    const files = await readdir(directory);
+
+    expect(loaded.fallbackAgentId).toBeNull();
+    expect(files.some((name) => name.startsWith('preferences.corrupt.'))).toBe(false);
+  });
+
+  it('migrates invalid agents in current version payload to defaults', async () => {
+    const { directory, filePath, store } = await createStore();
+    const defaults = createDefaults();
+    await writeFile(
+      filePath,
+      JSON.stringify({
+        ...defaults,
+        agents: [{ id: 'bad' }],
+      }),
+      'utf8',
+    );
+
+    const loaded = await store.load();
+    const files = await readdir(directory);
+
+    expect(loaded.agents).toEqual(defaults.agents);
     expect(files.some((name) => name.startsWith('preferences.corrupt.'))).toBe(false);
   });
 
   it('writes atomically and does not leave temporary files behind', async () => {
     const { directory, filePath, store } = await createStore();
-    const next: Preferences = { version: 1, themeMode: 'dark', indentSize: 7 };
+    const next: Preferences = { ...createDefaults(), themeMode: 'dark', indentSize: 7 };
 
     await store.save(next);
 

@@ -2,16 +2,14 @@
 
 import { describe, expect, it, vi } from 'vitest';
 import type { Preferences, PreferencesPatch } from '../../../../src/shared/preferences';
+import { createDefaultPreferences } from '../../../../src/main/preferences/preferencesDefaults';
 import { PreferencesService } from '../../../../src/main/preferences/preferencesService';
 
-const basePreferences: Preferences = {
-  version: 1,
-  themeMode: 'light',
-  indentSize: 2,
-};
+const createBasePreferences = (): Preferences => createDefaultPreferences();
 
 describe('PreferencesService', () => {
   it('loads and caches preferences through getAll', async () => {
+    const basePreferences = createBasePreferences();
     const load = vi.fn().mockResolvedValue(basePreferences);
     const save = vi.fn();
     const service = new PreferencesService({ load, save });
@@ -22,28 +20,92 @@ describe('PreferencesService', () => {
   });
 
   it('updates valid patches and persists the result', async () => {
+    const basePreferences = createBasePreferences();
     const load = vi.fn().mockResolvedValue(basePreferences);
     const save = vi.fn().mockResolvedValue(undefined);
     const service = new PreferencesService({ load, save });
 
     const next = await service.update({ themeMode: 'dark', indentSize: 4 });
 
-    expect(next).toEqual({ version: 1, themeMode: 'dark', indentSize: 4 });
-    expect(save).toHaveBeenCalledWith({ version: 1, themeMode: 'dark', indentSize: 4 });
+    expect(next).toEqual({ ...basePreferences, themeMode: 'dark', indentSize: 4 });
+    expect(save).toHaveBeenCalledWith({ ...basePreferences, themeMode: 'dark', indentSize: 4 });
   });
 
   it('updates indent size without changing theme mode', async () => {
+    const basePreferences = createBasePreferences();
     const load = vi.fn().mockResolvedValue(basePreferences);
     const save = vi.fn().mockResolvedValue(undefined);
     const service = new PreferencesService({ load, save });
 
     const next = await service.update({ indentSize: 6 });
 
-    expect(next).toEqual({ version: 1, themeMode: 'light', indentSize: 6 });
-    expect(save).toHaveBeenCalledWith({ version: 1, themeMode: 'light', indentSize: 6 });
+    expect(next).toEqual({ ...basePreferences, indentSize: 6 });
+    expect(save).toHaveBeenCalledWith({ ...basePreferences, indentSize: 6 });
+  });
+
+  it('updates agents and fallback agent id together', async () => {
+    const basePreferences = createBasePreferences();
+    const load = vi.fn().mockResolvedValue(basePreferences);
+    const save = vi.fn().mockResolvedValue(undefined);
+    const service = new PreferencesService({ load, save });
+    const nextAgents = basePreferences.agents.map((agent) => ({ ...agent, enabled: true }));
+
+    const next = await service.update({ agents: nextAgents, fallbackAgentId: 'codex' });
+
+    expect(next).toEqual({
+      ...basePreferences,
+      agents: nextAgents,
+      fallbackAgentId: 'codex',
+    });
+    expect(save).toHaveBeenCalledWith({
+      ...basePreferences,
+      agents: nextAgents,
+      fallbackAgentId: 'codex',
+    });
+  });
+
+  it('clears fallback agent id when patched agents remove it', async () => {
+    const basePreferences = createBasePreferences();
+    const load = vi.fn().mockResolvedValue({ ...basePreferences, fallbackAgentId: 'amp' });
+    const save = vi.fn().mockResolvedValue(undefined);
+    const service = new PreferencesService({ load, save });
+    const nextAgents = basePreferences.agents.filter((agent) => agent.id !== 'amp');
+
+    const next = await service.update({ agents: nextAgents });
+
+    expect(next.fallbackAgentId).toBeNull();
+    expect(next.agents).toEqual(nextAgents);
+  });
+
+  it('rejects fallback agent id patches pointing to missing agents', async () => {
+    const basePreferences = createBasePreferences();
+    const load = vi.fn().mockResolvedValue(basePreferences);
+    const save = vi.fn().mockResolvedValue(undefined);
+    const service = new PreferencesService({ load, save });
+
+    await expect(service.update({ fallbackAgentId: 'missing' })).rejects.toThrow(
+      'Invalid fallback agent id',
+    );
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it('rejects fallback agent id patches when target agent is disabled', async () => {
+    const basePreferences = createBasePreferences();
+    const load = vi.fn().mockResolvedValue(basePreferences);
+    const save = vi.fn().mockResolvedValue(undefined);
+    const service = new PreferencesService({ load, save });
+    const nextAgents = basePreferences.agents.map((agent) =>
+      agent.id === 'codex' ? { ...agent, enabled: false } : agent,
+    );
+
+    await expect(service.update({ agents: nextAgents, fallbackAgentId: 'codex' })).rejects.toThrow(
+      'Invalid fallback agent id',
+    );
+    expect(save).not.toHaveBeenCalled();
   });
 
   it('rejects invalid patch payloads', async () => {
+    const basePreferences = createBasePreferences();
     const load = vi.fn().mockResolvedValue(basePreferences);
     const save = vi.fn().mockResolvedValue(undefined);
     const service = new PreferencesService({ load, save });
@@ -55,6 +117,7 @@ describe('PreferencesService', () => {
   });
 
   it('rejects invalid indent size patches', async () => {
+    const basePreferences = createBasePreferences();
     const load = vi.fn().mockResolvedValue(basePreferences);
     const save = vi.fn().mockResolvedValue(undefined);
     const service = new PreferencesService({ load, save });
@@ -66,6 +129,7 @@ describe('PreferencesService', () => {
   });
 
   it('skips writes when a patch is a no-op', async () => {
+    const basePreferences = createBasePreferences();
     const load = vi.fn().mockResolvedValue(basePreferences);
     const save = vi.fn().mockResolvedValue(undefined);
     const service = new PreferencesService({ load, save });
@@ -77,7 +141,13 @@ describe('PreferencesService', () => {
   });
 
   it('resets preferences back to defaults', async () => {
-    const load = vi.fn().mockResolvedValue({ version: 1, themeMode: 'dark', indentSize: 8 });
+    const basePreferences = createBasePreferences();
+    const load = vi.fn().mockResolvedValue({
+      ...basePreferences,
+      themeMode: 'dark',
+      indentSize: 8,
+      fallbackAgentId: 'amp',
+    });
     const save = vi.fn().mockResolvedValue(undefined);
     const service = new PreferencesService({ load, save });
 
@@ -88,6 +158,7 @@ describe('PreferencesService', () => {
   });
 
   it('serializes concurrent updates through one write queue', async () => {
+    const basePreferences = createBasePreferences();
     let releaseFirstSave: () => void = () => undefined;
     let saveCount = 0;
     let persisted = basePreferences;
@@ -113,9 +184,9 @@ describe('PreferencesService', () => {
 
     const [firstResult, secondResult] = await Promise.all([firstUpdate, secondUpdate]);
 
-    expect(firstResult).toEqual({ version: 1, themeMode: 'dark', indentSize: 2 });
-    expect(secondResult).toEqual({ version: 1, themeMode: 'light', indentSize: 2 });
-    expect(await service.getAll()).toEqual({ version: 1, themeMode: 'light', indentSize: 2 });
+    expect(firstResult).toEqual({ ...basePreferences, themeMode: 'dark' });
+    expect(secondResult).toEqual({ ...basePreferences, themeMode: 'light' });
+    expect(await service.getAll()).toEqual({ ...basePreferences, themeMode: 'light' });
     expect(save).toHaveBeenCalledTimes(2);
   });
 });

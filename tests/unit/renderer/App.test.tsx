@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from '../../../src/renderer/App';
 import { useUiStore } from '../../../src/renderer/state/uiStore';
+import type { Preferences } from '../../../src/shared/preferences';
 
 const openFileMock = vi.fn();
 const saveMock = vi.fn();
@@ -15,6 +16,37 @@ const outputExpandAllMock = vi.fn();
 const inputCollapseAllMock = vi.fn();
 const inputExpandAllMock = vi.fn();
 const openFindMock = vi.fn();
+const createPreferences = (overrides: Partial<Preferences> = {}): Preferences => ({
+  version: 2,
+  themeMode: 'light',
+  indentSize: 2,
+  agents: [
+    {
+      id: 'amp',
+      name: 'Amp',
+      executable: 'amp',
+      argsTemplate: ['-x'],
+      promptTemplate: '<TEXT>\n{input}\n</TEXT>',
+      promptDelivery: 'stdin',
+      enabled: true,
+      timeoutMs: 30_000,
+      maxOutputBytes: 1_000_000,
+    },
+    {
+      id: 'codex',
+      name: 'Codex',
+      executable: 'codex',
+      argsTemplate: ['exec', '--skip-git-repo-check', '-'],
+      promptTemplate: '<TEXT>\n{input}\n</TEXT>',
+      promptDelivery: 'stdin',
+      enabled: true,
+      timeoutMs: 30_000,
+      maxOutputBytes: 1_000_000,
+    },
+  ],
+  fallbackAgentId: null,
+  ...overrides,
+});
 
 vi.mock('../../../src/renderer/components/InputEditor', async () => {
   const React = await import('react');
@@ -83,15 +115,15 @@ beforeEach(() => {
   openFileMock.mockResolvedValue(null);
   saveMock.mockResolvedValue(null);
   copyMock.mockResolvedValue(undefined);
-  preferencesGetAllMock.mockResolvedValue({ version: 1, themeMode: 'light', indentSize: 2 });
+  preferencesGetAllMock.mockResolvedValue(createPreferences());
   preferencesUpdateMock.mockImplementation(
     async (patch: { themeMode?: string; indentSize?: number }) => ({
-      version: 1,
+      ...createPreferences(),
       themeMode: patch.themeMode ?? 'light',
       indentSize: patch.indentSize ?? 2,
     }),
   );
-  preferencesResetMock.mockResolvedValue({ version: 1, themeMode: 'light', indentSize: 2 });
+  preferencesResetMock.mockResolvedValue(createPreferences());
 
   Object.defineProperty(window, 'prettypretty', {
     configurable: true,
@@ -260,7 +292,7 @@ describe('App', () => {
   });
 
   it('hydrates theme mode from persisted preferences at startup', async () => {
-    preferencesGetAllMock.mockResolvedValue({ version: 1, themeMode: 'dark', indentSize: 2 });
+    preferencesGetAllMock.mockResolvedValue(createPreferences({ themeMode: 'dark' }));
 
     render(<App />);
 
@@ -291,7 +323,7 @@ describe('App', () => {
   });
 
   it('hydrates indent size from preferences and applies it to formatted output', async () => {
-    preferencesGetAllMock.mockResolvedValue({ version: 1, themeMode: 'light', indentSize: 4 });
+    preferencesGetAllMock.mockResolvedValue(createPreferences({ indentSize: 4 }));
     const user = userEvent.setup();
     openFileMock.mockResolvedValue({ path: '/tmp/example.json', content: '{"outer":{"inner":1}}' });
 

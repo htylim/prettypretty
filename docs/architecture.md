@@ -26,7 +26,11 @@
 
 - Source of truth is main-process `PreferencesService` (`src/main/preferences`).
 - Disk persistence is JSON at `<userData>/preferences.json`.
-- Current persisted settings include `themeMode` and `indentSize` (integer `1..8`, default `2`).
+- Current persisted settings include `themeMode`, `indentSize` (integer `1..8`, default `2`), `agents`, and `fallbackAgentId`.
+- `agents` stores fallback command configuration (`executable`, `argsTemplate`, `promptTemplate`, `promptDelivery`, `enabled`, `timeoutMs`, `maxOutputBytes`).
+- `fallbackAgentId` is `null` to disable fallback or a valid enabled agent id.
+- Prompt template tokens currently supported by the preferences model are `{input}` and `{indentSize}`.
+- Default preferences initialize two agent configs: `amp` and `codex`.
 - Renderer reads/writes preferences only via preload IPC channels:
   - `preferences:get-all`
   - `preferences:update`
@@ -51,4 +55,5 @@
   - Python-literal normalization + JSON5 parse,
   - malformed/unsupported payload passthrough unchanged.
 - Prettifier output indentation and Monaco indentation are both driven by the persisted `indentSize` preference.
+- Agent fallback execution is future scope; current work only scaffolds persisted configuration.
 - Output rendering through Monaco read-only editor instance with syntax/highlighting/folding.

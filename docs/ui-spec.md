@@ -40,6 +40,7 @@
 - Theme mode control on the right: segmented `Light/Dark` toggle with explicit active segment.
 - Theme preference persistence: selected theme is stored through preload/main preferences APIs and restored on next app launch.
 - Indentation preference has no user-facing control in current scope; renderer consumes persisted `indentSize` value only.
+- Fallback agent preferences (`agents`, `fallbackAgentId`) currently have no user-facing settings controls.
 
 ## Editing Rules
 

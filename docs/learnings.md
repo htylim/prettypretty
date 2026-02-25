@@ -25,3 +25,4 @@ Do not add routine status updates, implementation history, or one-time decisions
 - Do not parse JS/TS object-literal input with `eval`/`new Function`; use parser-based approaches to keep renderer execution safe.
 - Do not silently coerce unsupported parsed values (for example `NaN`/`Infinity`) during prettify; return original input if the value tree is not JSON-serializable.
 - Do not treat additive preference fields as corrupt-file cases by default; migrate missing/invalid optional fields to safe defaults when backward compatibility allows it.
+- Do not expose nested preference objects/arrays by shallow copy from the service cache; deep-clone them to avoid accidental external mutation of persisted state.
