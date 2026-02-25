@@ -16,11 +16,12 @@
 ## Runtime Flow
 
 1. App starts in `src/main/index.ts`.
-2. Main window is created from `src/main/windows/mainWindow.ts`.
-3. Main process initializes `PreferencesStore` + `PreferencesService` using `app.getPath('userData')/preferences.json`.
-4. Preload script exposes `window.prettypretty`.
-5. Renderer calls preload APIs for open/save/copy/info/preferences.
-6. Main process handles IPC and performs side effects.
+2. Main process sets explicit app menu labels via `src/main/menu/applicationMenu.ts` using fixed app naming (`prettypretty`) to avoid macOS dev menu fallback label `Electron`.
+3. Main window is created from `src/main/windows/mainWindow.ts`.
+4. Main process initializes `PreferencesStore` + `PreferencesService` using `app.getPath('userData')/preferences.json`.
+5. Preload script exposes `window.prettypretty`.
+6. Renderer calls preload APIs for open/save/copy/info/preferences.
+7. Main process handles IPC and performs side effects.
 
 ## Preferences Data Flow
 
@@ -44,6 +45,18 @@
 - Node integration disabled.
 - Renderer has no direct Node access.
 - IPC channels are explicit and typed.
+
+## Packaging Assets
+
+- Electron Builder reads packaging assets from `build/` (`directories.buildResources`).
+- App icon artifacts are:
+  - `build/icon.icns` for macOS
+  - `build/icon.ico` for Windows
+  - `build/icon.png` for Linux
+- Main process also uses `build/icon.png` at runtime for dev icon overrides:
+  - macOS dock icon via `app.dock.setIcon(...)`
+  - Windows/Linux window icon via `BrowserWindow` `icon` option
+- Regenerate icon artifacts via `pnpm icon:generate` (`scripts/generate-app-icons.sh`).
 
 ## Future Data Flow (Feature Work)
 

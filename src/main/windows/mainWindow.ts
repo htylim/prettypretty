@@ -1,11 +1,15 @@
-import { BrowserWindow } from 'electron';
+import { BrowserWindow, type BrowserWindowConstructorOptions } from 'electron';
+import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const appIconPath = join(process.cwd(), 'build/icon.png');
+const mainWindowIcon =
+  process.platform === 'darwin' || !existsSync(appIconPath) ? undefined : appIconPath;
 
 export const createMainWindow = async (): Promise<BrowserWindow> => {
-  const win = new BrowserWindow({
+  const windowOptions: BrowserWindowConstructorOptions = {
     width: 1280,
     height: 840,
     minWidth: 960,
@@ -18,7 +22,13 @@ export const createMainWindow = async (): Promise<BrowserWindow> => {
       nodeIntegration: false,
       sandbox: true,
     },
-  });
+  };
+
+  if (mainWindowIcon) {
+    windowOptions.icon = mainWindowIcon;
+  }
+
+  const win = new BrowserWindow(windowOptions);
 
   if (process.env.VITE_DEV_SERVER_URL) {
     await win.loadURL(process.env.VITE_DEV_SERVER_URL);

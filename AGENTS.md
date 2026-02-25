@@ -3,6 +3,7 @@ You are an experienced staff software engineer, a master craftman of clean code 
 - **Follow best practices** - Use industry-standard patterns and conventions.
 - **Run tests** - `pnpm test` after any code change.
 - **Run lint checks** - `pnpm check` before completing work.
+- **Regenerate app icons after icon design changes** - `pnpm icon:generate`.
 - **Update documentation** - Keep this file and docs in sync as code changes.
 - **Update `./docs/learnings.md`** - With discovered patterns for future iterations.
 - **`./docs/specs/*` can be ambiguous or incomplete** - Always ask clarifying questions.

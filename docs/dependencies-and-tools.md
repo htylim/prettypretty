@@ -17,6 +17,7 @@ Dependencies and tools used in this project. Use these when coding; avoid introd
 - **vite** — Dev server, HMR, bundling (used via electron-vite).
 - **typescript** — Typing and `tsc` for typecheck.
 - **@vitejs/plugin-react** — React Fast Refresh and JSX in Vite.
+- **ImageMagick (`magick`)** (system dependency) — Generates icon raster assets (`build/icon-master.png`, `build/icon.ico`) in `scripts/generate-app-icons.sh`.
 
 ## Styling
 
@@ -49,6 +50,7 @@ Dependencies and tools used in this project. Use these when coding; avoid introd
 - **lint-staged** — Run lint/format on staged files.
 - **@commitlint/cli** / **@commitlint/config-conventional** — Conventional commit lint tooling (currently not hook-enforced).
 - **electron-builder** — Packaging and distributables.
+- **app-builder-bin** (transitive via `electron-builder`) — Generates `build/icon.icns` in `scripts/generate-app-icons.sh`.
 
 ## Package Manager
 

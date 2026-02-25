@@ -30,6 +30,7 @@ pnpm dev
 pnpm dev           # run Electron in development mode
 pnpm build         # build main/preload/renderer
 pnpm dist          # package app with electron-builder
+pnpm icon:generate # regenerate app icons in build/
 pnpm lint          # eslint
 pnpm format        # prettier write
 pnpm format:check  # prettier check
@@ -39,6 +40,18 @@ pnpm test:e2e      # Playwright Electron tests
 pnpm test          # unit + e2e
 pnpm test:pairing  # enforce source-to-test file pairing
 pnpm check         # lint + format:check + typecheck + unit + pairing
+```
+
+## App Icon Assets
+
+- Electron packaging expects icons under `build/`:
+  - `build/icon.icns` (macOS)
+  - `build/icon.ico` (Windows)
+  - `build/icon.png` (Linux)
+- Regenerate all icon artifacts from the design source with:
+
+```bash
+pnpm icon:generate
 ```
 
 ## Quality Gates

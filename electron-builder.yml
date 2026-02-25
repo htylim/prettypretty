@@ -2,15 +2,19 @@ appId: com.prettypretty.app
 productName: prettypretty
 directories:
   output: release
+  buildResources: build
 files:
   - out/**/*
   - package.json
 mac:
+  icon: icon.icns
   target:
     - dmg
 win:
+  icon: icon.ico
   target:
     - nsis
 linux:
+  icon: icon.png
   target:
     - AppImage
