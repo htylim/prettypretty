@@ -46,6 +46,7 @@ describe('EditorShell', () => {
       <EditorShell
         paneMode="input"
         themeMode="light"
+        indentSize={2}
         inputText=""
         outputText=""
         outputDocumentId="doc-1"
@@ -74,6 +75,7 @@ describe('EditorShell', () => {
       <EditorShell
         paneMode="input"
         themeMode="light"
+        indentSize={2}
         inputText="alpha"
         outputText=""
         outputDocumentId="doc-2"
@@ -101,6 +103,7 @@ describe('EditorShell', () => {
       <EditorShell
         paneMode="input"
         themeMode="light"
+        indentSize={2}
         inputText=""
         outputText=""
         outputDocumentId="doc-3"
@@ -131,6 +134,7 @@ describe('EditorShell', () => {
       <EditorShell
         paneMode="input"
         themeMode="light"
+        indentSize={2}
         inputText=""
         outputText=""
         outputDocumentId="doc-4"
@@ -158,6 +162,7 @@ describe('EditorShell', () => {
       <EditorShell
         paneMode="input"
         themeMode="light"
+        indentSize={2}
         inputText=""
         outputText=""
         outputDocumentId="doc-5"
@@ -185,6 +190,7 @@ describe('EditorShell', () => {
       <EditorShell
         paneMode="input"
         themeMode="light"
+        indentSize={2}
         inputText=""
         outputText=""
         outputDocumentId="doc-6"
@@ -210,6 +216,7 @@ describe('EditorShell', () => {
       <EditorShell
         paneMode="output"
         themeMode="dark"
+        indentSize={2}
         inputText="alpha"
         outputText="alpha"
         outputDocumentId="doc-7"

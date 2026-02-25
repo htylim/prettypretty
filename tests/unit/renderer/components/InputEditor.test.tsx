@@ -119,11 +119,12 @@ describe('InputEditor', () => {
   });
 
   it('renders Monaco with shared options seam in editable mode', () => {
-    render(<InputEditor themeMode="light" value={'{"a":1}'} onChange={vi.fn()} />);
+    render(<InputEditor themeMode="light" indentSize={2} value={'{"a":1}'} onChange={vi.fn()} />);
 
     expect(configureMonacoMock).toHaveBeenCalledTimes(1);
     expect(registerMonacoThemesMock).toHaveBeenCalledTimes(1);
     expect(getInputEditorOptionsMock).toHaveBeenCalledTimes(1);
+    expect(getInputEditorOptionsMock).toHaveBeenCalledWith(2);
     expect(setThemeMock).toHaveBeenCalledWith('prettypretty-light');
 
     const lastRender = editorRenderSpy.mock.calls.at(-1)?.[0] as MonacoRenderProps;
@@ -134,7 +135,7 @@ describe('InputEditor', () => {
 
   it('forwards Monaco change events to input callback', () => {
     const onChange = vi.fn();
-    render(<InputEditor themeMode="light" value="alpha" onChange={onChange} />);
+    render(<InputEditor themeMode="light" indentSize={2} value="alpha" onChange={onChange} />);
 
     fireEvent.click(screen.getByTestId('monaco-input-mock'));
 
@@ -143,7 +144,7 @@ describe('InputEditor', () => {
 
   it('normalizes undefined Monaco change payloads to empty string', () => {
     const onChange = vi.fn();
-    render(<InputEditor themeMode="light" value="alpha" onChange={onChange} />);
+    render(<InputEditor themeMode="light" indentSize={2} value="alpha" onChange={onChange} />);
 
     const lastRender = editorRenderSpy.mock.calls.at(-1)?.[0] as MonacoRenderProps;
     lastRender.onChange?.(undefined);
@@ -153,7 +154,15 @@ describe('InputEditor', () => {
 
   it('exposes collapse and expand actions through ref handle', async () => {
     const handleRef = createRef<InputEditorHandle>();
-    render(<InputEditor ref={handleRef} themeMode="light" value="alpha" onChange={vi.fn()} />);
+    render(
+      <InputEditor
+        ref={handleRef}
+        themeMode="light"
+        indentSize={2}
+        value="alpha"
+        onChange={vi.fn()}
+      />,
+    );
 
     await handleRef.current?.collapseAll();
     await handleRef.current?.expandAll();

@@ -1,13 +1,15 @@
 import type { editor } from 'monaco-editor';
+import type { IndentSize } from '../../shared/preferences';
 
-export const OUTPUT_INDENT_SIZE = 2;
 export const OUTPUT_EDITOR_FONT_FAMILY = 'SFMono-Regular, Menlo, Consolas, monospace';
 export const OUTPUT_EDITOR_FONT_SIZE = 15;
 export const OUTPUT_EDITOR_LINE_HEIGHT = 23;
 
 export const getLineNumbersOption = (): editor.LineNumbersType => 'on';
 
-const getSharedEditorOptions = (): editor.IStandaloneEditorConstructionOptions => ({
+const getSharedEditorOptions = (
+  indentSize: IndentSize,
+): editor.IStandaloneEditorConstructionOptions => ({
   minimap: { enabled: true },
   lineNumbers: getLineNumbersOption(),
   glyphMargin: true,
@@ -34,7 +36,7 @@ const getSharedEditorOptions = (): editor.IStandaloneEditorConstructionOptions =
   fontFamily: OUTPUT_EDITOR_FONT_FAMILY,
   fontSize: OUTPUT_EDITOR_FONT_SIZE,
   lineHeight: OUTPUT_EDITOR_LINE_HEIGHT,
-  tabSize: OUTPUT_INDENT_SIZE,
+  tabSize: indentSize,
   insertSpaces: true,
   detectIndentation: false,
   scrollBeyondLastLine: false,
@@ -45,14 +47,18 @@ const getSharedEditorOptions = (): editor.IStandaloneEditorConstructionOptions =
   },
 });
 
-export const getOutputEditorOptions = (): editor.IStandaloneEditorConstructionOptions => ({
-  ...getSharedEditorOptions(),
+export const getOutputEditorOptions = (
+  indentSize: IndentSize,
+): editor.IStandaloneEditorConstructionOptions => ({
+  ...getSharedEditorOptions(indentSize),
   readOnly: true,
   domReadOnly: true,
 });
 
-export const getInputEditorOptions = (): editor.IStandaloneEditorConstructionOptions => ({
-  ...getSharedEditorOptions(),
+export const getInputEditorOptions = (
+  indentSize: IndentSize,
+): editor.IStandaloneEditorConstructionOptions => ({
+  ...getSharedEditorOptions(indentSize),
   readOnly: false,
   domReadOnly: false,
 });

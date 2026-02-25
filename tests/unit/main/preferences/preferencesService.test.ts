@@ -7,6 +7,7 @@ import { PreferencesService } from '../../../../src/main/preferences/preferences
 const basePreferences: Preferences = {
   version: 1,
   themeMode: 'light',
+  indentSize: 2,
 };
 
 describe('PreferencesService', () => {
@@ -25,10 +26,21 @@ describe('PreferencesService', () => {
     const save = vi.fn().mockResolvedValue(undefined);
     const service = new PreferencesService({ load, save });
 
-    const next = await service.update({ themeMode: 'dark' });
+    const next = await service.update({ themeMode: 'dark', indentSize: 4 });
 
-    expect(next).toEqual({ version: 1, themeMode: 'dark' });
-    expect(save).toHaveBeenCalledWith({ version: 1, themeMode: 'dark' });
+    expect(next).toEqual({ version: 1, themeMode: 'dark', indentSize: 4 });
+    expect(save).toHaveBeenCalledWith({ version: 1, themeMode: 'dark', indentSize: 4 });
+  });
+
+  it('updates indent size without changing theme mode', async () => {
+    const load = vi.fn().mockResolvedValue(basePreferences);
+    const save = vi.fn().mockResolvedValue(undefined);
+    const service = new PreferencesService({ load, save });
+
+    const next = await service.update({ indentSize: 6 });
+
+    expect(next).toEqual({ version: 1, themeMode: 'light', indentSize: 6 });
+    expect(save).toHaveBeenCalledWith({ version: 1, themeMode: 'light', indentSize: 6 });
   });
 
   it('rejects invalid patch payloads', async () => {
@@ -39,6 +51,17 @@ describe('PreferencesService', () => {
     await expect(
       service.update({ invalidKey: true } as unknown as PreferencesPatch),
     ).rejects.toThrow('Invalid preferences patch payload');
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid indent size patches', async () => {
+    const load = vi.fn().mockResolvedValue(basePreferences);
+    const save = vi.fn().mockResolvedValue(undefined);
+    const service = new PreferencesService({ load, save });
+
+    await expect(service.update({ indentSize: 9 } as unknown as PreferencesPatch)).rejects.toThrow(
+      'Invalid preferences patch payload',
+    );
     expect(save).not.toHaveBeenCalled();
   });
 
@@ -54,7 +77,7 @@ describe('PreferencesService', () => {
   });
 
   it('resets preferences back to defaults', async () => {
-    const load = vi.fn().mockResolvedValue({ version: 1, themeMode: 'dark' });
+    const load = vi.fn().mockResolvedValue({ version: 1, themeMode: 'dark', indentSize: 8 });
     const save = vi.fn().mockResolvedValue(undefined);
     const service = new PreferencesService({ load, save });
 
@@ -90,9 +113,9 @@ describe('PreferencesService', () => {
 
     const [firstResult, secondResult] = await Promise.all([firstUpdate, secondUpdate]);
 
-    expect(firstResult).toEqual({ version: 1, themeMode: 'dark' });
-    expect(secondResult).toEqual({ version: 1, themeMode: 'light' });
-    expect(await service.getAll()).toEqual({ version: 1, themeMode: 'light' });
+    expect(firstResult).toEqual({ version: 1, themeMode: 'dark', indentSize: 2 });
+    expect(secondResult).toEqual({ version: 1, themeMode: 'light', indentSize: 2 });
+    expect(await service.getAll()).toEqual({ version: 1, themeMode: 'light', indentSize: 2 });
     expect(save).toHaveBeenCalledTimes(2);
   });
 });

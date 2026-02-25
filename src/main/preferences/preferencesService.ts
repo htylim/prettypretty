@@ -27,14 +27,16 @@ export class PreferencesService {
     return await this.enqueue(async () => {
       const current = await this.loadCurrent();
       const nextThemeMode = patch.themeMode ?? current.themeMode;
+      const nextIndentSize = patch.indentSize ?? current.indentSize;
 
-      if (nextThemeMode === current.themeMode) {
+      if (nextThemeMode === current.themeMode && nextIndentSize === current.indentSize) {
         return { ...current };
       }
 
       const next: Preferences = {
         ...current,
         themeMode: nextThemeMode,
+        indentSize: nextIndentSize,
       };
 
       await this.store.save(next);

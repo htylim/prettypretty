@@ -6,6 +6,7 @@ describe('uiStore', () => {
     useUiStore.setState({
       paneMode: 'input',
       themeMode: 'light',
+      indentSize: 2,
       inputText: '',
     });
 
@@ -20,6 +21,7 @@ describe('uiStore', () => {
     useUiStore.setState({
       paneMode: 'output',
       themeMode: 'dark',
+      indentSize: 6,
       inputText: 'content',
     });
 
@@ -27,5 +29,6 @@ describe('uiStore', () => {
 
     expect(useUiStore.getState().paneMode).toBe('input');
     expect(useUiStore.getState().inputText).toBe('');
+    expect(useUiStore.getState().indentSize).toBe(6);
   });
 });

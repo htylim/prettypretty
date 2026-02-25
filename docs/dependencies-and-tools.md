@@ -9,6 +9,7 @@ Dependencies and tools used in this project. Use these when coding; avoid introd
 - **zustand** — Client-side state (renderer).
 - **monaco-editor** — VS Code editor core for input/output rendering (syntax highlighting, gutter, folding, guides, theming).
 - **@monaco-editor/react** — React wrapper for Monaco integration in renderer components.
+- **json5** — Lightweight parser for JSON5/JS object-literal style structured input in local prettifier pipeline.
 
 ## Build and Bundling
 

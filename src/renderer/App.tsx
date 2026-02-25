@@ -4,23 +4,9 @@ import type { ThemeMode } from '../shared/types';
 import { EditorShell } from './components/EditorShell';
 import type { InputEditorHandle } from './components/InputEditor';
 import type { OutputEditorHandle } from './components/OutputEditor';
-import { OUTPUT_INDENT_SIZE } from './output/outputEditorConfig';
 import { Toolbar } from './components/Toolbar';
+import { createPrettifierService } from './prettifier/prettifierService';
 import { useUiStore } from './state/uiStore';
-
-const formatText = (rawText: string): string => {
-  const trimmed = rawText.trim();
-  if (!trimmed) {
-    return '';
-  }
-
-  try {
-    const parsed = JSON.parse(trimmed);
-    return JSON.stringify(parsed, null, OUTPUT_INDENT_SIZE);
-  } catch {
-    return rawText;
-  }
-};
 
 const getWindowApi = (): WindowApi | null => {
   const candidate = (window as Window & { prettypretty?: WindowApi }).prettypretty;
@@ -44,13 +30,19 @@ export const App = () => {
   const latestThemeRequestIdRef = useRef(0);
   const paneMode = useUiStore((state) => state.paneMode);
   const themeMode = useUiStore((state) => state.themeMode);
+  const indentSize = useUiStore((state) => state.indentSize);
   const inputText = useUiStore((state) => state.inputText);
   const reset = useUiStore((state) => state.reset);
   const setPaneMode = useUiStore((state) => state.setPaneMode);
   const setThemeMode = useUiStore((state) => state.setThemeMode);
+  const setIndentSize = useUiStore((state) => state.setIndentSize);
   const setInputText = useUiStore((state) => state.setInputText);
 
-  const outputText = useMemo(() => formatText(inputText), [inputText]);
+  const prettifierService = useMemo(() => createPrettifierService(indentSize), [indentSize]);
+  const outputText = useMemo(
+    () => prettifierService.prettify(inputText),
+    [inputText, prettifierService],
+  );
   const outputDocumentId = useMemo(() => getOutputDocumentId(outputText), [outputText]);
   const hasContent = inputText.trim().length > 0;
   const isOutputMode = paneMode === 'output';
@@ -161,6 +153,7 @@ export const App = () => {
         const preferences = await api.preferences.getAll();
         if (!cancelled) {
           setThemeMode(preferences.themeMode);
+          setIndentSize(preferences.indentSize);
         }
       } catch (error) {
         console.error('Failed to load preferences', error);
@@ -170,7 +163,7 @@ export const App = () => {
     return () => {
       cancelled = true;
     };
-  }, [setThemeMode]);
+  }, [setIndentSize, setThemeMode]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = themeMode;
@@ -271,6 +264,7 @@ export const App = () => {
         <EditorShell
           paneMode={paneMode}
           themeMode={themeMode}
+          indentSize={indentSize}
           inputText={inputText}
           outputText={outputText}
           outputDocumentId={outputDocumentId}

@@ -83,12 +83,15 @@ beforeEach(() => {
   openFileMock.mockResolvedValue(null);
   saveMock.mockResolvedValue(null);
   copyMock.mockResolvedValue(undefined);
-  preferencesGetAllMock.mockResolvedValue({ version: 1, themeMode: 'light' });
-  preferencesUpdateMock.mockImplementation(async (patch: { themeMode?: string }) => ({
-    version: 1,
-    themeMode: patch.themeMode ?? 'light',
-  }));
-  preferencesResetMock.mockResolvedValue({ version: 1, themeMode: 'light' });
+  preferencesGetAllMock.mockResolvedValue({ version: 1, themeMode: 'light', indentSize: 2 });
+  preferencesUpdateMock.mockImplementation(
+    async (patch: { themeMode?: string; indentSize?: number }) => ({
+      version: 1,
+      themeMode: patch.themeMode ?? 'light',
+      indentSize: patch.indentSize ?? 2,
+    }),
+  );
+  preferencesResetMock.mockResolvedValue({ version: 1, themeMode: 'light', indentSize: 2 });
 
   Object.defineProperty(window, 'prettypretty', {
     configurable: true,
@@ -109,6 +112,7 @@ beforeEach(() => {
     useUiStore.setState({
       paneMode: 'input',
       themeMode: 'light',
+      indentSize: 2,
       inputText: '',
     });
   });
@@ -256,7 +260,7 @@ describe('App', () => {
   });
 
   it('hydrates theme mode from persisted preferences at startup', async () => {
-    preferencesGetAllMock.mockResolvedValue({ version: 1, themeMode: 'dark' });
+    preferencesGetAllMock.mockResolvedValue({ version: 1, themeMode: 'dark', indentSize: 2 });
 
     render(<App />);
 
@@ -284,6 +288,20 @@ describe('App', () => {
     expect(preferencesUpdateMock).toHaveBeenCalledWith({ themeMode: 'dark' });
     expect(errorSpy).toHaveBeenCalled();
     errorSpy.mockRestore();
+  });
+
+  it('hydrates indent size from preferences and applies it to formatted output', async () => {
+    preferencesGetAllMock.mockResolvedValue({ version: 1, themeMode: 'light', indentSize: 4 });
+    const user = userEvent.setup();
+    openFileMock.mockResolvedValue({ path: '/tmp/example.json', content: '{"outer":{"inner":1}}' });
+
+    render(<App />);
+
+    await user.click(screen.getByRole('button', { name: 'Click' }));
+
+    const output = await screen.findByTestId('output-editor');
+    const renderedText = output.textContent ?? '';
+    expect(renderedText).toContain('\n        "inner": 1');
   });
 
   it('wires collapse and expand toolbar actions to output editor in output mode', async () => {

@@ -14,7 +14,7 @@ Do not add routine status updates, implementation history, or one-time decisions
 - Do not let keyboard shortcuts and toolbar controls diverge; both must use the same mode guards and enable/disable rules.
 - Do not rely on partial class assertions for style tests; assert exact class contracts so variants cannot drift silently.
 - Do not style Monaco text metrics via external CSS selectors (for example `.view-lines`); set typography metrics in Monaco options or cursor/selection alignment can drift.
-- Do not let JSON prettify indentation and Monaco indentation settings come from different constants; this causes visible guide mismatch.
+- Do not let prettifier indentation and Monaco indentation settings come from different sources; both must read the same persisted preference value.
 - Do not mutate output text to implement search highlighting; use Monaco-native find/decorations so copy/save output remains accurate.
 - Do not key output fold/view state to transient UI state; persist/restore by deterministic document identity.
 - Do not maintain separate Monaco option sets for input/output that can drift; use one shared base and derive editable/read-only variants.
@@ -22,3 +22,6 @@ Do not add routine status updates, implementation history, or one-time decisions
 - Do not bypass Monaco built-ins with CSS overlays for editor primitives (for example minimap); use Monaco options for stability and compatibility.
 - Do not persist app preferences in renderer localStorage or install directories; keep main-process ownership and store in Electron `app.getPath('userData')` for OS-correct, writable config behavior.
 - Do not implement optimistic preference writes without request sequencing; stale async failures can rollback newer user selections.
+- Do not parse JS/TS object-literal input with `eval`/`new Function`; use parser-based approaches to keep renderer execution safe.
+- Do not silently coerce unsupported parsed values (for example `NaN`/`Infinity`) during prettify; return original input if the value tree is not JSON-serializable.
+- Do not treat additive preference fields as corrupt-file cases by default; migrate missing/invalid optional fields to safe defaults when backward compatibility allows it.

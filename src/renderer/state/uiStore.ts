@@ -1,14 +1,17 @@
 import { create } from 'zustand';
+import type { IndentSize } from '../../shared/preferences';
 import type { PaneMode, ThemeMode } from '../../shared/types';
 
 type UiState = {
   paneMode: PaneMode;
   themeMode: ThemeMode;
+  indentSize: IndentSize;
   inputText: string;
   setPaneMode: (mode: PaneMode) => void;
   togglePaneMode: () => void;
   setThemeMode: (mode: ThemeMode) => void;
   toggleThemeMode: () => void;
+  setIndentSize: (size: IndentSize) => void;
   setInputText: (text: string) => void;
   reset: () => void;
 };
@@ -16,6 +19,7 @@ type UiState = {
 export const useUiStore = create<UiState>((set) => ({
   paneMode: 'input',
   themeMode: 'light',
+  indentSize: 2,
   inputText: '',
   setPaneMode: (mode) => set({ paneMode: mode }),
   togglePaneMode: () =>
@@ -23,6 +27,7 @@ export const useUiStore = create<UiState>((set) => ({
   setThemeMode: (mode) => set({ themeMode: mode }),
   toggleThemeMode: () =>
     set((state) => ({ themeMode: state.themeMode === 'light' ? 'dark' : 'light' })),
+  setIndentSize: (size) => set({ indentSize: size }),
   setInputText: (text) => set({ inputText: text }),
   reset: () => set({ paneMode: 'input', inputText: '' }),
 }));

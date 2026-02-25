@@ -40,13 +40,17 @@ describe('PreferencesStore', () => {
 
     const preferences = await store.load();
 
-    expect(preferences).toEqual({ version: 1, themeMode: 'light' });
-    await expect(readJson(filePath)).resolves.toEqual({ version: 1, themeMode: 'light' });
+    expect(preferences).toEqual({ version: 1, themeMode: 'light', indentSize: 2 });
+    await expect(readJson(filePath)).resolves.toEqual({
+      version: 1,
+      themeMode: 'light',
+      indentSize: 2,
+    });
   });
 
   it('persists and reloads saved preferences', async () => {
     const { directory, store } = await createStore();
-    const persisted: Preferences = { version: 1, themeMode: 'dark' };
+    const persisted: Preferences = { version: 1, themeMode: 'dark', indentSize: 4 };
 
     await store.save(persisted);
 
@@ -62,9 +66,13 @@ describe('PreferencesStore', () => {
     const recovered = await store.load();
     const corruptPath = join(directory, `preferences.corrupt.${timestamp.toString()}.json`);
 
-    expect(recovered).toEqual({ version: 1, themeMode: 'light' });
+    expect(recovered).toEqual({ version: 1, themeMode: 'light', indentSize: 2 });
     await expect(readFile(corruptPath, 'utf8')).resolves.toBe('{"themeMode":');
-    await expect(readJson(filePath)).resolves.toEqual({ version: 1, themeMode: 'light' });
+    await expect(readJson(filePath)).resolves.toEqual({
+      version: 1,
+      themeMode: 'light',
+      indentSize: 2,
+    });
   });
 
   it('recovers when stored values are invalid or unsupported', async () => {
@@ -75,14 +83,44 @@ describe('PreferencesStore', () => {
     const recovered = await store.load();
     const files = await readdir(directory);
 
-    expect(recovered).toEqual({ version: 1, themeMode: 'light' });
+    expect(recovered).toEqual({ version: 1, themeMode: 'light', indentSize: 2 });
     expect(files).toContain(`preferences.corrupt.${timestamp.toString()}.json`);
-    await expect(readJson(filePath)).resolves.toEqual({ version: 1, themeMode: 'light' });
+    await expect(readJson(filePath)).resolves.toEqual({
+      version: 1,
+      themeMode: 'light',
+      indentSize: 2,
+    });
+  });
+
+  it('migrates legacy version-1 payloads missing indent size without rolling file to corrupt', async () => {
+    const { directory, filePath, store } = await createStore();
+    await writeFile(filePath, JSON.stringify({ version: 1, themeMode: 'dark' }), 'utf8');
+
+    const loaded = await store.load();
+    const files = await readdir(directory);
+
+    expect(loaded).toEqual({ version: 1, themeMode: 'dark', indentSize: 2 });
+    expect(files.some((name) => name.startsWith('preferences.corrupt.'))).toBe(false);
+  });
+
+  it('migrates invalid indent size in version-1 payload to default without rolling file to corrupt', async () => {
+    const { directory, filePath, store } = await createStore();
+    await writeFile(
+      filePath,
+      JSON.stringify({ version: 1, themeMode: 'dark', indentSize: 99 }),
+      'utf8',
+    );
+
+    const loaded = await store.load();
+    const files = await readdir(directory);
+
+    expect(loaded).toEqual({ version: 1, themeMode: 'dark', indentSize: 2 });
+    expect(files.some((name) => name.startsWith('preferences.corrupt.'))).toBe(false);
   });
 
   it('writes atomically and does not leave temporary files behind', async () => {
     const { directory, filePath, store } = await createStore();
-    const next: Preferences = { version: 1, themeMode: 'dark' };
+    const next: Preferences = { version: 1, themeMode: 'dark', indentSize: 7 };
 
     await store.save(next);
 

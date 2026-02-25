@@ -45,7 +45,7 @@ const getRegisteredHandler = (channel: string): ((...args: unknown[]) => unknown
 };
 
 describe('registerIpcHandlers preferences channels', () => {
-  const preferences: Preferences = { version: 1, themeMode: 'dark' };
+  const preferences: Preferences = { version: 1, themeMode: 'dark', indentSize: 4 };
   const preferencesService = {
     getAll: vi.fn(),
     update: vi.fn(),
@@ -56,7 +56,11 @@ describe('registerIpcHandlers preferences channels', () => {
     handleMock.mockReset();
     preferencesService.getAll.mockReset().mockResolvedValue(preferences);
     preferencesService.update.mockReset().mockResolvedValue(preferences);
-    preferencesService.reset.mockReset().mockResolvedValue({ version: 1, themeMode: 'light' });
+    preferencesService.reset.mockReset().mockResolvedValue({
+      version: 1,
+      themeMode: 'light',
+      indentSize: 2,
+    });
 
     registerIpcHandlers({ preferencesService });
   });
@@ -71,9 +75,9 @@ describe('registerIpcHandlers preferences channels', () => {
 
   it('forwards valid preferences update payloads to service', async () => {
     const updateHandler = getRegisteredHandler(IPCChannels.preferencesUpdate);
-    const result = await updateHandler({}, { themeMode: 'dark' });
+    const result = await updateHandler({}, { themeMode: 'dark', indentSize: 6 });
 
-    expect(preferencesService.update).toHaveBeenCalledWith({ themeMode: 'dark' });
+    expect(preferencesService.update).toHaveBeenCalledWith({ themeMode: 'dark', indentSize: 6 });
     expect(result).toEqual(preferences);
   });
 

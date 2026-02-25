@@ -26,6 +26,7 @@
 
 - Source of truth is main-process `PreferencesService` (`src/main/preferences`).
 - Disk persistence is JSON at `<userData>/preferences.json`.
+- Current persisted settings include `themeMode` and `indentSize` (integer `1..8`, default `2`).
 - Renderer reads/writes preferences only via preload IPC channels:
   - `preferences:get-all`
   - `preferences:update`
@@ -44,5 +45,10 @@
 
 - Input text ingestion (paste/drop/open file).
 - Input rendering through Monaco editable editor instance.
-- Parse + prettify pipeline.
+- Parse + prettify pipeline via renderer-local `PrettifierService`:
+  - strict JSON parse,
+  - JSON5 parse for JS/TS object-literal style input,
+  - Python-literal normalization + JSON5 parse,
+  - malformed/unsupported payload passthrough unchanged.
+- Prettifier output indentation and Monaco indentation are both driven by the persisted `indentSize` preference.
 - Output rendering through Monaco read-only editor instance with syntax/highlighting/folding.

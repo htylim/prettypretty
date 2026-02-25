@@ -1,4 +1,5 @@
 import type { ClipboardEventHandler, DragEventHandler, RefObject } from 'react';
+import type { IndentSize } from '../../shared/preferences';
 import type { PaneMode, ThemeMode } from '../../shared/types';
 import { InputEditor, type InputEditorHandle } from './InputEditor';
 import { OutputEditor, type OutputEditorHandle } from './OutputEditor';
@@ -6,6 +7,7 @@ import { OutputEditor, type OutputEditorHandle } from './OutputEditor';
 type EditorShellProps = {
   paneMode: PaneMode;
   themeMode: ThemeMode;
+  indentSize: IndentSize;
   inputText: string;
   outputText: string;
   outputDocumentId: string;
@@ -19,6 +21,7 @@ type EditorShellProps = {
 export const EditorShell = ({
   paneMode,
   themeMode,
+  indentSize,
   inputText,
   outputText,
   outputDocumentId,
@@ -69,6 +72,7 @@ export const EditorShell = ({
           ref={inputEditorRef}
           value={inputText}
           themeMode={themeMode}
+          indentSize={indentSize}
           onChange={onEditInputChange}
         />
       ) : (
@@ -76,6 +80,7 @@ export const EditorShell = ({
           ref={outputEditorRef}
           documentId={outputDocumentId}
           themeMode={themeMode}
+          indentSize={indentSize}
           value={outputText}
         />
       )}

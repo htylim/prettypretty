@@ -153,11 +153,19 @@ describe('OutputEditor', () => {
   });
 
   it('renders Monaco in read-only mode with line numbers seam', () => {
-    render(<OutputEditor documentId="doc-readonly-1" themeMode="light" value={'{"a":1}'} />);
+    render(
+      <OutputEditor
+        documentId="doc-readonly-1"
+        themeMode="light"
+        indentSize={2}
+        value={'{"a":1}'}
+      />,
+    );
 
     expect(configureMonacoMock).toHaveBeenCalledTimes(1);
     expect(registerMonacoThemesMock).toHaveBeenCalledTimes(1);
     expect(getOutputEditorOptionsMock).toHaveBeenCalledTimes(1);
+    expect(getOutputEditorOptionsMock).toHaveBeenCalledWith(2);
 
     const lastRender = editorRenderSpy.mock.calls.at(-1)?.[0] as MonacoRenderProps;
     expect(lastRender.options?.readOnly).toBe(true);
@@ -167,14 +175,26 @@ describe('OutputEditor', () => {
 
   it('updates Monaco theme without mutating content', () => {
     const { rerender } = render(
-      <OutputEditor documentId="doc-theme-1" themeMode="light" value='{"alpha":"beta"}' />,
+      <OutputEditor
+        documentId="doc-theme-1"
+        themeMode="light"
+        indentSize={2}
+        value='{"alpha":"beta"}'
+      />,
     );
 
     let lastRender = editorRenderSpy.mock.calls.at(-1)?.[0] as MonacoRenderProps;
     expect(lastRender.theme).toBe('prettypretty-light');
     expect(lastRender.value).toBe('{"alpha":"beta"}');
 
-    rerender(<OutputEditor documentId="doc-theme-1" themeMode="dark" value='{"alpha":"beta"}' />);
+    rerender(
+      <OutputEditor
+        documentId="doc-theme-1"
+        themeMode="dark"
+        indentSize={2}
+        value='{"alpha":"beta"}'
+      />,
+    );
 
     lastRender = editorRenderSpy.mock.calls.at(-1)?.[0] as MonacoRenderProps;
     expect(lastRender.theme).toBe('prettypretty-dark');
@@ -188,6 +208,7 @@ describe('OutputEditor', () => {
         ref={handleRef}
         documentId="doc-actions-1"
         themeMode="light"
+        indentSize={2}
         value="const x = 1;"
       />,
     );
@@ -207,12 +228,16 @@ describe('OutputEditor', () => {
 
   it('persists and restores view state by document id', () => {
     const { rerender } = render(
-      <OutputEditor documentId="doc-fold-A" themeMode="light" value='{"a":1}' />,
+      <OutputEditor documentId="doc-fold-A" themeMode="light" indentSize={2} value='{"a":1}' />,
     );
 
-    rerender(<OutputEditor documentId="doc-fold-B" themeMode="light" value='{"b":2}' />);
+    rerender(
+      <OutputEditor documentId="doc-fold-B" themeMode="light" indentSize={2} value='{"b":2}' />,
+    );
 
-    rerender(<OutputEditor documentId="doc-fold-A" themeMode="light" value='{"a":1}' />);
+    rerender(
+      <OutputEditor documentId="doc-fold-A" themeMode="light" indentSize={2} value='{"a":1}' />,
+    );
 
     const restoredStates = restoreViewStateMock.mock.calls.map(
       (args) => args[0] as { token?: string },

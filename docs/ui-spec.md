@@ -39,6 +39,7 @@
 - Toolbar action visual treatment follows the design-style button pattern.
 - Theme mode control on the right: segmented `Light/Dark` toggle with explicit active segment.
 - Theme preference persistence: selected theme is stored through preload/main preferences APIs and restored on next app launch.
+- Indentation preference has no user-facing control in current scope; renderer consumes persisted `indentSize` value only.
 
 ## Editing Rules
 
@@ -48,12 +49,15 @@
 - Input mode Monaco uses the same preferences/settings as output mode, except output remains read-only and input remains editable.
 - Output is derived from input and updates with input changes.
 - Unified ingestion flow: drop, paste, and click-open all set input through the same ingestion path.
-- Ingestion behavior: load input text, apply existing prettify logic, and switch pane mode to output.
+- Ingestion behavior: load input text, apply `PrettifierService` local parser chain, and switch pane mode to output.
+- Local parser chain order: strict JSON -> JSON5 (JS/TS object-literal style) -> Python-literal normalization + JSON5.
+- Malformed/unsupported inputs are displayed unchanged (AI fallback is out of scope for current local path).
 - Manual typing behavior: updates input text without forcing output mode.
 - Output mode language detection is heuristic and parser-independent, with malformed JSON-like content preferring JSON highlighting.
 - Output mode line numbers are always visible in current scope.
 - Output mode minimap is enabled for document-level navigation.
 - Output mode search uses Monaco native find widget (triggered by `Cmd+F` in output mode).
 - Output mode fold/view state persists for the current document identity during the app session.
-- Output-mode JSON prettify indentation and Monaco tab/guide indentation are sourced from the same renderer constant so they stay synchronized.
+- Output-mode prettify indentation and Monaco tab/guide indentation are sourced from the same persisted preference value (`indentSize`) so they stay synchronized.
 - Theme persistence behavior: renderer hydrates `themeMode` from persisted preferences at startup and uses optimistic updates with rollback on failed writes.
+- Indentation persistence behavior: renderer hydrates `indentSize` from persisted preferences at startup and uses it as the single runtime source for formatter + Monaco indentation.
