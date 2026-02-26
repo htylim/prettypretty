@@ -4,7 +4,7 @@ import type { Preferences } from '../../shared/preferences';
 import { createDefaultPreferences } from './preferencesDefaults';
 import { migratePreferences } from './preferencesTypes';
 
-const PREFERENCES_FILE_NAME = 'preferences.json';
+export const PREFERENCES_FILE_NAME = 'preferences.json';
 
 const withTrailingNewline = (value: string): string => {
   return value.endsWith('\n') ? value : `${value}\n`;

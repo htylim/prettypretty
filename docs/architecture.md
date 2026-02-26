@@ -16,7 +16,7 @@
 ## Runtime Flow
 
 1. App starts in `src/main/index.ts`.
-2. Main process sets explicit app menu labels via `src/main/menu/applicationMenu.ts` using fixed app naming (`prettypretty`) to avoid macOS dev menu fallback label `Electron`.
+2. Main process sets explicit app menu labels via `src/main/menu/applicationMenu.ts` using fixed app naming (`prettypretty`) to avoid macOS dev menu fallback label `Electron`, and exposes `Preferences...` in the macOS app menu to open `<userData>/preferences.json` in the OS default editor.
 3. Main window is created from `src/main/windows/mainWindow.ts`.
 4. Main process initializes `PreferencesStore` + `PreferencesService` using `app.getPath('userData')/preferences.json`.
 5. Preload script exposes `window.prettypretty`.

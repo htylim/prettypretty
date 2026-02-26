@@ -29,6 +29,7 @@ Do not add routine status updates, implementation history, or one-time decisions
 - Do not rely on `iconutil` conversion in constrained/sandboxed environments for app icons; generate `.icns` through `app-builder-bin icon` with a size-labeled PNG input (`1024x1024.png`) to keep icon builds deterministic.
 - Do not rely on macOS default app menu labeling in dev mode; explicitly set application menu template label from `app.getName()` or the top-bar app menu can remain `Electron`.
 - Do not rely on `app.getName()` to drive macOS top-bar app menu label in dev mode; use a fixed app label (`prettypretty`) when deterministic branding is required.
+- Do not hardcode an editor executable for opening config files from app menus; use Electron `shell.openPath` so OS file associations select the default editor.
 - Do not execute fallback LLM commands from renderer code or without hard timeout/output caps; keep process execution in main with typed status outcomes so failures degrade to passthrough instead of UI hangs.
 - Do not run prettifier/fallback on every input keystroke; trigger prettification only on explicit output-mode requests or cost and latency spike while typing.
 - Do not include raw input/output/prompt bodies in verbose logs; log only bounded metadata (lengths, statuses, durations, ids) to keep diagnostics safe and readable.
