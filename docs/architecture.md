@@ -20,8 +20,8 @@
 3. Main window is created from `src/main/windows/mainWindow.ts`.
 4. Main process initializes `PreferencesStore` + `PreferencesService` using `app.getPath('userData')/preferences.json`.
 5. Preload script exposes `window.prettypretty`.
-6. Renderer calls preload APIs for open/save/copy/info/preferences.
-7. Main process handles IPC and performs side effects.
+6. Renderer calls preload APIs for open/save/copy/info/preferences/prettifier/telemetry.
+7. Main process handles IPC, prettifier orchestration, and other side effects.
 
 ## Preferences Data Flow
 
@@ -29,7 +29,7 @@
 - Disk persistence is JSON at `<userData>/preferences.json`.
 - Current persisted settings include `themeMode`, `indentSize` (integer `1..8`, default `2`), `agents`, and `fallbackAgentId`.
 - `agents` stores fallback command configuration (`executable`, `argsTemplate`, `promptTemplate`, `promptDelivery`, `enabled`, `timeoutMs`, `maxOutputBytes`).
-- `fallbackAgentId` is `null` to disable fallback or a valid enabled agent id.
+- `fallbackAgentId` is either `null` to disable fallback or a valid enabled agent id (default: `codex`).
 - Prompt template tokens currently supported by the preferences model are `{input}` and `{indentSize}`.
 - Default preferences initialize two agent configs: `amp` and `codex`.
 - Renderer reads/writes preferences only via preload IPC channels:
@@ -46,6 +46,13 @@
 - Renderer has no direct Node access.
 - IPC channels are explicit and typed.
 
+## Logging
+
+- Verbose logs are enabled only when launching with `-v` or `--verbose`.
+- Main process emits structured JSON log lines to stdout.
+- Startup, ingestion, IPC validation, prettifier pipeline, and fallback execution events are logged in verbose mode.
+- Raw payloads are never logged; logs include metadata only (lengths, statuses, timings, ids).
+
 ## Packaging Assets
 
 - Electron Builder reads packaging assets from `build/` (`directories.buildResources`).
@@ -58,15 +65,17 @@
   - Windows/Linux window icon via `BrowserWindow` `icon` option
 - Regenerate icon artifacts via `pnpm icon:generate` (`scripts/generate-app-icons.sh`).
 
-## Future Data Flow (Feature Work)
+## Prettifier Runtime Flow
 
-- Input text ingestion (paste/drop/open file).
-- Input rendering through Monaco editable editor instance.
-- Parse + prettify pipeline via renderer-local `PrettifierService`:
+- Input text ingestion events come from open file, drop, paste, or manual output-mode switch.
+- Prettifier runs only on output-triggered paths and never on every input keystroke.
+- Renderer applies local parser chain first:
   - strict JSON parse,
   - JSON5 parse for JS/TS object-literal style input,
-  - Python-literal normalization + JSON5 parse,
-  - malformed/unsupported payload passthrough unchanged.
-- Prettifier output indentation and Monaco indentation are both driven by the persisted `indentSize` preference.
-- Agent fallback execution is future scope; current work only scaffolds persisted configuration.
-- Output rendering through Monaco read-only editor instance with syntax/highlighting/folding.
+  - Python-literal normalization + JSON5 parse.
+- If local parsing succeeds, renderer uses local output immediately.
+- If local parsing fails/unsupported, renderer calls main-process `prettifier:run` IPC and shows a loading indicator while fallback is running.
+- Main prettifier service resolves configured fallback agent from preferences and executes via `child_process.spawn`.
+- Fallback execution enforces timeout and output-size caps and classifies failures into typed statuses.
+- Any fallback failure degrades to passthrough output instead of throwing into renderer.
+- Empty open-file/drop content stays in input mode and shows an inline notice (`File has no content.`).

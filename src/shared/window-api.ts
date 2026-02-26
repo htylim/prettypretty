@@ -1,5 +1,7 @@
 import type { AppInfo, OpenFileResult, SaveFileResult } from './ipc-contracts';
+import type { PrettifyRunRequest, PrettifyRunResponse } from './prettifier';
 import type { Preferences, PreferencesPatch } from './preferences';
+import type { TelemetryEvent } from './telemetry';
 
 export interface WindowApi {
   dialog: {
@@ -18,5 +20,11 @@ export interface WindowApi {
     getAll: () => Promise<Preferences>;
     update: (patch: PreferencesPatch) => Promise<Preferences>;
     reset: () => Promise<Preferences>;
+  };
+  prettifier: {
+    run: (request: PrettifyRunRequest) => Promise<PrettifyRunResponse>;
+  };
+  telemetry: {
+    log: (event: TelemetryEvent) => Promise<void>;
   };
 }

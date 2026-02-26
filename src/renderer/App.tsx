@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { PrettifyTrigger } from '../shared/prettifier';
+import type { TelemetryEventName } from '../shared/telemetry';
 import type { WindowApi } from '../shared/window-api';
 import type { ThemeMode } from '../shared/types';
 import { EditorShell } from './components/EditorShell';
@@ -24,34 +26,186 @@ const getOutputDocumentId = (value: string): string => {
   return `output-${(hash >>> 0).toString(16)}-${value.length}`;
 };
 
+type IngestSource = 'open-file' | 'drop' | 'paste';
+
+const EMPTY_FILE_NOTICE = 'File has no content.';
+
+const isFileIngestSource = (source: IngestSource): boolean => {
+  return source === 'open-file' || source === 'drop';
+};
+
+const getIngestTrigger = (source: IngestSource): PrettifyTrigger => {
+  if (source === 'open-file') {
+    return 'ingest-open-file';
+  }
+
+  if (source === 'drop') {
+    return 'ingest-drop';
+  }
+
+  return 'ingest-paste';
+};
+
+const getIngestEventName = (source: IngestSource): TelemetryEventName => {
+  if (source === 'open-file') {
+    return 'renderer.ingest.open-file';
+  }
+
+  if (source === 'drop') {
+    return 'renderer.ingest.drop';
+  }
+
+  return 'renderer.ingest.paste';
+};
+
 export const App = () => {
   const inputEditorRef = useRef<InputEditorHandle>(null);
   const outputEditorRef = useRef<OutputEditorHandle>(null);
   const latestThemeRequestIdRef = useRef(0);
+  const latestPrettifyRequestIdRef = useRef(0);
+  const lastPrettifiedInputRef = useRef<string | null>(null);
   const paneMode = useUiStore((state) => state.paneMode);
   const themeMode = useUiStore((state) => state.themeMode);
   const indentSize = useUiStore((state) => state.indentSize);
   const inputText = useUiStore((state) => state.inputText);
+  const ingestNotice = useUiStore((state) => state.ingestNotice);
   const reset = useUiStore((state) => state.reset);
   const setPaneMode = useUiStore((state) => state.setPaneMode);
   const setThemeMode = useUiStore((state) => state.setThemeMode);
   const setIndentSize = useUiStore((state) => state.setIndentSize);
   const setInputText = useUiStore((state) => state.setInputText);
+  const setIngestNotice = useUiStore((state) => state.setIngestNotice);
+  const [outputText, setOutputText] = useState('');
+  const [isLlmRunning, setIsLlmRunning] = useState(false);
 
   const prettifierService = useMemo(() => createPrettifierService(indentSize), [indentSize]);
-  const outputText = useMemo(
-    () => prettifierService.prettify(inputText),
-    [inputText, prettifierService],
-  );
   const outputDocumentId = useMemo(() => getOutputDocumentId(outputText), [outputText]);
   const hasContent = inputText.trim().length > 0;
   const isOutputMode = paneMode === 'output';
-  const ingestInputText = useCallback(
-    (nextText: string): void => {
-      setInputText(nextText);
-      setPaneMode('output');
+
+  const logTelemetry = useCallback(
+    async (
+      name: TelemetryEventName,
+      meta: Record<string, string | number | boolean | null>,
+    ): Promise<void> => {
+      const api = getWindowApi();
+      if (!api) {
+        return;
+      }
+
+      try {
+        await api.telemetry.log({ name, meta });
+      } catch (error) {
+        console.error('Failed to emit telemetry event', error);
+      }
     },
-    [setInputText, setPaneMode],
+    [],
+  );
+
+  const runPrettifier = useCallback(
+    async (nextInputText: string, trigger: PrettifyTrigger): Promise<void> => {
+      const requestId = latestPrettifyRequestIdRef.current + 1;
+      latestPrettifyRequestIdRef.current = requestId;
+      setIsLlmRunning(false);
+      setOutputText(nextInputText);
+
+      const localResult = prettifierService.prettifyDetailed(nextInputText);
+      void logTelemetry('renderer.prettifier.local.result', {
+        trigger,
+        inputLength: nextInputText.length,
+        localDetection: localResult.localDetection,
+        localResultKind: localResult.kind,
+      });
+
+      if (localResult.kind === 'applied') {
+        if (requestId !== latestPrettifyRequestIdRef.current) {
+          return;
+        }
+
+        setOutputText(localResult.outputText);
+        lastPrettifiedInputRef.current = nextInputText;
+        return;
+      }
+
+      const api = getWindowApi();
+      if (!api) {
+        if (requestId !== latestPrettifyRequestIdRef.current) {
+          return;
+        }
+
+        setOutputText(nextInputText);
+        lastPrettifiedInputRef.current = nextInputText;
+        return;
+      }
+
+      setIsLlmRunning(true);
+
+      try {
+        const response = await api.prettifier.run({
+          inputText: nextInputText,
+          indentSize,
+          trigger,
+        });
+
+        if (requestId !== latestPrettifyRequestIdRef.current) {
+          return;
+        }
+
+        setOutputText(response.outputText);
+        lastPrettifiedInputRef.current = nextInputText;
+      } catch (error) {
+        if (requestId !== latestPrettifyRequestIdRef.current) {
+          return;
+        }
+
+        setOutputText(nextInputText);
+        lastPrettifiedInputRef.current = nextInputText;
+        console.error('Failed to run prettifier fallback', error);
+      } finally {
+        if (requestId === latestPrettifyRequestIdRef.current) {
+          setIsLlmRunning(false);
+        }
+      }
+    },
+    [indentSize, logTelemetry, prettifierService],
+  );
+
+  const ingestInputText = useCallback(
+    (nextText: string, source: IngestSource): void => {
+      setInputText(nextText);
+      void logTelemetry(getIngestEventName(source), {
+        source,
+        inputLength: nextText.length,
+        isEmpty: nextText.length === 0,
+      });
+
+      if (isFileIngestSource(source) && nextText.length === 0) {
+        latestPrettifyRequestIdRef.current += 1;
+        lastPrettifiedInputRef.current = null;
+        setIsLlmRunning(false);
+        setOutputText('');
+        setPaneMode('input');
+        setIngestNotice(EMPTY_FILE_NOTICE);
+        return;
+      }
+
+      if (nextText.trim().length === 0) {
+        latestPrettifyRequestIdRef.current += 1;
+        lastPrettifiedInputRef.current = null;
+        setIsLlmRunning(false);
+        setOutputText('');
+        setPaneMode('input');
+        if (source !== 'paste') {
+          setIngestNotice(null);
+        }
+        return;
+      }
+
+      setIngestNotice(null);
+      setPaneMode('output');
+      void runPrettifier(nextText, getIngestTrigger(source));
+    },
+    [logTelemetry, runPrettifier, setIngestNotice, setInputText, setPaneMode],
   );
 
   const openFile = useCallback(async (): Promise<void> => {
@@ -62,7 +216,7 @@ export const App = () => {
 
     const file = await api.dialog.openFile();
     if (file) {
-      ingestInputText(file.content);
+      ingestInputText(file.content, 'open-file');
     }
   }, [ingestInputText]);
 
@@ -85,8 +239,39 @@ export const App = () => {
   }, [outputText]);
 
   const handleNew = useCallback((): void => {
+    latestPrettifyRequestIdRef.current += 1;
+    lastPrettifiedInputRef.current = null;
+    setIsLlmRunning(false);
+    setOutputText('');
     reset();
   }, [reset]);
+
+  const handlePaneModeChange = useCallback(
+    (nextMode: 'input' | 'output'): void => {
+      if (nextMode === 'input') {
+        setPaneMode('input');
+        return;
+      }
+
+      if (!hasContent) {
+        return;
+      }
+
+      setPaneMode('output');
+      void logTelemetry('renderer.output.mode-switch', {
+        fromMode: paneMode,
+        toMode: 'output',
+        inputLength: inputText.length,
+      });
+
+      if (lastPrettifiedInputRef.current === inputText) {
+        return;
+      }
+
+      void runPrettifier(inputText, 'switch-output');
+    },
+    [hasContent, inputText, logTelemetry, paneMode, runPrettifier, setPaneMode],
+  );
 
   const collapseActiveEditor = useCallback((): void => {
     if (paneMode === 'input') {
@@ -203,7 +388,7 @@ export const App = () => {
       if (key === 'i') {
         event.preventDefault();
         if (paneMode !== 'input') {
-          setPaneMode('input');
+          handlePaneModeChange('input');
         }
         return;
       }
@@ -215,7 +400,7 @@ export const App = () => {
           return;
         }
         if (paneMode !== 'output') {
-          setPaneMode('output');
+          handlePaneModeChange('output');
         }
         return;
       }
@@ -242,7 +427,7 @@ export const App = () => {
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [copyOutput, handleNew, hasContent, isOutputMode, paneMode, saveOutput, setPaneMode]);
+  }, [copyOutput, handleNew, handlePaneModeChange, hasContent, isOutputMode, paneMode, saveOutput]);
 
   return (
     <main className="app-root">
@@ -253,7 +438,7 @@ export const App = () => {
           themeMode={themeMode}
           hasContent={hasContent}
           onNew={handleNew}
-          onPaneModeChange={setPaneMode}
+          onPaneModeChange={handlePaneModeChange}
           onCollapseAll={collapseActiveEditor}
           onExpandAll={expandActiveEditor}
           onSave={() => void saveOutput()}
@@ -268,10 +453,13 @@ export const App = () => {
           inputText={inputText}
           outputText={outputText}
           outputDocumentId={outputDocumentId}
+          ingestNotice={ingestNotice}
+          isLlmRunning={isLlmRunning}
           inputEditorRef={inputEditorRef}
           outputEditorRef={outputEditorRef}
           onEditInputChange={setInputText}
           onIngestInput={ingestInputText}
+          onDismissIngestNotice={() => setIngestNotice(null)}
           onOpenFile={openFile}
         />
       </div>

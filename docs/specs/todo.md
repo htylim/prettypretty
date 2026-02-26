@@ -1,10 +1,11 @@
+- make cmd , to open a editor on the configuration file
+- have log file to be sent to a memory buffer or something and have cmd+l to open a window/editor/terminal with the log.
 - light/dark mode to switch with input/output mode
 - Have cmd+ and cmd- to collapse and expand one level at a time (and tie to buttons)
 - add cmd+click or ctrl+click to collapse the block you are clicking (and expanding it)
 - have prettyfying logic to trigger now when input text change, but when output pane is activated (maybe is already like that, check)
 - when giving a file to read and load content do a check for file size limits
-- add AI prettifying logic, there should be preference for which AI to use, there should be preferences for listing the AI providers and how to run them
-- wire the AI prettifying logic now to the UI having it be a fallback from the other
+- implement `docs/specs/0007-prettifier-service-agent-fallback-execution.md`
 - add loading bar
 - Have a dropdown/toggle to select which AI to fallback to in the UI
 - Have a macos menu bar component to keep prettypretty loaded into memory (and hidden), and have a shortcut key (configurable) that would automatically copy text into clipboard, launch the UI and pate the clipboard into the app.

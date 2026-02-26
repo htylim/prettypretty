@@ -1,0 +1,189 @@
+import { spawn as spawnProcess } from 'node:child_process';
+import type { AgentConfig } from '../../shared/preferences';
+import type { FallbackStatus } from '../../shared/prettifier';
+
+type ExecutorStatus = Exclude<
+  FallbackStatus,
+  'not-attempted' | 'skipped-no-fallback' | 'skipped-invalid-agent'
+>;
+
+export type AgentFallbackExecutionInput = {
+  agent: AgentConfig;
+  prompt: string;
+  inputText: string;
+};
+
+export type AgentFallbackExecutionResult = {
+  status: ExecutorStatus;
+  outputText: string | null;
+  exitCode: number | null;
+  stderrLength: number;
+  durationMs: number;
+};
+
+type ExecutorDependencies = {
+  spawn?: SpawnProcessLike;
+  now?: () => number;
+};
+
+type SpawnedProcess = {
+  on(event: 'error', listener: (error: NodeJS.ErrnoException) => void): unknown;
+  on(event: 'close', listener: (code: number | null) => void): unknown;
+  stdout?: {
+    on: (event: 'data', listener: (chunk: Buffer | string) => void) => unknown;
+  };
+  stderr?: {
+    on: (event: 'data', listener: (chunk: Buffer | string) => void) => unknown;
+  };
+  stdin?: {
+    on: (event: 'error', listener: () => void) => unknown;
+    end: (chunk: string) => void;
+  };
+  kill: (signal?: NodeJS.Signals) => void;
+};
+
+export type SpawnProcessLike = (
+  command: string,
+  args: string[],
+  options: { shell: false; stdio: 'pipe' },
+) => SpawnedProcess;
+
+const isMarkdownFencedOutput = (outputText: string): boolean => {
+  return /^```[\s\S]*```$/u.test(outputText.trim());
+};
+
+const isUnchangedEcho = (outputText: string, inputText: string): boolean => {
+  return outputText.trim() === inputText.trim();
+};
+
+export type AgentFallbackExecutor = {
+  execute: (input: AgentFallbackExecutionInput) => Promise<AgentFallbackExecutionResult>;
+};
+
+export const createAgentFallbackExecutor = (
+  dependencies: ExecutorDependencies = {},
+): AgentFallbackExecutor => {
+  const spawn: SpawnProcessLike =
+    dependencies.spawn ??
+    ((command, args, options) => {
+      return spawnProcess(command, args, options) as unknown as SpawnedProcess;
+    });
+  const now = dependencies.now ?? Date.now;
+
+  return {
+    execute: async ({ agent, prompt, inputText }) => {
+      const startedAt = now();
+      const args =
+        agent.promptDelivery === 'arg' ? [...agent.argsTemplate, prompt] : [...agent.argsTemplate];
+
+      return await new Promise<AgentFallbackExecutionResult>((resolve) => {
+        let finished = false;
+        let timedOut = false;
+        let outputTooLarge = false;
+        let stdoutLength = 0;
+        let stderrLength = 0;
+        let stdout = '';
+        let lastExitCode: number | null = null;
+
+        const finish = (
+          status: ExecutorStatus,
+          outputText: string | null,
+          exitCode: number | null,
+        ): void => {
+          if (finished) {
+            return;
+          }
+
+          finished = true;
+          clearTimeout(timeoutHandle);
+
+          resolve({
+            status,
+            outputText,
+            exitCode,
+            stderrLength,
+            durationMs: now() - startedAt,
+          });
+        };
+
+        const child = spawn(agent.executable, args, {
+          shell: false,
+          stdio: 'pipe',
+        });
+
+        const timeoutHandle = setTimeout(() => {
+          timedOut = true;
+          child.kill('SIGKILL');
+        }, agent.timeoutMs);
+
+        child.on('error', (error) => {
+          const code = typeof error === 'object' && error && 'code' in error ? error.code : null;
+
+          if (code === 'ENOENT') {
+            finish('failed-not-installed', null, null);
+            return;
+          }
+
+          finish('failed-spawn-error', null, null);
+        });
+
+        child.stdout?.on('data', (chunk: Buffer | string) => {
+          const chunkText = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
+          const chunkByteLength = Buffer.byteLength(chunkText);
+          stdoutLength += chunkByteLength;
+
+          if (stdoutLength > agent.maxOutputBytes) {
+            outputTooLarge = true;
+            child.kill('SIGKILL');
+            return;
+          }
+
+          stdout += chunkText;
+        });
+
+        child.stderr?.on('data', (chunk: Buffer | string) => {
+          const chunkText = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
+          stderrLength += Buffer.byteLength(chunkText);
+        });
+
+        if (agent.promptDelivery === 'stdin') {
+          child.stdin?.on('error', () => {
+            // Swallow stream write errors, process exit path will classify the final status.
+          });
+          child.stdin?.end(prompt);
+        }
+
+        child.on('close', (code) => {
+          lastExitCode = code;
+
+          if (timedOut) {
+            finish('failed-timeout', null, lastExitCode);
+            return;
+          }
+
+          if (outputTooLarge) {
+            finish('failed-output-too-large', null, lastExitCode);
+            return;
+          }
+
+          if (code !== 0) {
+            finish('failed-non-zero-exit', null, lastExitCode);
+            return;
+          }
+
+          const trimmedOutput = stdout.trim();
+          if (
+            !trimmedOutput ||
+            isMarkdownFencedOutput(stdout) ||
+            isUnchangedEcho(stdout, inputText)
+          ) {
+            finish('failed-invalid-output', null, lastExitCode);
+            return;
+          }
+
+          finish('applied', stdout, lastExitCode);
+        });
+      });
+    },
+  };
+};

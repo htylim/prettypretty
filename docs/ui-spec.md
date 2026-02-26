@@ -25,7 +25,9 @@
 - `Input/Output` mode control: segmented toggle visible at all times, with explicit active segment.
 - Pane/content sync rule: input pane visible means `Input` active, output pane visible means `Output` active.
 - Empty-content rule in input mode: `Input` stays active and `Output` is disabled until content exists.
-- Empty-content exception in output mode: if ingestion sets empty text and switches to output, `Output` stays active and enabled.
+- Empty-content ingestion rule:
+  - empty open-file/drop payload keeps app in input mode and shows inline notice `File has no content.`,
+  - empty paste keeps app in input mode without that file-empty notice.
 - `Expand` and `Collapse`: always visible; enabled only when content exists.
 - `Expand`/`Collapse` are wired to unfold-all/fold-all actions on the currently active editor (input or output).
 - `Save` and `Copy`: always visible; disabled in input mode and enabled in output mode.
@@ -49,10 +51,14 @@
 - Input and output Monaco instances are separate and do not share content/state.
 - Input mode Monaco uses the same preferences/settings as output mode, except output remains read-only and input remains editable.
 - Output is derived from input and updates with input changes.
+- Output is recomputed only when output mode is requested (ingestion that switches to output, or manual input->output switch), not on every input keystroke.
 - Unified ingestion flow: drop, paste, and click-open all set input through the same ingestion path.
-- Ingestion behavior: load input text, apply `PrettifierService` local parser chain, and switch pane mode to output.
+- Ingestion behavior:
+  - non-empty input: switch to output and run prettifier.
+  - empty open/drop: remain input with inline notice.
+  - empty paste: remain input without file-empty notice.
 - Local parser chain order: strict JSON -> JSON5 (JS/TS object-literal style) -> Python-literal normalization + JSON5.
-- Malformed/unsupported inputs are displayed unchanged (AI fallback is out of scope for current local path).
+- Malformed/unsupported local inputs trigger fallback agent execution via main-process IPC when configured; otherwise output is passthrough unchanged.
 - Manual typing behavior: updates input text without forcing output mode.
 - Output mode language detection is heuristic and parser-independent, with malformed JSON-like content preferring JSON highlighting.
 - Output mode line numbers are always visible in current scope.
@@ -60,5 +66,6 @@
 - Output mode search uses Monaco native find widget (triggered by `Cmd+F` in output mode).
 - Output mode fold/view state persists for the current document identity during the app session.
 - Output-mode prettify indentation and Monaco tab/guide indentation are sourced from the same persisted preference value (`indentSize`) so they stay synchronized.
+- Output mode shows a loading indicator only while fallback agent execution is pending.
 - Theme persistence behavior: renderer hydrates `themeMode` from persisted preferences at startup and uses optimistic updates with rollback on failed writes.
 - Indentation persistence behavior: renderer hydrates `indentSize` from persisted preferences at startup and uses it as the single runtime source for formatter + Monaco indentation.

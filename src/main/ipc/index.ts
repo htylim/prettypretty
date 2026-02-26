@@ -1,14 +1,25 @@
 import { app, clipboard, dialog, ipcMain } from 'electron';
 import { readFile, writeFile } from 'node:fs/promises';
+import { extname } from 'node:path';
 import { IPCChannels } from '../../shared/ipc-contracts';
+import type { Logger } from '../logging/logger';
+import { isTelemetryEvent } from '../logging/telemetryTypes';
 import { isPreferencesPatch } from '../preferences/preferencesTypes';
+import type { PrettifierService } from '../prettifier/prettifierService';
+import { isPrettifyRunRequest } from '../prettifier/prettifierTypes';
 import type { PreferencesService } from '../preferences/preferencesService';
 
 type IpcDependencies = {
   preferencesService: Pick<PreferencesService, 'getAll' | 'update' | 'reset'>;
+  prettifierService: Pick<PrettifierService, 'run'>;
+  logger: Logger;
 };
 
-export const registerIpcHandlers = ({ preferencesService }: IpcDependencies): void => {
+export const registerIpcHandlers = ({
+  preferencesService,
+  prettifierService,
+  logger,
+}: IpcDependencies): void => {
   ipcMain.handle(IPCChannels.dialogOpenFile, async () => {
     const result = await dialog.showOpenDialog({
       title: 'Open file',
@@ -35,6 +46,11 @@ export const registerIpcHandlers = ({ preferencesService }: IpcDependencies): vo
     }
 
     const content = await readFile(path, 'utf8');
+    logger.info('ingest.open-file', {
+      fileExtension: extname(path),
+      contentLength: content.length,
+      isEmpty: content.length === 0,
+    });
 
     return { path, content };
   });
@@ -77,6 +93,9 @@ export const registerIpcHandlers = ({ preferencesService }: IpcDependencies): vo
 
   ipcMain.handle(IPCChannels.preferencesUpdate, async (_event, patch: unknown) => {
     if (!isPreferencesPatch(patch)) {
+      logger.warn('ipc.validation.error', {
+        channel: IPCChannels.preferencesUpdate,
+      });
       throw new Error('Invalid preferences patch payload');
     }
 
@@ -85,5 +104,27 @@ export const registerIpcHandlers = ({ preferencesService }: IpcDependencies): vo
 
   ipcMain.handle(IPCChannels.preferencesReset, async () => {
     return await preferencesService.reset();
+  });
+
+  ipcMain.handle(IPCChannels.prettifierRun, async (_event, request: unknown) => {
+    if (!isPrettifyRunRequest(request)) {
+      logger.warn('ipc.validation.error', {
+        channel: IPCChannels.prettifierRun,
+      });
+      throw new Error('Invalid prettifier request payload');
+    }
+
+    return await prettifierService.run(request);
+  });
+
+  ipcMain.handle(IPCChannels.telemetryLogEvent, async (_event, event: unknown) => {
+    if (!isTelemetryEvent(event)) {
+      logger.warn('ipc.validation.error', {
+        channel: IPCChannels.telemetryLogEvent,
+      });
+      throw new Error('Invalid telemetry event payload');
+    }
+
+    logger.info(event.name, event.meta);
   });
 };

@@ -53,14 +53,28 @@ describe('registerIpcHandlers preferences channels', () => {
     update: vi.fn(),
     reset: vi.fn(),
   };
+  const prettifierService = {
+    run: vi.fn(),
+  };
+  const logger = {
+    isVerboseEnabled: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  };
 
   beforeEach(() => {
     handleMock.mockReset();
     preferencesService.getAll.mockReset().mockResolvedValue(preferences);
     preferencesService.update.mockReset().mockResolvedValue(preferences);
     preferencesService.reset.mockReset().mockResolvedValue(defaults);
+    prettifierService.run.mockReset();
+    logger.isVerboseEnabled.mockReset();
+    logger.info.mockReset();
+    logger.warn.mockReset();
+    logger.error.mockReset();
 
-    registerIpcHandlers({ preferencesService });
+    registerIpcHandlers({ preferencesService, prettifierService, logger });
   });
 
   it('registers preferences handlers', () => {

@@ -50,17 +50,17 @@ describe('PreferencesService', () => {
     const service = new PreferencesService({ load, save });
     const nextAgents = basePreferences.agents.map((agent) => ({ ...agent, enabled: true }));
 
-    const next = await service.update({ agents: nextAgents, fallbackAgentId: 'codex' });
+    const next = await service.update({ agents: nextAgents, fallbackAgentId: 'amp' });
 
     expect(next).toEqual({
       ...basePreferences,
       agents: nextAgents,
-      fallbackAgentId: 'codex',
+      fallbackAgentId: 'amp',
     });
     expect(save).toHaveBeenCalledWith({
       ...basePreferences,
       agents: nextAgents,
-      fallbackAgentId: 'codex',
+      fallbackAgentId: 'amp',
     });
   });
 

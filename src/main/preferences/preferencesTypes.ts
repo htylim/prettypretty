@@ -8,6 +8,7 @@ import {
   type PreferencesPatch,
 } from '../../shared/preferences';
 import type { ThemeMode } from '../../shared/types';
+import { resolvePreferredAgentExecutable } from './agentExecutablePaths';
 import { createDefaultPreferences } from './preferencesDefaults';
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {
@@ -158,6 +159,10 @@ const migrateAgents = (value: unknown): AgentConfig[] => {
     seenIds.add(entry.id);
     migrated.push({
       ...entry,
+      executable: resolvePreferredAgentExecutable({
+        agentId: entry.id,
+        executable: entry.executable,
+      }),
       argsTemplate: [...entry.argsTemplate],
     });
   }

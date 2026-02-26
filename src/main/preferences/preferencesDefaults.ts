@@ -6,6 +6,7 @@ import {
   type AgentConfig,
   type Preferences,
 } from '../../shared/preferences';
+import { resolvePreferredAgentExecutable } from './agentExecutablePaths';
 
 const DEFAULT_AGENT_PROMPT_TEMPLATE = [
   'Prettify this text and make it more readable while preserving the original meaning and data.',
@@ -21,7 +22,7 @@ const createDefaultAgents = (): AgentConfig[] => [
   {
     id: 'amp',
     name: 'Amp',
-    executable: 'amp',
+    executable: resolvePreferredAgentExecutable({ agentId: 'amp', executable: 'amp' }),
     argsTemplate: ['-x'],
     promptTemplate: DEFAULT_AGENT_PROMPT_TEMPLATE,
     promptDelivery: 'stdin',
@@ -32,7 +33,7 @@ const createDefaultAgents = (): AgentConfig[] => [
   {
     id: 'codex',
     name: 'Codex',
-    executable: 'codex',
+    executable: resolvePreferredAgentExecutable({ agentId: 'codex', executable: 'codex' }),
     argsTemplate: ['exec', '--skip-git-repo-check', '-'],
     promptTemplate: DEFAULT_AGENT_PROMPT_TEMPLATE,
     promptDelivery: 'stdin',
@@ -47,5 +48,5 @@ export const createDefaultPreferences = (): Preferences => ({
   themeMode: 'light',
   indentSize: DEFAULT_INDENT_SIZE,
   agents: createDefaultAgents(),
-  fallbackAgentId: null,
+  fallbackAgentId: 'codex',
 });

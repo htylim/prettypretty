@@ -22,6 +22,14 @@ const api: WindowApi = {
     update: (patch) => ipcRenderer.invoke(IPCChannels.preferencesUpdate, patch),
     reset: () => ipcRenderer.invoke(IPCChannels.preferencesReset),
   },
+  prettifier: {
+    run: (request) => ipcRenderer.invoke(IPCChannels.prettifierRun, request),
+  },
+  telemetry: {
+    log: async (event) => {
+      await ipcRenderer.invoke(IPCChannels.telemetryLogEvent, event);
+    },
+  },
 };
 
 contextBridge.exposeInMainWorld('prettypretty', api);

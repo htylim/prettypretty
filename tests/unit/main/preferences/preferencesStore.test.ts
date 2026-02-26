@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { Preferences } from '../../../../src/shared/preferences';
+import { CODEX_APP_EXECUTABLE_PATH } from '../../../../src/main/preferences/agentExecutablePaths';
 import { createDefaultPreferences } from '../../../../src/main/preferences/preferencesDefaults';
 import { PreferencesStore } from '../../../../src/main/preferences/preferencesStore';
 
@@ -179,6 +180,31 @@ describe('PreferencesStore', () => {
 
     expect(loaded.agents).toEqual(defaults.agents);
     expect(files.some((name) => name.startsWith('preferences.corrupt.'))).toBe(false);
+  });
+
+  it('migrates codex executable to app path when stored as bare command', async () => {
+    const { filePath, store } = await createStore();
+    const defaults = createDefaults();
+    const agents = defaults.agents.map((agent) =>
+      agent.id === 'codex' ? { ...agent, executable: 'codex' } : agent,
+    );
+
+    await writeFile(
+      filePath,
+      JSON.stringify({
+        ...defaults,
+        agents,
+        fallbackAgentId: 'codex',
+      }),
+      'utf8',
+    );
+
+    const loaded = await store.load();
+    const codexAgent = loaded.agents.find((agent) => agent.id === 'codex');
+
+    expect(codexAgent).toBeDefined();
+    expect(codexAgent?.executable).toBe(CODEX_APP_EXECUTABLE_PATH);
+    expect(loaded.fallbackAgentId).toBe('codex');
   });
 
   it('writes atomically and does not leave temporary files behind', async () => {

@@ -20,4 +20,6 @@ export const IPCChannels = {
   preferencesGetAll: 'preferences:get-all',
   preferencesUpdate: 'preferences:update',
   preferencesReset: 'preferences:reset',
+  prettifierRun: 'prettifier:run',
+  telemetryLogEvent: 'telemetry:log-event',
 } as const;

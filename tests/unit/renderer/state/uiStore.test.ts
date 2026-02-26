@@ -8,6 +8,7 @@ describe('uiStore', () => {
       themeMode: 'light',
       indentSize: 2,
       inputText: '',
+      ingestNotice: null,
     });
 
     useUiStore.getState().togglePaneMode();
@@ -23,6 +24,7 @@ describe('uiStore', () => {
       themeMode: 'dark',
       indentSize: 6,
       inputText: 'content',
+      ingestNotice: 'File has no content.',
     });
 
     useUiStore.getState().reset();
@@ -30,5 +32,6 @@ describe('uiStore', () => {
     expect(useUiStore.getState().paneMode).toBe('input');
     expect(useUiStore.getState().inputText).toBe('');
     expect(useUiStore.getState().indentSize).toBe(6);
+    expect(useUiStore.getState().ingestNotice).toBeNull();
   });
 });

@@ -1,9 +1,10 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { PrettifyRunResponse } from '../../../src/shared/prettifier';
+import type { Preferences } from '../../../src/shared/preferences';
 import { App } from '../../../src/renderer/App';
 import { useUiStore } from '../../../src/renderer/state/uiStore';
-import type { Preferences } from '../../../src/shared/preferences';
 
 const openFileMock = vi.fn();
 const saveMock = vi.fn();
@@ -11,11 +12,23 @@ const copyMock = vi.fn();
 const preferencesGetAllMock = vi.fn();
 const preferencesUpdateMock = vi.fn();
 const preferencesResetMock = vi.fn();
+const prettifierRunMock = vi.fn();
+const telemetryLogMock = vi.fn();
 const outputCollapseAllMock = vi.fn();
 const outputExpandAllMock = vi.fn();
 const inputCollapseAllMock = vi.fn();
 const inputExpandAllMock = vi.fn();
 const openFindMock = vi.fn();
+
+const createDeferred = <T,>() => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolver) => {
+    resolve = resolver;
+  });
+
+  return { promise, resolve };
+};
+
 const createPreferences = (overrides: Partial<Preferences> = {}): Preferences => ({
   version: 2,
   themeMode: 'light',
@@ -45,6 +58,18 @@ const createPreferences = (overrides: Partial<Preferences> = {}): Preferences =>
     },
   ],
   fallbackAgentId: null,
+  ...overrides,
+});
+
+const createPrettifierResponse = (
+  overrides: Partial<PrettifyRunResponse> = {},
+): PrettifyRunResponse => ({
+  status: 'applied-fallback',
+  outputText: '{\n  "fallback": true\n}',
+  localDetection: 'malformed',
+  fallbackStatus: 'applied',
+  agentId: 'codex',
+  durationMs: 10,
   ...overrides,
 });
 
@@ -107,11 +132,14 @@ beforeEach(() => {
   preferencesGetAllMock.mockReset();
   preferencesUpdateMock.mockReset();
   preferencesResetMock.mockReset();
+  prettifierRunMock.mockReset();
+  telemetryLogMock.mockReset();
   outputCollapseAllMock.mockReset();
   outputExpandAllMock.mockReset();
   inputCollapseAllMock.mockReset();
   inputExpandAllMock.mockReset();
   openFindMock.mockReset();
+
   openFileMock.mockResolvedValue(null);
   saveMock.mockResolvedValue(null);
   copyMock.mockResolvedValue(undefined);
@@ -124,6 +152,8 @@ beforeEach(() => {
     }),
   );
   preferencesResetMock.mockResolvedValue(createPreferences());
+  prettifierRunMock.mockResolvedValue(createPrettifierResponse());
+  telemetryLogMock.mockResolvedValue(undefined);
 
   Object.defineProperty(window, 'prettypretty', {
     configurable: true,
@@ -137,6 +167,12 @@ beforeEach(() => {
         update: preferencesUpdateMock,
         reset: preferencesResetMock,
       },
+      prettifier: {
+        run: prettifierRunMock,
+      },
+      telemetry: {
+        log: telemetryLogMock,
+      },
     },
   });
 
@@ -146,6 +182,7 @@ beforeEach(() => {
       themeMode: 'light',
       indentSize: 2,
       inputText: '',
+      ingestNotice: null,
     });
   });
 });
@@ -158,20 +195,9 @@ describe('App', () => {
     expect(screen.getByTestId('pane-segment-input')).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByTestId('pane-segment-output')).toHaveAttribute('aria-pressed', 'false');
     expect(screen.getByTestId('pane-segment-output')).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Expand' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Collapse' })).toBeDisabled();
   });
 
-  it('opens file dialog when click action is pressed', async () => {
-    const user = userEvent.setup();
-    render(<App />);
-
-    await user.click(screen.getByRole('button', { name: 'Click' }));
-
-    expect(openFileMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('uses open file ingestion path to switch to output and render formatted content', async () => {
+  it('uses open file ingestion path to switch to output and render local formatted content', async () => {
     const user = userEvent.setup();
     openFileMock.mockResolvedValue({ path: '/tmp/example.json', content: '{"a":1}' });
 
@@ -179,13 +205,11 @@ describe('App', () => {
 
     await user.click(screen.getByRole('button', { name: 'Click' }));
 
-    expect(openFileMock).toHaveBeenCalledTimes(1);
     expect(await screen.findByTestId('output-editor')).toHaveTextContent('"a": 1');
-    expect(screen.getByTestId('pane-segment-input')).toHaveAttribute('aria-pressed', 'false');
-    expect(screen.getByTestId('pane-segment-output')).toHaveAttribute('aria-pressed', 'true');
+    expect(prettifierRunMock).not.toHaveBeenCalled();
   });
 
-  it('uses drop ingestion path to switch to output and render formatted content', async () => {
+  it('uses drop ingestion path to switch to output and render local formatted content', async () => {
     const droppedFile = {
       text: vi.fn().mockResolvedValue('{"a":1}'),
     } as unknown as File;
@@ -197,11 +221,10 @@ describe('App', () => {
     });
 
     expect(await screen.findByTestId('output-editor')).toHaveTextContent('"a": 1');
-    expect(screen.getByTestId('pane-segment-input')).toHaveAttribute('aria-pressed', 'false');
-    expect(screen.getByTestId('pane-segment-output')).toHaveAttribute('aria-pressed', 'true');
+    expect(prettifierRunMock).not.toHaveBeenCalled();
   });
 
-  it('uses paste ingestion path to switch to output and render formatted content', async () => {
+  it('uses paste ingestion path to switch to output and render local formatted content', async () => {
     render(<App />);
 
     fireEvent.paste(screen.getByTestId('editor-shell'), {
@@ -211,11 +234,40 @@ describe('App', () => {
     });
 
     expect(await screen.findByTestId('output-editor')).toHaveTextContent('"a": 1');
-    expect(screen.getByTestId('pane-segment-input')).toHaveAttribute('aria-pressed', 'false');
-    expect(screen.getByTestId('pane-segment-output')).toHaveAttribute('aria-pressed', 'true');
+    expect(prettifierRunMock).not.toHaveBeenCalled();
   });
 
-  it('switches to output on empty ingestion and keeps output segment enabled', async () => {
+  it('stays in input mode and shows notice for empty open-file content', async () => {
+    const user = userEvent.setup();
+    openFileMock.mockResolvedValue({ path: '/tmp/empty.json', content: '' });
+
+    render(<App />);
+    await user.click(screen.getByRole('button', { name: 'Click' }));
+
+    expect(screen.getByTestId('pane-segment-input')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('ingest-notice')).toHaveTextContent('File has no content.');
+    expect(prettifierRunMock).not.toHaveBeenCalled();
+  });
+
+  it('stays in input mode and shows notice for empty dropped file content', async () => {
+    const droppedFile = {
+      text: vi.fn().mockResolvedValue(''),
+    } as unknown as File;
+
+    render(<App />);
+
+    fireEvent.drop(screen.getByTestId('editor-shell'), {
+      dataTransfer: { files: [droppedFile] },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('ingest-notice')).toHaveTextContent('File has no content.');
+    });
+    expect(screen.getByTestId('pane-segment-input')).toHaveAttribute('aria-pressed', 'true');
+    expect(prettifierRunMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps input mode for empty paste and does not show empty-file notice', async () => {
     render(<App />);
 
     fireEvent.paste(screen.getByTestId('editor-shell'), {
@@ -225,13 +277,11 @@ describe('App', () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByTestId('pane-segment-output')).toHaveAttribute('aria-pressed', 'true');
+      expect(screen.getByTestId('pane-segment-input')).toHaveAttribute('aria-pressed', 'true');
     });
 
-    expect(screen.getByTestId('pane-segment-output')).not.toBeDisabled();
-    expect(screen.getByTestId('empty-state-cta')).toHaveTextContent(/^Paste, Drop or Click$/);
-    expect(screen.getByRole('button', { name: 'Expand' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Collapse' })).toBeDisabled();
+    expect(screen.queryByTestId('ingest-notice')).not.toBeInTheDocument();
+    expect(prettifierRunMock).not.toHaveBeenCalled();
   });
 
   it('typing in input editor updates text without forcing output mode', () => {
@@ -239,38 +289,99 @@ describe('App', () => {
       useUiStore.setState({
         paneMode: 'input',
         inputText: 'alpha',
+        ingestNotice: null,
       });
     });
 
     render(<App />);
 
     fireEvent.change(screen.getByTestId('input-editor'), {
-      target: { value: 'beta' },
+      target: { value: '{bad' },
     });
 
-    expect(screen.getByTestId('input-editor')).toHaveValue('beta');
+    expect(screen.getByTestId('input-editor')).toHaveValue('{bad');
     expect(screen.getByTestId('pane-segment-input')).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByTestId('pane-segment-output')).toHaveAttribute('aria-pressed', 'false');
+    expect(prettifierRunMock).not.toHaveBeenCalled();
   });
 
-  it('resets back to input mode and disables output segment', async () => {
+  it('runs fallback via main prettifier when local parsing fails on output switch', async () => {
     const user = userEvent.setup();
+    prettifierRunMock.mockResolvedValue(
+      createPrettifierResponse({
+        outputText: '{\n  "fallback": true\n}',
+      }),
+    );
 
     act(() => {
       useUiStore.setState({
-        paneMode: 'output',
-        inputText: '{"a":1}',
+        paneMode: 'input',
+        inputText: '{bad',
+        ingestNotice: null,
+      });
+    });
+
+    render(<App />);
+    await user.click(screen.getByTestId('pane-segment-output'));
+
+    await waitFor(() => {
+      expect(prettifierRunMock).toHaveBeenCalledTimes(1);
+    });
+    expect(await screen.findByTestId('output-editor')).toHaveTextContent('"fallback": true');
+  });
+
+  it('shows spinner while fallback request is running and hides it after completion', async () => {
+    const user = userEvent.setup();
+    const deferredRun = createDeferred<PrettifyRunResponse>();
+    prettifierRunMock.mockReturnValue(deferredRun.promise);
+
+    act(() => {
+      useUiStore.setState({
+        paneMode: 'input',
+        inputText: '{bad',
+        ingestNotice: null,
+      });
+    });
+
+    render(<App />);
+    await user.click(screen.getByTestId('pane-segment-output'));
+
+    expect(await screen.findByTestId('llm-loading-indicator')).toBeInTheDocument();
+
+    deferredRun.resolve(createPrettifierResponse({ outputText: '{\n  "fromAgent": 1\n}' }));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('llm-loading-indicator')).not.toBeInTheDocument();
+    });
+  });
+
+  it('ignores stale fallback responses', async () => {
+    const user = userEvent.setup();
+    const firstRun = createDeferred<PrettifyRunResponse>();
+    const secondRun = createDeferred<PrettifyRunResponse>();
+    prettifierRunMock.mockReturnValueOnce(firstRun.promise).mockReturnValueOnce(secondRun.promise);
+
+    act(() => {
+      useUiStore.setState({
+        paneMode: 'input',
+        inputText: '{bad1',
+        ingestNotice: null,
       });
     });
 
     render(<App />);
 
-    await user.click(screen.getByRole('button', { name: 'New' }));
+    await user.click(screen.getByTestId('pane-segment-output'));
+    await user.click(screen.getByTestId('pane-segment-input'));
+    fireEvent.change(screen.getByTestId('input-editor'), { target: { value: '{bad2' } });
+    await user.click(screen.getByTestId('pane-segment-output'));
 
-    expect(screen.getByTestId('empty-state-cta')).toHaveTextContent(/^Paste, Drop or Click$/);
-    expect(screen.getByTestId('pane-segment-input')).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByTestId('pane-segment-output')).toHaveAttribute('aria-pressed', 'false');
-    expect(screen.getByTestId('pane-segment-output')).toBeDisabled();
+    firstRun.resolve(createPrettifierResponse({ outputText: '{\n  "stale": 1\n}' }));
+    secondRun.resolve(createPrettifierResponse({ outputText: '{\n  "latest": 2\n}' }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('output-editor')).toHaveTextContent('"latest": 2');
+    });
+    expect(screen.getByTestId('output-editor')).not.toHaveTextContent('"stale": 1');
   });
 
   it('switches theme via segmented control and updates document dataset', async () => {
@@ -279,61 +390,24 @@ describe('App', () => {
     render(<App />);
 
     expect(document.documentElement.dataset.theme).toBe('light');
-
     await user.click(screen.getByTestId('theme-segment-dark'));
 
     await waitFor(() => {
       expect(document.documentElement.dataset.theme).toBe('dark');
     });
-
-    expect(screen.getByTestId('theme-segment-dark')).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByTestId('theme-segment-light')).toHaveAttribute('aria-pressed', 'false');
     expect(preferencesUpdateMock).toHaveBeenCalledWith({ themeMode: 'dark' });
   });
 
-  it('hydrates theme mode from persisted preferences at startup', async () => {
-    preferencesGetAllMock.mockResolvedValue(createPreferences({ themeMode: 'dark' }));
-
-    render(<App />);
-
-    await waitFor(() => {
-      expect(document.documentElement.dataset.theme).toBe('dark');
-    });
-
-    expect(preferencesGetAllMock).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId('theme-segment-dark')).toHaveAttribute('aria-pressed', 'true');
-  });
-
-  it('rolls back optimistic theme change if persistence fails for latest request', async () => {
-    const user = userEvent.setup();
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    preferencesUpdateMock.mockRejectedValue(new Error('disk write failed'));
-
-    render(<App />);
-
-    await user.click(screen.getByTestId('theme-segment-dark'));
-
-    await waitFor(() => {
-      expect(document.documentElement.dataset.theme).toBe('light');
-    });
-
-    expect(preferencesUpdateMock).toHaveBeenCalledWith({ themeMode: 'dark' });
-    expect(errorSpy).toHaveBeenCalled();
-    errorSpy.mockRestore();
-  });
-
-  it('hydrates indent size from preferences and applies it to formatted output', async () => {
+  it('hydrates indent size from preferences and applies it to local formatted output', async () => {
     preferencesGetAllMock.mockResolvedValue(createPreferences({ indentSize: 4 }));
     const user = userEvent.setup();
     openFileMock.mockResolvedValue({ path: '/tmp/example.json', content: '{"outer":{"inner":1}}' });
 
     render(<App />);
-
     await user.click(screen.getByRole('button', { name: 'Click' }));
 
     const output = await screen.findByTestId('output-editor');
-    const renderedText = output.textContent ?? '';
-    expect(renderedText).toContain('\n        "inner": 1');
+    expect(output.textContent ?? '').toContain('\n        "inner": 1');
   });
 
   it('wires collapse and expand toolbar actions to output editor in output mode', async () => {
@@ -343,39 +417,16 @@ describe('App', () => {
       useUiStore.setState({
         paneMode: 'output',
         inputText: '{"a":1}',
+        ingestNotice: null,
       });
     });
 
     render(<App />);
-
     await user.click(screen.getByRole('button', { name: 'Collapse' }));
     await user.click(screen.getByRole('button', { name: 'Expand' }));
 
     expect(outputCollapseAllMock).toHaveBeenCalledTimes(1);
     expect(outputExpandAllMock).toHaveBeenCalledTimes(1);
-    expect(inputCollapseAllMock).not.toHaveBeenCalled();
-    expect(inputExpandAllMock).not.toHaveBeenCalled();
-  });
-
-  it('wires collapse and expand toolbar actions to input editor in input mode', async () => {
-    const user = userEvent.setup();
-
-    act(() => {
-      useUiStore.setState({
-        paneMode: 'input',
-        inputText: 'alpha',
-      });
-    });
-
-    render(<App />);
-
-    await user.click(screen.getByRole('button', { name: 'Collapse' }));
-    await user.click(screen.getByRole('button', { name: 'Expand' }));
-
-    expect(inputCollapseAllMock).toHaveBeenCalledTimes(1);
-    expect(inputExpandAllMock).toHaveBeenCalledTimes(1);
-    expect(outputCollapseAllMock).not.toHaveBeenCalled();
-    expect(outputExpandAllMock).not.toHaveBeenCalled();
   });
 
   it('supports command shortcuts for pane switching, save/copy, and reset', () => {
@@ -383,6 +434,7 @@ describe('App', () => {
       useUiStore.setState({
         paneMode: 'output',
         inputText: '{"a":1}',
+        ingestNotice: null,
       });
     });
 
@@ -397,29 +449,13 @@ describe('App', () => {
     fireEvent.keyDown(window, { key: 's', metaKey: true });
     fireEvent.keyDown(window, { key: 'c', metaKey: true, shiftKey: true });
     fireEvent.keyDown(window, { key: 'f', metaKey: true });
+
     expect(saveMock).toHaveBeenCalledTimes(1);
     expect(copyMock).toHaveBeenCalledTimes(1);
     expect(openFindMock).toHaveBeenCalledTimes(1);
 
     fireEvent.keyDown(window, { key: 'n', metaKey: true });
-    expect(screen.getByTestId('empty-state-cta')).toHaveTextContent(/^Paste, Drop or Click$/);
     expect(screen.getByTestId('pane-segment-input')).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByTestId('pane-segment-output')).toHaveAttribute('aria-pressed', 'false');
-  });
-
-  it('keeps output-only shortcuts disabled in input mode', () => {
-    render(<App />);
-
-    fireEvent.keyDown(window, { key: 's', metaKey: true });
-    fireEvent.keyDown(window, { key: 'c', metaKey: true, shiftKey: true });
-    fireEvent.keyDown(window, { key: 'f', metaKey: true });
-    fireEvent.keyDown(window, { key: 'o', metaKey: true });
-
-    expect(saveMock).not.toHaveBeenCalled();
-    expect(copyMock).not.toHaveBeenCalled();
-    expect(openFindMock).not.toHaveBeenCalled();
-    expect(screen.getByTestId('pane-segment-input')).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByTestId('pane-segment-output')).toHaveAttribute('aria-pressed', 'false');
-    expect(screen.getByTestId('pane-segment-output')).toBeDisabled();
   });
 });

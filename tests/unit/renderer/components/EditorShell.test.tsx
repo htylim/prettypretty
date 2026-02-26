@@ -50,10 +50,13 @@ describe('EditorShell', () => {
         inputText=""
         outputText=""
         outputDocumentId="doc-1"
+        ingestNotice={null}
+        isLlmRunning={false}
         inputEditorRef={createInputEditorRef()}
         outputEditorRef={createOutputEditorRef()}
         onEditInputChange={vi.fn()}
         onIngestInput={vi.fn()}
+        onDismissIngestNotice={vi.fn()}
         onOpenFile={onOpenFile}
       />,
     );
@@ -79,10 +82,13 @@ describe('EditorShell', () => {
         inputText="alpha"
         outputText=""
         outputDocumentId="doc-2"
+        ingestNotice={null}
+        isLlmRunning={false}
         inputEditorRef={createInputEditorRef()}
         outputEditorRef={createOutputEditorRef()}
         onEditInputChange={onEditInputChange}
         onIngestInput={onIngestInput}
+        onDismissIngestNotice={vi.fn()}
         onOpenFile={vi.fn().mockResolvedValue(undefined)}
       />,
     );
@@ -107,10 +113,13 @@ describe('EditorShell', () => {
         inputText=""
         outputText=""
         outputDocumentId="doc-3"
+        ingestNotice={null}
+        isLlmRunning={false}
         inputEditorRef={createInputEditorRef()}
         outputEditorRef={createOutputEditorRef()}
         onEditInputChange={vi.fn()}
         onIngestInput={onIngestInput}
+        onDismissIngestNotice={vi.fn()}
         onOpenFile={vi.fn().mockResolvedValue(undefined)}
       />,
     );
@@ -120,7 +129,7 @@ describe('EditorShell', () => {
     });
 
     await waitFor(() => {
-      expect(onIngestInput).toHaveBeenCalledWith('{"a":1}');
+      expect(onIngestInput).toHaveBeenCalledWith('{"a":1}', 'drop');
     });
   });
 
@@ -138,10 +147,13 @@ describe('EditorShell', () => {
         inputText=""
         outputText=""
         outputDocumentId="doc-4"
+        ingestNotice={null}
+        isLlmRunning={false}
         inputEditorRef={createInputEditorRef()}
         outputEditorRef={createOutputEditorRef()}
         onEditInputChange={vi.fn()}
         onIngestInput={onIngestInput}
+        onDismissIngestNotice={vi.fn()}
         onOpenFile={vi.fn().mockResolvedValue(undefined)}
       />,
     );
@@ -151,7 +163,7 @@ describe('EditorShell', () => {
     });
 
     await waitFor(() => {
-      expect(onIngestInput).toHaveBeenCalledWith('');
+      expect(onIngestInput).toHaveBeenCalledWith('', 'drop');
     });
   });
 
@@ -166,10 +178,13 @@ describe('EditorShell', () => {
         inputText=""
         outputText=""
         outputDocumentId="doc-5"
+        ingestNotice={null}
+        isLlmRunning={false}
         inputEditorRef={createInputEditorRef()}
         outputEditorRef={createOutputEditorRef()}
         onEditInputChange={vi.fn()}
         onIngestInput={onIngestInput}
+        onDismissIngestNotice={vi.fn()}
         onOpenFile={vi.fn().mockResolvedValue(undefined)}
       />,
     );
@@ -180,7 +195,7 @@ describe('EditorShell', () => {
       },
     });
 
-    expect(onIngestInput).toHaveBeenCalledWith('{"a":1}');
+    expect(onIngestInput).toHaveBeenCalledWith('{"a":1}', 'paste');
   });
 
   it('routes empty pasted text through ingest callback', () => {
@@ -194,10 +209,13 @@ describe('EditorShell', () => {
         inputText=""
         outputText=""
         outputDocumentId="doc-6"
+        ingestNotice={null}
+        isLlmRunning={false}
         inputEditorRef={createInputEditorRef()}
         outputEditorRef={createOutputEditorRef()}
         onEditInputChange={vi.fn()}
         onIngestInput={onIngestInput}
+        onDismissIngestNotice={vi.fn()}
         onOpenFile={vi.fn().mockResolvedValue(undefined)}
       />,
     );
@@ -208,7 +226,7 @@ describe('EditorShell', () => {
       },
     });
 
-    expect(onIngestInput).toHaveBeenCalledWith('');
+    expect(onIngestInput).toHaveBeenCalledWith('', 'paste');
   });
 
   it('renders read-only output in output mode', () => {
@@ -220,14 +238,67 @@ describe('EditorShell', () => {
         inputText="alpha"
         outputText="alpha"
         outputDocumentId="doc-7"
+        ingestNotice={null}
+        isLlmRunning={false}
         inputEditorRef={createInputEditorRef()}
         outputEditorRef={createOutputEditorRef()}
         onEditInputChange={vi.fn()}
         onIngestInput={vi.fn()}
+        onDismissIngestNotice={vi.fn()}
         onOpenFile={vi.fn().mockResolvedValue(undefined)}
       />,
     );
 
     expect(screen.getByTestId('output-editor')).toBeInTheDocument();
+  });
+
+  it('renders ingest notice and allows dismiss', () => {
+    const onDismissIngestNotice = vi.fn();
+
+    render(
+      <EditorShell
+        paneMode="input"
+        themeMode="light"
+        indentSize={2}
+        inputText=""
+        outputText=""
+        outputDocumentId="doc-8"
+        ingestNotice="File has no content."
+        isLlmRunning={false}
+        inputEditorRef={createInputEditorRef()}
+        outputEditorRef={createOutputEditorRef()}
+        onEditInputChange={vi.fn()}
+        onIngestInput={vi.fn()}
+        onDismissIngestNotice={onDismissIngestNotice}
+        onOpenFile={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+
+    expect(screen.getByTestId('ingest-notice')).toHaveTextContent('File has no content.');
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss notice' }));
+    expect(onDismissIngestNotice).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders llm loading indicator in output mode when fallback is running', () => {
+    render(
+      <EditorShell
+        paneMode="output"
+        themeMode="dark"
+        indentSize={2}
+        inputText="alpha"
+        outputText="alpha"
+        outputDocumentId="doc-9"
+        ingestNotice={null}
+        isLlmRunning
+        inputEditorRef={createInputEditorRef()}
+        outputEditorRef={createOutputEditorRef()}
+        onEditInputChange={vi.fn()}
+        onIngestInput={vi.fn()}
+        onDismissIngestNotice={vi.fn()}
+        onOpenFile={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+
+    expect(screen.getByTestId('llm-loading-indicator')).toBeInTheDocument();
   });
 });
