@@ -1,5 +1,4 @@
 - make cmd , to open a editor on the configuration file
-- have log file to be sent to a memory buffer or something and have cmd+l to open a window/editor/terminal with the log.
 - light/dark mode to switch with input/output mode
 - Have cmd+ and cmd- to collapse and expand one level at a time (and tie to buttons)
 - add cmd+click or ctrl+click to collapse the block you are clicking (and expanding it)

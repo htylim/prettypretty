@@ -48,9 +48,12 @@
 
 ## Logging
 
-- Verbose logs are enabled only when launching with `-v` or `--verbose`.
-- Main process emits structured JSON log lines to stdout.
-- Startup, ingestion, IPC validation, prettifier pipeline, and fallback execution events are logged in verbose mode.
+- Main process always captures structured JSON log lines in an in-memory session buffer (max 2000 lines) from app startup.
+- Verbose mode (`-v` or `--verbose`) controls stdout emission only.
+- When verbose is enabled, main process emits structured JSON log lines to stdout.
+- macOS app menu (`prettypretty`) includes `View Log` (`Cmd+L`) to open a dedicated log window.
+- Log window shows buffered startup/runtime history immediately and then streams newly appended log lines.
+- Startup, ingestion, IPC validation, prettifier pipeline, and fallback execution events are captured for session log viewing and emitted to stdout in verbose mode.
 - Raw payloads are never logged; logs include metadata only (lengths, statuses, timings, ids).
 
 ## Packaging Assets

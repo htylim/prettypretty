@@ -2,11 +2,23 @@ import { Menu, type MenuItemConstructorOptions, app } from 'electron';
 
 const APP_NAME = 'prettypretty';
 
-const macTemplate = (): MenuItemConstructorOptions[] => [
+type ApplicationMenuOptions = {
+  onViewLog?: () => void;
+};
+
+const macTemplate = ({ onViewLog }: ApplicationMenuOptions): MenuItemConstructorOptions[] => [
   {
     label: APP_NAME,
     submenu: [
       { role: 'about' },
+      { type: 'separator' },
+      {
+        label: 'View Log',
+        accelerator: 'Cmd+L',
+        click: () => {
+          onViewLog?.();
+        },
+      },
       { type: 'separator' },
       { role: 'services' },
       { type: 'separator' },
@@ -32,8 +44,8 @@ const defaultTemplate = (): MenuItemConstructorOptions[] => [
   { role: 'help' },
 ];
 
-export const configureApplicationMenu = (): void => {
+export const configureApplicationMenu = (options: ApplicationMenuOptions = {}): void => {
   app.setName(APP_NAME);
-  const template = process.platform === 'darwin' ? macTemplate() : defaultTemplate();
+  const template = process.platform === 'darwin' ? macTemplate(options) : defaultTemplate();
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 };

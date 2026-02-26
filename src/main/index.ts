@@ -4,21 +4,37 @@ import { join } from 'node:path';
 import { registerIpcHandlers } from './ipc';
 import { createLogger } from './logging/logger';
 import { parseRuntimeFlags } from './logging/runtimeFlags';
+import { SessionLogStore } from './logging/sessionLogStore';
 import { configureApplicationMenu } from './menu/applicationMenu';
 import { PreferencesService } from './preferences/preferencesService';
 import { PreferencesStore } from './preferences/preferencesStore';
 import { createPrettifierService } from './prettifier/prettifierService';
+import { openOrFocusLogWindow } from './windows/logWindow';
 import { createMainWindow } from './windows/mainWindow';
 
 const bootstrap = async (): Promise<void> => {
   const runtimeFlags = parseRuntimeFlags();
-  const logger = createLogger(runtimeFlags.verbose);
+  const sessionLogStore = new SessionLogStore(2_000);
+  const logger = createLogger({
+    verbose: runtimeFlags.verbose,
+    onLine: (line) => {
+      sessionLogStore.append(line);
+    },
+  });
   logger.info('app.bootstrap.start', {
     verbose: runtimeFlags.verbose,
   });
 
   app.setName('prettypretty');
-  configureApplicationMenu();
+  configureApplicationMenu({
+    onViewLog: () => {
+      void openOrFocusLogWindow(sessionLogStore).catch((error: unknown) => {
+        logger.error('app.log-window.open-failed', {
+          reason: error instanceof Error ? error.message : 'unknown',
+        });
+      });
+    },
+  });
 
   if (process.platform === 'darwin' && app.dock) {
     const dockIconPath = join(process.cwd(), 'build/icon.png');
@@ -31,7 +47,7 @@ const bootstrap = async (): Promise<void> => {
   const preferencesService = new PreferencesService(preferencesStore);
   const prettifierService = createPrettifierService({ preferencesService, logger });
 
-  registerIpcHandlers({ preferencesService, prettifierService, logger });
+  registerIpcHandlers({ preferencesService, prettifierService, logger, logStore: sessionLogStore });
   logger.info('app.bootstrap.ipc-registered');
   await createMainWindow();
   logger.info('app.window.created', {

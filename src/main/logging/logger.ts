@@ -11,6 +11,11 @@ export type Logger = {
   error: (event: string, meta?: LogMeta) => void;
 };
 
+type CreateLoggerOptions = {
+  verbose: boolean;
+  onLine?: (line: string) => void;
+};
+
 const SENSITIVE_KEYS = new Set([
   'input',
   'output',
@@ -51,24 +56,24 @@ const writeLogLine = (line: string): void => {
   process.stdout.write(`${line}\n`);
 };
 
-export const createLogger = (verbose: boolean): Logger => {
+export const createLogger = (options: CreateLoggerOptions): Logger => {
   const log = (level: LogLevel, event: string, meta?: LogMeta): void => {
-    if (!verbose) {
-      return;
-    }
+    const line = JSON.stringify({
+      ts: new Date().toISOString(),
+      level,
+      event,
+      meta: sanitizeMeta(meta),
+    });
 
-    writeLogLine(
-      JSON.stringify({
-        ts: new Date().toISOString(),
-        level,
-        event,
-        meta: sanitizeMeta(meta),
-      }),
-    );
+    options.onLine?.(line);
+
+    if (options.verbose) {
+      writeLogLine(line);
+    }
   };
 
   return {
-    isVerboseEnabled: () => verbose,
+    isVerboseEnabled: () => options.verbose,
     info: (event, meta) => {
       log('info', event, meta);
     },
