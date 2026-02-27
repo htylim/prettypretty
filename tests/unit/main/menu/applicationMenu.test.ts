@@ -140,4 +140,22 @@ describe('configureApplicationMenu', () => {
       'No application is associated with the file',
     );
   });
+
+  it('adds View Log item with Cmd+L and invokes callback', () => {
+    const onViewLog = vi.fn();
+    configureApplicationMenu({ onViewLog });
+
+    const [template] = buildFromTemplateMock.mock.calls[0] as [MenuItemConstructorOptions[]];
+    const appMenu = template[0];
+    const submenu = (appMenu?.submenu ?? []) as MenuItemConstructorOptions[];
+    const viewLogItem = submenu.find((item) => item.label === 'View Log');
+
+    expect(viewLogItem).toBeDefined();
+    expect(viewLogItem?.accelerator).toBe('Cmd+L');
+
+    viewLogItem?.click?.(undefined as never, undefined, {} as never);
+
+    expect(onViewLog).toHaveBeenCalledTimes(1);
+    expect(setApplicationMenuMock).toHaveBeenCalledTimes(1);
+  });
 });

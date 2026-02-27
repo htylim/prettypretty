@@ -17,6 +17,20 @@ const api: WindowApi = {
   app: {
     getInfo: () => ipcRenderer.invoke(IPCChannels.appGetInfo),
   },
+  logs: {
+    getHistory: () => ipcRenderer.invoke(IPCChannels.logsGetHistory),
+    onLine: (listener) => {
+      const wrappedListener = (_event: Electron.IpcRendererEvent, line: string) => {
+        listener(line);
+      };
+
+      ipcRenderer.on(IPCChannels.logsLineAppended, wrappedListener);
+
+      return () => {
+        ipcRenderer.removeListener(IPCChannels.logsLineAppended, wrappedListener);
+      };
+    },
+  },
   preferences: {
     getAll: () => ipcRenderer.invoke(IPCChannels.preferencesGetAll),
     update: (patch) => ipcRenderer.invoke(IPCChannels.preferencesUpdate, patch),

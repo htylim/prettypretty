@@ -3,6 +3,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { extname } from 'node:path';
 import { IPCChannels } from '../../shared/ipc-contracts';
 import type { Logger } from '../logging/logger';
+import type { SessionLogStore } from '../logging/sessionLogStore';
 import { isTelemetryEvent } from '../logging/telemetryTypes';
 import { isPreferencesPatch } from '../preferences/preferencesTypes';
 import type { PrettifierService } from '../prettifier/prettifierService';
@@ -13,12 +14,14 @@ type IpcDependencies = {
   preferencesService: Pick<PreferencesService, 'getAll' | 'update' | 'reset'>;
   prettifierService: Pick<PrettifierService, 'run'>;
   logger: Logger;
+  logStore: Pick<SessionLogStore, 'getSnapshot'>;
 };
 
 export const registerIpcHandlers = ({
   preferencesService,
   prettifierService,
   logger,
+  logStore,
 }: IpcDependencies): void => {
   ipcMain.handle(IPCChannels.dialogOpenFile, async () => {
     const result = await dialog.showOpenDialog({
@@ -85,6 +88,10 @@ export const registerIpcHandlers = ({
       name: app.getName(),
       version: app.getVersion(),
     };
+  });
+
+  ipcMain.handle(IPCChannels.logsGetHistory, () => {
+    return logStore.getSnapshot();
   });
 
   ipcMain.handle(IPCChannels.preferencesGetAll, async () => {

@@ -2,7 +2,8 @@
 
 ## Layout
 
-- Single-window app.
+- Main editing experience is single-window.
+- Optional secondary log window can be opened from macOS app menu (`View Log`, `Cmd+L`).
 - Top toolbar.
 - One editor pane below toolbar.
 - Input and output views are mutually exclusive.
@@ -43,6 +44,15 @@
 - Theme preference persistence: selected theme is stored through preload/main preferences APIs and restored on next app launch.
 - Indentation preference has no user-facing control in current scope; renderer consumes persisted `indentSize` value only.
 - Fallback agent preferences (`agents`, `fallbackAgentId`) currently have no user-facing settings controls.
+
+## App Menu (macOS)
+
+- `prettypretty` app menu includes `View Log`.
+- `View Log` has keyboard shortcut `Cmd+L`.
+- Selecting `View Log` opens/focuses a dedicated log window.
+- Log window content is raw JSONL and includes:
+  - startup/session history captured from app launch,
+  - live appended lines while the log window remains open.
 
 ## Editing Rules
 

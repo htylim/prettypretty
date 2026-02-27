@@ -52,6 +52,9 @@ describe('registerIpcHandlers prettifier channels', () => {
   const prettifierService = {
     run: vi.fn(),
   };
+  const logStore = {
+    getSnapshot: vi.fn().mockReturnValue(['{"event":"app.bootstrap.start"}']),
+  };
   const logger = {
     isVerboseEnabled: vi.fn(),
     info: vi.fn(),
@@ -72,6 +75,7 @@ describe('registerIpcHandlers prettifier channels', () => {
       agentId: null,
       durationMs: 5,
     });
+    logStore.getSnapshot.mockClear();
     logger.isVerboseEnabled.mockReset();
     logger.info.mockReset();
     logger.warn.mockReset();
@@ -81,6 +85,7 @@ describe('registerIpcHandlers prettifier channels', () => {
       preferencesService,
       prettifierService,
       logger,
+      logStore,
     });
   });
 
@@ -89,6 +94,16 @@ describe('registerIpcHandlers prettifier channels', () => {
 
     expect(channels).toContain(IPCChannels.prettifierRun);
     expect(channels).toContain(IPCChannels.telemetryLogEvent);
+    expect(channels).toContain(IPCChannels.logsGetHistory);
+  });
+
+  it('returns session log history', async () => {
+    const logsHandler = getRegisteredHandler(IPCChannels.logsGetHistory);
+
+    const result = await logsHandler({});
+
+    expect(logStore.getSnapshot).toHaveBeenCalledTimes(1);
+    expect(result).toEqual(['{"event":"app.bootstrap.start"}']);
   });
 
   it('forwards valid prettifier requests to service', async () => {

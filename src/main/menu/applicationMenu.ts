@@ -3,7 +3,6 @@ import { join } from 'node:path';
 import { PREFERENCES_FILE_NAME, PreferencesStore } from '../preferences/preferencesStore';
 
 const APP_NAME = 'prettypretty';
-
 const toErrorMessage = (error: unknown): string => {
   if (error instanceof Error) {
     return error.message;
@@ -27,8 +26,11 @@ export const openPreferencesFile = async (): Promise<void> => {
     throw new Error(openErrorMessage);
   }
 };
+type ApplicationMenuOptions = {
+  onViewLog?: () => void;
+};
 
-const macTemplate = (): MenuItemConstructorOptions[] => [
+const macTemplate = ({ onViewLog }: ApplicationMenuOptions): MenuItemConstructorOptions[] => [
   {
     label: APP_NAME,
     submenu: [
@@ -38,6 +40,14 @@ const macTemplate = (): MenuItemConstructorOptions[] => [
         accelerator: 'CommandOrControl+,',
         click: () => {
           void openPreferencesFile().catch(reportOpenPreferencesError);
+        },
+      },
+      { type: 'separator' },
+      {
+        label: 'View Log',
+        accelerator: 'Cmd+L',
+        click: () => {
+          onViewLog?.();
         },
       },
       { type: 'separator' },
@@ -65,8 +75,8 @@ const defaultTemplate = (): MenuItemConstructorOptions[] => [
   { role: 'help' },
 ];
 
-export const configureApplicationMenu = (): void => {
+export const configureApplicationMenu = (options: ApplicationMenuOptions = {}): void => {
   app.setName(APP_NAME);
-  const template = process.platform === 'darwin' ? macTemplate() : defaultTemplate();
+  const template = process.platform === 'darwin' ? macTemplate(options) : defaultTemplate();
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 };

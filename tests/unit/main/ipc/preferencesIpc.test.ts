@@ -56,6 +56,9 @@ describe('registerIpcHandlers preferences channels', () => {
   const prettifierService = {
     run: vi.fn(),
   };
+  const logStore = {
+    getSnapshot: vi.fn().mockReturnValue(['{"event":"app.bootstrap.start"}']),
+  };
   const logger = {
     isVerboseEnabled: vi.fn(),
     info: vi.fn(),
@@ -69,12 +72,13 @@ describe('registerIpcHandlers preferences channels', () => {
     preferencesService.update.mockReset().mockResolvedValue(preferences);
     preferencesService.reset.mockReset().mockResolvedValue(defaults);
     prettifierService.run.mockReset();
+    logStore.getSnapshot.mockClear();
     logger.isVerboseEnabled.mockReset();
     logger.info.mockReset();
     logger.warn.mockReset();
     logger.error.mockReset();
 
-    registerIpcHandlers({ preferencesService, prettifierService, logger });
+    registerIpcHandlers({ preferencesService, prettifierService, logger, logStore });
   });
 
   it('registers preferences handlers', () => {
@@ -83,6 +87,7 @@ describe('registerIpcHandlers preferences channels', () => {
     expect(channels).toContain(IPCChannels.preferencesGetAll);
     expect(channels).toContain(IPCChannels.preferencesUpdate);
     expect(channels).toContain(IPCChannels.preferencesReset);
+    expect(channels).toContain(IPCChannels.logsGetHistory);
   });
 
   it('forwards valid preferences update payloads to service', async () => {

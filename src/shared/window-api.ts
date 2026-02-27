@@ -16,6 +16,10 @@ export interface WindowApi {
   app: {
     getInfo: () => Promise<AppInfo>;
   };
+  logs: {
+    getHistory: () => Promise<string[]>;
+    onLine: (listener: (line: string) => void) => () => void;
+  };
   preferences: {
     getAll: () => Promise<Preferences>;
     update: (patch: PreferencesPatch) => Promise<Preferences>;
