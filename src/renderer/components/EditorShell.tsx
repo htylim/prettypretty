@@ -12,7 +12,10 @@ type EditorShellProps = {
   outputText: string;
   outputDocumentId: string;
   ingestNotice: string | null;
-  isLlmRunning: boolean;
+  fallbackWaitState: {
+    formatLabel: string;
+    agentName: string;
+  } | null;
   inputEditorRef: RefObject<InputEditorHandle | null>;
   outputEditorRef: RefObject<OutputEditorHandle | null>;
   onEditInputChange: (value: string) => void;
@@ -29,7 +32,7 @@ export const EditorShell = ({
   outputText,
   outputDocumentId,
   ingestNotice,
-  isLlmRunning,
+  fallbackWaitState,
   inputEditorRef,
   outputEditorRef,
   onEditInputChange,
@@ -38,6 +41,9 @@ export const EditorShell = ({
   onOpenFile,
 }: EditorShellProps) => {
   const hasContent = inputText.trim().length > 0;
+  const fallbackWaitMessage = fallbackWaitState
+    ? `Malformed ${fallbackWaitState.formatLabel}. Calling ${fallbackWaitState.agentName}.`
+    : null;
 
   const handleDrop: DragEventHandler<HTMLDivElement> = async (event) => {
     event.preventDefault();
@@ -77,7 +83,25 @@ export const EditorShell = ({
           </button>
         </div>
       ) : null}
-      {!hasContent ? (
+      {fallbackWaitState ? (
+        <div
+          aria-live="polite"
+          className="fallback-wait-screen"
+          data-testid="fallback-wait-screen"
+          role="status"
+        >
+          <div className="fallback-wait-card">
+            <p className="fallback-wait-eyebrow">Prettifier Fallback</p>
+            <p className="fallback-wait-message" data-testid="fallback-wait-message">
+              {fallbackWaitMessage}
+            </p>
+            <div className="fallback-wait-progress">
+              <span aria-hidden="true" className="fallback-wait-spinner" />
+              <span className="fallback-wait-progress-label">Processing...</span>
+            </div>
+          </div>
+        </div>
+      ) : !hasContent ? (
         <div className="empty-state">
           <p className="empty-state-cta" data-testid="empty-state-cta">
             Paste, Drop or{' '}
@@ -103,17 +127,6 @@ export const EditorShell = ({
             indentSize={indentSize}
             value={outputText}
           />
-          {isLlmRunning ? (
-            <div
-              aria-live="polite"
-              className="llm-loading-indicator"
-              data-testid="llm-loading-indicator"
-              role="status"
-            >
-              <span className="llm-loading-spinner" aria-hidden="true" />
-              <span>Running LLM fallback...</span>
-            </div>
-          ) : null}
         </div>
       )}
     </section>

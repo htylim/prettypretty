@@ -103,7 +103,7 @@ Without this, unsupported or malformed inputs cannot benefit from configured non
 - Keep output deterministic:
   - fallback success replaces output,
   - fallback skip/failure keeps original input passthrough.
-- Show a loading indicator only while fallback IPC execution is in-flight.
+- Show a dedicated wait screen only while fallback IPC execution is in-flight; hide input/output editors during this state.
 
 ### Logging and observability
 
@@ -148,7 +148,7 @@ Without this, unsupported or malformed inputs cannot benefit from configured non
   - stale fallback response does not overwrite latest output.
   - empty open-file/drop keeps input mode and shows inline notice.
   - empty paste keeps input mode and does not show empty-file notice.
-  - spinner is visible while fallback is pending and hides on completion.
+  - wait screen is visible while fallback is pending and hides on completion.
 
 ### Documentation updates required by implementation
 
@@ -176,7 +176,7 @@ Reference note for implementation agents: any code snippets in specs are intent 
 - [ ] Prettifier executes only on output-triggered paths (not per input keystroke).
 - [ ] Empty open-file/drop content keeps input mode and shows inline notice.
 - [ ] Empty paste keeps input mode without empty-file notice.
-- [ ] Spinner is visible while fallback execution is pending.
+- [ ] Wait screen is visible while fallback execution is pending and editors are hidden.
 - [ ] Verbose logs emit to stdout only when app is started with `-v` / `--verbose`.
 - [ ] Unit tests fully mock process execution (no real CLI execution in CI).
 - [ ] `pnpm test` passes.
@@ -217,5 +217,5 @@ Reference note for implementation agents: any code snippets in specs are intent 
 - Resolved: fallback execution belongs in main process and is accessed through preload IPC.
 - Resolved: fallback failures are non-fatal and must degrade to original-input passthrough.
 - Resolved: tests must fully mock command execution and child-process behavior.
-- Resolved: spinner is shown while fallback is pending and hidden when fallback completes.
+- Resolved: wait screen is shown while fallback is pending and hidden when fallback completes.
 - Resolved: verbose logs are opt-in through `-v`/`--verbose` and go to stdout.

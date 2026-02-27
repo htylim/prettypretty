@@ -57,7 +57,7 @@ const createPreferences = (overrides: Partial<Preferences> = {}): Preferences =>
       maxOutputBytes: 1_000_000,
     },
   ],
-  fallbackAgentId: null,
+  fallbackAgentId: 'codex',
   ...overrides,
 });
 
@@ -329,7 +329,7 @@ describe('App', () => {
     expect(await screen.findByTestId('output-editor')).toHaveTextContent('"fallback": true');
   });
 
-  it('shows spinner while fallback request is running and hides it after completion', async () => {
+  it('shows fallback wait screen while fallback request is running and hides output editor', async () => {
     const user = userEvent.setup();
     const deferredRun = createDeferred<PrettifyRunResponse>();
     prettifierRunMock.mockReturnValue(deferredRun.promise);
@@ -345,13 +345,42 @@ describe('App', () => {
     render(<App />);
     await user.click(screen.getByTestId('pane-segment-output'));
 
-    expect(await screen.findByTestId('llm-loading-indicator')).toBeInTheDocument();
+    expect(await screen.findByTestId('fallback-wait-screen')).toBeInTheDocument();
+    expect(screen.getByTestId('fallback-wait-message')).toHaveTextContent(
+      'Malformed JSON. Calling Codex.',
+    );
+    expect(screen.queryByTestId('output-editor')).not.toBeInTheDocument();
 
     deferredRun.resolve(createPrettifierResponse({ outputText: '{\n  "fromAgent": 1\n}' }));
 
     await waitFor(() => {
-      expect(screen.queryByTestId('llm-loading-indicator')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('fallback-wait-screen')).not.toBeInTheDocument();
     });
+  });
+
+  it('keeps input pane selected during malformed paste fallback and switches to output on completion', async () => {
+    const deferredRun = createDeferred<PrettifyRunResponse>();
+    prettifierRunMock.mockReturnValue(deferredRun.promise);
+
+    render(<App />);
+
+    fireEvent.paste(screen.getByTestId('editor-shell'), {
+      clipboardData: {
+        getData: () => '{bad',
+      },
+    });
+
+    expect(await screen.findByTestId('fallback-wait-screen')).toBeInTheDocument();
+    expect(screen.getByTestId('pane-segment-input')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('pane-segment-output')).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.queryByTestId('output-editor')).not.toBeInTheDocument();
+
+    deferredRun.resolve(createPrettifierResponse({ outputText: '{\n  "ingest": true\n}' }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('pane-segment-output')).toHaveAttribute('aria-pressed', 'true');
+    });
+    expect(screen.getByTestId('output-editor')).toHaveTextContent('"ingest": true');
   });
 
   it('ignores stale fallback responses', async () => {
@@ -371,9 +400,11 @@ describe('App', () => {
     render(<App />);
 
     await user.click(screen.getByTestId('pane-segment-output'));
-    await user.click(screen.getByTestId('pane-segment-input'));
-    fireEvent.change(screen.getByTestId('input-editor'), { target: { value: '{bad2' } });
-    await user.click(screen.getByTestId('pane-segment-output'));
+    fireEvent.paste(screen.getByTestId('editor-shell'), {
+      clipboardData: {
+        getData: () => '{bad2',
+      },
+    });
 
     firstRun.resolve(createPrettifierResponse({ outputText: '{\n  "stale": 1\n}' }));
     secondRun.resolve(createPrettifierResponse({ outputText: '{\n  "latest": 2\n}' }));

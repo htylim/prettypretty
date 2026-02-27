@@ -51,7 +51,7 @@ describe('EditorShell', () => {
         outputText=""
         outputDocumentId="doc-1"
         ingestNotice={null}
-        isLlmRunning={false}
+        fallbackWaitState={null}
         inputEditorRef={createInputEditorRef()}
         outputEditorRef={createOutputEditorRef()}
         onEditInputChange={vi.fn()}
@@ -83,7 +83,7 @@ describe('EditorShell', () => {
         outputText=""
         outputDocumentId="doc-2"
         ingestNotice={null}
-        isLlmRunning={false}
+        fallbackWaitState={null}
         inputEditorRef={createInputEditorRef()}
         outputEditorRef={createOutputEditorRef()}
         onEditInputChange={onEditInputChange}
@@ -114,7 +114,7 @@ describe('EditorShell', () => {
         outputText=""
         outputDocumentId="doc-3"
         ingestNotice={null}
-        isLlmRunning={false}
+        fallbackWaitState={null}
         inputEditorRef={createInputEditorRef()}
         outputEditorRef={createOutputEditorRef()}
         onEditInputChange={vi.fn()}
@@ -148,7 +148,7 @@ describe('EditorShell', () => {
         outputText=""
         outputDocumentId="doc-4"
         ingestNotice={null}
-        isLlmRunning={false}
+        fallbackWaitState={null}
         inputEditorRef={createInputEditorRef()}
         outputEditorRef={createOutputEditorRef()}
         onEditInputChange={vi.fn()}
@@ -179,7 +179,7 @@ describe('EditorShell', () => {
         outputText=""
         outputDocumentId="doc-5"
         ingestNotice={null}
-        isLlmRunning={false}
+        fallbackWaitState={null}
         inputEditorRef={createInputEditorRef()}
         outputEditorRef={createOutputEditorRef()}
         onEditInputChange={vi.fn()}
@@ -210,7 +210,7 @@ describe('EditorShell', () => {
         outputText=""
         outputDocumentId="doc-6"
         ingestNotice={null}
-        isLlmRunning={false}
+        fallbackWaitState={null}
         inputEditorRef={createInputEditorRef()}
         outputEditorRef={createOutputEditorRef()}
         onEditInputChange={vi.fn()}
@@ -239,7 +239,7 @@ describe('EditorShell', () => {
         outputText="alpha"
         outputDocumentId="doc-7"
         ingestNotice={null}
-        isLlmRunning={false}
+        fallbackWaitState={null}
         inputEditorRef={createInputEditorRef()}
         outputEditorRef={createOutputEditorRef()}
         onEditInputChange={vi.fn()}
@@ -264,7 +264,7 @@ describe('EditorShell', () => {
         outputText=""
         outputDocumentId="doc-8"
         ingestNotice="File has no content."
-        isLlmRunning={false}
+        fallbackWaitState={null}
         inputEditorRef={createInputEditorRef()}
         outputEditorRef={createOutputEditorRef()}
         onEditInputChange={vi.fn()}
@@ -279,7 +279,7 @@ describe('EditorShell', () => {
     expect(onDismissIngestNotice).toHaveBeenCalledTimes(1);
   });
 
-  it('renders llm loading indicator in output mode when fallback is running', () => {
+  it('renders fallback wait screen when fallback is running', () => {
     render(
       <EditorShell
         paneMode="output"
@@ -289,7 +289,7 @@ describe('EditorShell', () => {
         outputText="alpha"
         outputDocumentId="doc-9"
         ingestNotice={null}
-        isLlmRunning
+        fallbackWaitState={{ formatLabel: 'JSON', agentName: 'Codex' }}
         inputEditorRef={createInputEditorRef()}
         outputEditorRef={createOutputEditorRef()}
         onEditInputChange={vi.fn()}
@@ -299,6 +299,10 @@ describe('EditorShell', () => {
       />,
     );
 
-    expect(screen.getByTestId('llm-loading-indicator')).toBeInTheDocument();
+    expect(screen.getByTestId('fallback-wait-screen')).toBeInTheDocument();
+    expect(screen.getByTestId('fallback-wait-message')).toHaveTextContent(
+      'Malformed JSON. Calling Codex.',
+    );
+    expect(screen.queryByTestId('output-editor')).not.toBeInTheDocument();
   });
 });

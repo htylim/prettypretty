@@ -64,7 +64,7 @@
 - Output is recomputed only when output mode is requested (ingestion that switches to output, or manual input->output switch), not on every input keystroke.
 - Unified ingestion flow: drop, paste, and click-open all set input through the same ingestion path.
 - Ingestion behavior:
-  - non-empty input: switch to output and run prettifier.
+  - non-empty input: run prettifier first; switch to output only after processing completes.
   - empty open/drop: remain input with inline notice.
   - empty paste: remain input without file-empty notice.
 - Local parser chain order: strict JSON -> JSON5 (JS/TS object-literal style) -> Python-literal normalization + JSON5.
@@ -76,6 +76,7 @@
 - Output mode search uses Monaco native find widget (triggered by `Cmd+F` in output mode).
 - Output mode fold/view state persists for the current document identity during the app session.
 - Output-mode prettify indentation and Monaco tab/guide indentation are sourced from the same persisted preference value (`indentSize`) so they stay synchronized.
-- Output mode shows a loading indicator only while fallback agent execution is pending.
+- While fallback agent execution is pending, editors are hidden behind a dedicated wait screen with a status message (`Malformed <format>. Calling <agent>.`) and spinner.
+- If fallback fails, output mode still opens after completion and renders passthrough/error behavior already defined by prettifier result handling.
 - Theme persistence behavior: renderer hydrates `themeMode` from persisted preferences at startup and uses optimistic updates with rollback on failed writes.
 - Indentation persistence behavior: renderer hydrates `indentSize` from persisted preferences at startup and uses it as the single runtime source for formatter + Monaco indentation.

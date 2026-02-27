@@ -77,7 +77,7 @@
   - JSON5 parse for JS/TS object-literal style input,
   - Python-literal normalization + JSON5 parse.
 - If local parsing succeeds, renderer uses local output immediately.
-- If local parsing fails/unsupported, renderer calls main-process `prettifier:run` IPC and shows a loading indicator while fallback is running.
+- If local parsing fails/unsupported, renderer calls main-process `prettifier:run` IPC and shows a dedicated wait screen (hiding editors) while fallback is running.
 - Main prettifier service resolves configured fallback agent from preferences and executes via `child_process.spawn`.
 - Fallback execution enforces timeout and output-size caps and classifies failures into typed statuses.
 - Any fallback failure degrades to passthrough output instead of throwing into renderer.

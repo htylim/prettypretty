@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PrettifyTrigger } from '../shared/prettifier';
+import type { Preferences } from '../shared/preferences';
 import type { TelemetryEventName } from '../shared/telemetry';
 import type { WindowApi } from '../shared/window-api';
 import type { ThemeMode } from '../shared/types';
 import { EditorShell } from './components/EditorShell';
 import type { InputEditorHandle } from './components/InputEditor';
 import type { OutputEditorHandle } from './components/OutputEditor';
+import { detectFallbackFormatLabel } from './prettifier/detectFallbackFormat';
 import { Toolbar } from './components/Toolbar';
 import { createPrettifierService } from './prettifier/prettifierService';
 import { useUiStore } from './state/uiStore';
@@ -27,8 +29,16 @@ const getOutputDocumentId = (value: string): string => {
 };
 
 type IngestSource = 'open-file' | 'drop' | 'paste';
+type PrettifierRunOptions = {
+  switchToOutputOnComplete: boolean;
+};
+type FallbackWaitState = {
+  formatLabel: string;
+  agentName: string;
+};
 
 const EMPTY_FILE_NOTICE = 'File has no content.';
+const UNKNOWN_FALLBACK_AGENT_NAME = 'fallback agent';
 
 const isFileIngestSource = (source: IngestSource): boolean => {
   return source === 'open-file' || source === 'drop';
@@ -58,6 +68,33 @@ const getIngestEventName = (source: IngestSource): TelemetryEventName => {
   return 'renderer.ingest.paste';
 };
 
+const getConfiguredFallbackAgent = (
+  preferences: Preferences,
+): { shouldWaitForFallback: boolean; agentName: string } => {
+  if (!preferences.fallbackAgentId) {
+    return {
+      shouldWaitForFallback: false,
+      agentName: UNKNOWN_FALLBACK_AGENT_NAME,
+    };
+  }
+
+  const fallbackAgent = preferences.agents.find(
+    (agent) => agent.id === preferences.fallbackAgentId && agent.enabled,
+  );
+
+  if (!fallbackAgent) {
+    return {
+      shouldWaitForFallback: false,
+      agentName: UNKNOWN_FALLBACK_AGENT_NAME,
+    };
+  }
+
+  return {
+    shouldWaitForFallback: true,
+    agentName: fallbackAgent.name,
+  };
+};
+
 export const App = () => {
   const inputEditorRef = useRef<InputEditorHandle>(null);
   const outputEditorRef = useRef<OutputEditorHandle>(null);
@@ -77,6 +114,7 @@ export const App = () => {
   const setIngestNotice = useUiStore((state) => state.setIngestNotice);
   const [outputText, setOutputText] = useState('');
   const [isLlmRunning, setIsLlmRunning] = useState(false);
+  const [fallbackWaitState, setFallbackWaitState] = useState<FallbackWaitState | null>(null);
 
   const prettifierService = useMemo(() => createPrettifierService(indentSize), [indentSize]);
   const outputDocumentId = useMemo(() => getOutputDocumentId(outputText), [outputText]);
@@ -103,10 +141,15 @@ export const App = () => {
   );
 
   const runPrettifier = useCallback(
-    async (nextInputText: string, trigger: PrettifyTrigger): Promise<void> => {
+    async (
+      nextInputText: string,
+      trigger: PrettifyTrigger,
+      options: PrettifierRunOptions,
+    ): Promise<void> => {
       const requestId = latestPrettifyRequestIdRef.current + 1;
       latestPrettifyRequestIdRef.current = requestId;
       setIsLlmRunning(false);
+      setFallbackWaitState(null);
       setOutputText(nextInputText);
 
       const localResult = prettifierService.prettifyDetailed(nextInputText);
@@ -124,6 +167,9 @@ export const App = () => {
 
         setOutputText(localResult.outputText);
         lastPrettifiedInputRef.current = nextInputText;
+        if (options.switchToOutputOnComplete) {
+          setPaneMode('output');
+        }
         return;
       }
 
@@ -135,10 +181,40 @@ export const App = () => {
 
         setOutputText(nextInputText);
         lastPrettifiedInputRef.current = nextInputText;
+        if (options.switchToOutputOnComplete) {
+          setPaneMode('output');
+        }
         return;
       }
 
-      setIsLlmRunning(true);
+      let shouldWaitForFallback = true;
+      let fallbackAgentName = UNKNOWN_FALLBACK_AGENT_NAME;
+
+      try {
+        const preferences = await api.preferences.getAll();
+
+        if (requestId !== latestPrettifyRequestIdRef.current) {
+          return;
+        }
+
+        const fallbackAgent = getConfiguredFallbackAgent(preferences);
+        shouldWaitForFallback = fallbackAgent.shouldWaitForFallback;
+        fallbackAgentName = fallbackAgent.agentName;
+      } catch (error) {
+        if (requestId !== latestPrettifyRequestIdRef.current) {
+          return;
+        }
+
+        console.error('Failed to resolve fallback agent before prettifier run', error);
+      }
+
+      if (shouldWaitForFallback) {
+        setFallbackWaitState({
+          formatLabel: detectFallbackFormatLabel(nextInputText),
+          agentName: fallbackAgentName,
+        });
+        setIsLlmRunning(true);
+      }
 
       try {
         const response = await api.prettifier.run({
@@ -153,6 +229,9 @@ export const App = () => {
 
         setOutputText(response.outputText);
         lastPrettifiedInputRef.current = nextInputText;
+        if (options.switchToOutputOnComplete) {
+          setPaneMode('output');
+        }
       } catch (error) {
         if (requestId !== latestPrettifyRequestIdRef.current) {
           return;
@@ -160,14 +239,18 @@ export const App = () => {
 
         setOutputText(nextInputText);
         lastPrettifiedInputRef.current = nextInputText;
+        if (options.switchToOutputOnComplete) {
+          setPaneMode('output');
+        }
         console.error('Failed to run prettifier fallback', error);
       } finally {
         if (requestId === latestPrettifyRequestIdRef.current) {
           setIsLlmRunning(false);
+          setFallbackWaitState(null);
         }
       }
     },
-    [indentSize, logTelemetry, prettifierService],
+    [indentSize, logTelemetry, prettifierService, setPaneMode],
   );
 
   const ingestInputText = useCallback(
@@ -183,6 +266,7 @@ export const App = () => {
         latestPrettifyRequestIdRef.current += 1;
         lastPrettifiedInputRef.current = null;
         setIsLlmRunning(false);
+        setFallbackWaitState(null);
         setOutputText('');
         setPaneMode('input');
         setIngestNotice(EMPTY_FILE_NOTICE);
@@ -193,6 +277,7 @@ export const App = () => {
         latestPrettifyRequestIdRef.current += 1;
         lastPrettifiedInputRef.current = null;
         setIsLlmRunning(false);
+        setFallbackWaitState(null);
         setOutputText('');
         setPaneMode('input');
         if (source !== 'paste') {
@@ -202,8 +287,9 @@ export const App = () => {
       }
 
       setIngestNotice(null);
-      setPaneMode('output');
-      void runPrettifier(nextText, getIngestTrigger(source));
+      void runPrettifier(nextText, getIngestTrigger(source), {
+        switchToOutputOnComplete: true,
+      });
     },
     [logTelemetry, runPrettifier, setIngestNotice, setInputText, setPaneMode],
   );
@@ -242,12 +328,17 @@ export const App = () => {
     latestPrettifyRequestIdRef.current += 1;
     lastPrettifiedInputRef.current = null;
     setIsLlmRunning(false);
+    setFallbackWaitState(null);
     setOutputText('');
     reset();
   }, [reset]);
 
   const handlePaneModeChange = useCallback(
     (nextMode: 'input' | 'output'): void => {
+      if (isLlmRunning) {
+        return;
+      }
+
       if (nextMode === 'input') {
         setPaneMode('input');
         return;
@@ -268,9 +359,11 @@ export const App = () => {
         return;
       }
 
-      void runPrettifier(inputText, 'switch-output');
+      void runPrettifier(inputText, 'switch-output', {
+        switchToOutputOnComplete: false,
+      });
     },
-    [hasContent, inputText, logTelemetry, paneMode, runPrettifier, setPaneMode],
+    [hasContent, inputText, isLlmRunning, logTelemetry, paneMode, runPrettifier, setPaneMode],
   );
 
   const collapseActiveEditor = useCallback((): void => {
@@ -454,7 +547,7 @@ export const App = () => {
           outputText={outputText}
           outputDocumentId={outputDocumentId}
           ingestNotice={ingestNotice}
-          isLlmRunning={isLlmRunning}
+          fallbackWaitState={fallbackWaitState}
           inputEditorRef={inputEditorRef}
           outputEditorRef={outputEditorRef}
           onEditInputChange={setInputText}
