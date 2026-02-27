@@ -33,8 +33,10 @@ type PrettifierRunOptions = {
   switchToOutputOnComplete: boolean;
 };
 type FallbackWaitState = {
+  requestId: number;
   formatLabel: string;
   agentName: string;
+  progressLine: string | null;
 };
 
 const EMPTY_FILE_NOTICE = 'File has no content.';
@@ -210,14 +212,17 @@ export const App = () => {
 
       if (shouldWaitForFallback) {
         setFallbackWaitState({
+          requestId,
           formatLabel: detectFallbackFormatLabel(nextInputText),
           agentName: fallbackAgentName,
+          progressLine: null,
         });
         setIsLlmRunning(true);
       }
 
       try {
         const response = await api.prettifier.run({
+          requestId,
           inputText: nextInputText,
           indentSize,
           trigger,
@@ -417,6 +422,26 @@ export const App = () => {
     },
     [setThemeMode, themeMode],
   );
+
+  useEffect(() => {
+    const api = getWindowApi();
+    if (!api) {
+      return;
+    }
+
+    return api.prettifier.onProgress((event) => {
+      setFallbackWaitState((currentState) => {
+        if (!currentState || currentState.requestId !== event.requestId) {
+          return currentState;
+        }
+
+        return {
+          ...currentState,
+          progressLine: event.line,
+        };
+      });
+    });
+  }, []);
 
   useEffect(() => {
     let cancelled = false;

@@ -11,6 +11,7 @@ export type AgentFallbackExecutionInput = {
   agent: AgentConfig;
   prompt: string;
   inputText: string;
+  onProgressLine?: (line: string) => void;
 };
 
 export type AgentFallbackExecutionResult = {
@@ -56,6 +57,28 @@ const isUnchangedEcho = (outputText: string, inputText: string): boolean => {
   return outputText.trim() === inputText.trim();
 };
 
+const ANSI_ESCAPE_PATTERN = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*[ -/]*[@-~]`, 'gu');
+const MAX_PROGRESS_LINE_LENGTH = 200;
+
+const extractLastProgressLine = (chunkText: string): string | null => {
+  const stripped = chunkText.replace(ANSI_ESCAPE_PATTERN, '');
+  const candidates = stripped
+    .split(/[\r\n]+/u)
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0);
+
+  const lastCandidate = candidates.at(-1);
+  if (!lastCandidate) {
+    return null;
+  }
+
+  if (lastCandidate.length <= MAX_PROGRESS_LINE_LENGTH) {
+    return lastCandidate;
+  }
+
+  return `${lastCandidate.slice(0, MAX_PROGRESS_LINE_LENGTH - 3)}...`;
+};
+
 export type AgentFallbackExecutor = {
   execute: (input: AgentFallbackExecutionInput) => Promise<AgentFallbackExecutionResult>;
 };
@@ -71,7 +94,7 @@ export const createAgentFallbackExecutor = (
   const now = dependencies.now ?? Date.now;
 
   return {
-    execute: async ({ agent, prompt, inputText }) => {
+    execute: async ({ agent, prompt, inputText, onProgressLine }) => {
       const startedAt = now();
       const args =
         agent.promptDelivery === 'arg' ? [...agent.argsTemplate, prompt] : [...agent.argsTemplate];
@@ -129,6 +152,15 @@ export const createAgentFallbackExecutor = (
 
         child.stdout?.on('data', (chunk: Buffer | string) => {
           const chunkText = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
+          const progressLine = extractLastProgressLine(chunkText);
+          if (progressLine && onProgressLine) {
+            try {
+              onProgressLine(progressLine);
+            } catch {
+              // Progress callbacks are best-effort and must not affect execution.
+            }
+          }
+
           const chunkByteLength = Buffer.byteLength(chunkText);
           stdoutLength += chunkByteLength;
 
@@ -143,6 +175,15 @@ export const createAgentFallbackExecutor = (
 
         child.stderr?.on('data', (chunk: Buffer | string) => {
           const chunkText = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
+          const progressLine = extractLastProgressLine(chunkText);
+          if (progressLine && onProgressLine) {
+            try {
+              onProgressLine(progressLine);
+            } catch {
+              // Progress callbacks are best-effort and must not affect execution.
+            }
+          }
+
           stderrLength += Buffer.byteLength(chunkText);
         });
 

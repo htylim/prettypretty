@@ -23,6 +23,7 @@ export type PrettifyRunStatus =
   | 'passthrough-fallback-failed';
 
 export type PrettifyRunRequest = {
+  requestId: number;
   inputText: string;
   indentSize: IndentSize;
   trigger: PrettifyTrigger;
@@ -35,4 +36,9 @@ export type PrettifyRunResponse = {
   fallbackStatus: FallbackStatus;
   agentId: string | null;
   durationMs: number;
+};
+
+export type PrettifierProgressEvent = {
+  requestId: number;
+  line: string;
 };

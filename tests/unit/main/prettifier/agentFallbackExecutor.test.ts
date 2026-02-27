@@ -247,4 +247,28 @@ describe('agentFallbackExecutor', () => {
       exitCode: null,
     });
   });
+
+  it('emits last progress line from stdout and stderr chunks', async () => {
+    const onProgressLine = vi.fn();
+    const executor = createAgentFallbackExecutor({
+      spawn: spawnMock as unknown as SpawnProcessLike,
+    });
+    const promise = executor.execute({
+      agent: createAgent(),
+      prompt: 'rendered prompt',
+      inputText: '{"a":1}',
+      onProgressLine,
+    });
+
+    child.stderr.emit('data', 'step 1/3\rstep 2/3\r');
+    child.stdout.emit('data', '\u001b[32mthinking...\u001b[0m\n');
+    child.stdout.emit('data', '{\n  "a": 1\n}\n');
+    child.emit('close', 0);
+
+    await promise;
+
+    expect(onProgressLine).toHaveBeenCalledWith('step 2/3');
+    expect(onProgressLine).toHaveBeenCalledWith('thinking...');
+    expect(onProgressLine).toHaveBeenCalledWith('}');
+  });
 });

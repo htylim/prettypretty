@@ -38,6 +38,20 @@ const api: WindowApi = {
   },
   prettifier: {
     run: (request) => ipcRenderer.invoke(IPCChannels.prettifierRun, request),
+    onProgress: (listener) => {
+      const wrappedListener = (
+        _event: Electron.IpcRendererEvent,
+        event: { requestId: number; line: string },
+      ) => {
+        listener(event);
+      };
+
+      ipcRenderer.on(IPCChannels.prettifierProgress, wrappedListener);
+
+      return () => {
+        ipcRenderer.removeListener(IPCChannels.prettifierProgress, wrappedListener);
+      };
+    },
   },
   telemetry: {
     log: async (event) => {

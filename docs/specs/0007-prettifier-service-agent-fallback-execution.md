@@ -104,6 +104,7 @@ Without this, unsupported or malformed inputs cannot benefit from configured non
   - fallback success replaces output,
   - fallback skip/failure keeps original input passthrough.
 - Show a dedicated wait screen only while fallback IPC execution is in-flight; hide input/output editors during this state.
+- Stream a single latest fallback execution line to the wait screen (best effort) through main->renderer IPC progress events keyed by request id.
 
 ### Logging and observability
 
@@ -149,6 +150,7 @@ Without this, unsupported or malformed inputs cannot benefit from configured non
   - empty open-file/drop keeps input mode and shows inline notice.
   - empty paste keeps input mode and does not show empty-file notice.
   - wait screen is visible while fallback is pending and hides on completion.
+  - wait screen shows the latest streamed fallback progress line for the active request.
 
 ### Documentation updates required by implementation
 
@@ -177,6 +179,7 @@ Reference note for implementation agents: any code snippets in specs are intent 
 - [ ] Empty open-file/drop content keeps input mode and shows inline notice.
 - [ ] Empty paste keeps input mode without empty-file notice.
 - [ ] Wait screen is visible while fallback execution is pending and editors are hidden.
+- [ ] Wait screen displays the latest streamed fallback progress line for the active request only.
 - [ ] Verbose logs emit to stdout only when app is started with `-v` / `--verbose`.
 - [ ] Unit tests fully mock process execution (no real CLI execution in CI).
 - [ ] `pnpm test` passes.

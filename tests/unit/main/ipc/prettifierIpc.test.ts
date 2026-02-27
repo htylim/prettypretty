@@ -109,14 +109,19 @@ describe('registerIpcHandlers prettifier channels', () => {
   it('forwards valid prettifier requests to service', async () => {
     const runHandler = getRegisteredHandler(IPCChannels.prettifierRun);
     const request = {
+      requestId: 1,
       inputText: '{"a":1}',
       indentSize: 2,
       trigger: 'switch-output',
     };
+    const sender = { send: vi.fn() };
 
-    const result = await runHandler({}, request);
+    const result = await runHandler({ sender }, request);
 
-    expect(prettifierService.run).toHaveBeenCalledWith(request);
+    expect(prettifierService.run).toHaveBeenCalledWith(
+      request,
+      expect.objectContaining({ onFallbackProgress: expect.any(Function) }),
+    );
     expect(result).toEqual({
       status: 'applied-local',
       outputText: '{\n  "a": 1\n}',
@@ -130,10 +135,47 @@ describe('registerIpcHandlers prettifier channels', () => {
   it('rejects invalid prettifier payloads', async () => {
     const runHandler = getRegisteredHandler(IPCChannels.prettifierRun);
 
-    await expect(runHandler({}, { trigger: 'switch-output' })).rejects.toThrow(
-      'Invalid prettifier request payload',
-    );
+    await expect(
+      runHandler({ sender: { send: vi.fn() } }, { trigger: 'switch-output' }),
+    ).rejects.toThrow('Invalid prettifier request payload');
     expect(prettifierService.run).not.toHaveBeenCalled();
+  });
+
+  it('streams prettifier progress events over IPC for the active request', async () => {
+    const runHandler = getRegisteredHandler(IPCChannels.prettifierRun);
+    const request = {
+      requestId: 9,
+      inputText: '{bad',
+      indentSize: 2,
+      trigger: 'switch-output',
+    };
+    const sender = { send: vi.fn() };
+
+    prettifierService.run.mockImplementationOnce(
+      async (
+        _request: unknown,
+        options?: {
+          onFallbackProgress?: (line: string) => void;
+        },
+      ) => {
+        options?.onFallbackProgress?.('thinking step');
+        return {
+          status: 'applied-fallback',
+          outputText: '{\n  "ok": true\n}',
+          localDetection: 'malformed',
+          fallbackStatus: 'applied',
+          agentId: 'codex',
+          durationMs: 12,
+        };
+      },
+    );
+
+    await runHandler({ sender }, request);
+
+    expect(sender.send).toHaveBeenCalledWith(IPCChannels.prettifierProgress, {
+      requestId: 9,
+      line: 'thinking step',
+    });
   });
 
   it('logs valid telemetry events', async () => {

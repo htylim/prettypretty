@@ -13,12 +13,19 @@ const preferencesGetAllMock = vi.fn();
 const preferencesUpdateMock = vi.fn();
 const preferencesResetMock = vi.fn();
 const prettifierRunMock = vi.fn();
+const prettifierOnProgressMock = vi.fn();
 const telemetryLogMock = vi.fn();
 const outputCollapseAllMock = vi.fn();
 const outputExpandAllMock = vi.fn();
 const inputCollapseAllMock = vi.fn();
 const inputExpandAllMock = vi.fn();
 const openFindMock = vi.fn();
+let onPrettifierProgressListener: ((event: { requestId: number; line: string }) => void) | null =
+  null;
+
+const emitPrettifierProgress = (event: { requestId: number; line: string }): void => {
+  onPrettifierProgressListener?.(event);
+};
 
 const createDeferred = <T,>() => {
   let resolve!: (value: T) => void;
@@ -133,6 +140,7 @@ beforeEach(() => {
   preferencesUpdateMock.mockReset();
   preferencesResetMock.mockReset();
   prettifierRunMock.mockReset();
+  prettifierOnProgressMock.mockReset();
   telemetryLogMock.mockReset();
   outputCollapseAllMock.mockReset();
   outputExpandAllMock.mockReset();
@@ -153,6 +161,12 @@ beforeEach(() => {
   );
   preferencesResetMock.mockResolvedValue(createPreferences());
   prettifierRunMock.mockResolvedValue(createPrettifierResponse());
+  prettifierOnProgressMock.mockImplementation((listener) => {
+    onPrettifierProgressListener = listener;
+    return () => {
+      onPrettifierProgressListener = null;
+    };
+  });
   telemetryLogMock.mockResolvedValue(undefined);
 
   Object.defineProperty(window, 'prettypretty', {
@@ -169,6 +183,7 @@ beforeEach(() => {
       },
       prettifier: {
         run: prettifierRunMock,
+        onProgress: prettifierOnProgressMock,
       },
       telemetry: {
         log: telemetryLogMock,
@@ -185,6 +200,7 @@ beforeEach(() => {
       ingestNotice: null,
     });
   });
+  onPrettifierProgressListener = null;
 });
 
 describe('App', () => {
@@ -349,10 +365,51 @@ describe('App', () => {
     expect(screen.getByTestId('fallback-wait-message')).toHaveTextContent(
       'Malformed JSON. Calling Codex.',
     );
+    expect(screen.getByTestId('fallback-wait-line')).toHaveTextContent('Waiting for agent output');
     expect(screen.queryByTestId('output-editor')).not.toBeInTheDocument();
 
     deferredRun.resolve(createPrettifierResponse({ outputText: '{\n  "fromAgent": 1\n}' }));
 
+    await waitFor(() => {
+      expect(screen.queryByTestId('fallback-wait-screen')).not.toBeInTheDocument();
+    });
+  });
+
+  it('shows streamed fallback progress line for the active request only', async () => {
+    const user = userEvent.setup();
+    const deferredRun = createDeferred<PrettifyRunResponse>();
+    prettifierRunMock.mockReturnValue(deferredRun.promise);
+
+    act(() => {
+      useUiStore.setState({
+        paneMode: 'input',
+        inputText: '{bad',
+        ingestNotice: null,
+      });
+    });
+
+    render(<App />);
+    await user.click(screen.getByTestId('pane-segment-output'));
+    expect(await screen.findByTestId('fallback-wait-screen')).toBeInTheDocument();
+
+    const request = prettifierRunMock.mock.calls[0]?.[0] as { requestId: number };
+
+    act(() => {
+      emitPrettifierProgress({ requestId: request.requestId + 10, line: 'stale run' });
+    });
+    expect(screen.getByTestId('fallback-wait-line')).not.toHaveTextContent('stale run');
+
+    act(() => {
+      emitPrettifierProgress({
+        requestId: request.requestId,
+        line: 'Analyzing malformed object...',
+      });
+    });
+    expect(screen.getByTestId('fallback-wait-line')).toHaveTextContent(
+      'Analyzing malformed object...',
+    );
+
+    deferredRun.resolve(createPrettifierResponse({ outputText: '{\n  "done": true\n}' }));
     await waitFor(() => {
       expect(screen.queryByTestId('fallback-wait-screen')).not.toBeInTheDocument();
     });

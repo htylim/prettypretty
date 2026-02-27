@@ -32,6 +32,7 @@ Do not add routine status updates, implementation history, or one-time decisions
 - Do not hardcode an editor executable for opening config files from app menus; use Electron `shell.openPath` so OS file associations select the default editor.
 - Do not execute fallback LLM commands from renderer code or without hard timeout/output caps; keep process execution in main with typed status outcomes so failures degrade to passthrough instead of UI hangs.
 - Do not switch to output editor before malformed-input fallback completes; keep editors hidden behind a dedicated waiting state so users never see raw malformed passthrough during in-flight fallback.
+- Do not stream fallback progress into renderer without request-id correlation; stale async lines from prior runs can overwrite the active wait-state if events are not gated by run id.
 - Do not run prettifier/fallback on every input keystroke; trigger prettification only on explicit output-mode requests or cost and latency spike while typing.
 - Do not include raw input/output/prompt bodies in verbose logs; log only bounded metadata (lengths, statuses, durations, ids) to keep diagnostics safe and readable.
 - Do not couple log event capture to verbose transport flags; keep session capture always on and use `-v` only to gate stdout emission.

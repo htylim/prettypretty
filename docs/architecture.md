@@ -78,6 +78,7 @@
   - Python-literal normalization + JSON5 parse.
 - If local parsing succeeds, renderer uses local output immediately.
 - If local parsing fails/unsupported, renderer calls main-process `prettifier:run` IPC and shows a dedicated wait screen (hiding editors) while fallback is running.
+- Main process streams best-effort fallback progress lines over `prettifier:progress` IPC; renderer binds updates to request id and renders only the latest line in the wait screen.
 - Main prettifier service resolves configured fallback agent from preferences and executes via `child_process.spawn`.
 - Fallback execution enforces timeout and output-size caps and classifies failures into typed statuses.
 - Any fallback failure degrades to passthrough output instead of throwing into renderer.

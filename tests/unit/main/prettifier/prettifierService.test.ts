@@ -27,6 +27,7 @@ describe('prettifierService', () => {
     });
 
     const response = await service.run({
+      requestId: 1,
       inputText: '{"a":1}',
       indentSize: 2,
       trigger: 'switch-output',
@@ -56,6 +57,7 @@ describe('prettifierService', () => {
     });
 
     const response = await service.run({
+      requestId: 1,
       inputText: '{bad',
       indentSize: 2,
       trigger: 'switch-output',
@@ -86,6 +88,7 @@ describe('prettifierService', () => {
     });
 
     const response = await service.run({
+      requestId: 1,
       inputText: '{bad',
       indentSize: 2,
       trigger: 'switch-output',
@@ -125,6 +128,7 @@ describe('prettifierService', () => {
     });
 
     const response = await service.run({
+      requestId: 1,
       inputText: '{bad',
       indentSize: 2,
       trigger: 'switch-output',
@@ -137,6 +141,49 @@ describe('prettifierService', () => {
       agentId: 'codex',
     });
     expect(fallbackExecutor.execute).toHaveBeenCalledTimes(1);
+  });
+
+  it('forwards fallback progress callback to executor', async () => {
+    const preferences = createDefaultPreferences();
+    const preferencesService = {
+      getAll: vi.fn().mockResolvedValue({
+        ...preferences,
+        fallbackAgentId: 'codex',
+      }),
+    };
+    const fallbackExecutor = {
+      execute: vi
+        .fn()
+        .mockImplementation(async (input: { onProgressLine?: (line: string) => void }) => {
+          input.onProgressLine?.('thinking...');
+          return {
+            status: 'applied',
+            outputText: '{\n  "a": 1\n}',
+            exitCode: 0,
+            stderrLength: 0,
+            durationMs: 25,
+          };
+        }),
+    };
+    const logger = createLogger();
+    const service = createPrettifierService({
+      preferencesService,
+      logger,
+      fallbackExecutor,
+    });
+    const onFallbackProgress = vi.fn();
+
+    await service.run(
+      {
+        requestId: 1,
+        inputText: '{bad',
+        indentSize: 2,
+        trigger: 'switch-output',
+      },
+      { onFallbackProgress },
+    );
+
+    expect(onFallbackProgress).toHaveBeenCalledWith('thinking...');
   });
 
   it('returns passthrough-fallback-failed when fallback execution fails', async () => {
@@ -164,6 +211,7 @@ describe('prettifierService', () => {
     });
 
     const response = await service.run({
+      requestId: 1,
       inputText: '{bad',
       indentSize: 2,
       trigger: 'switch-output',

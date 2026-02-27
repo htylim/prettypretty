@@ -289,7 +289,12 @@ describe('EditorShell', () => {
         outputText="alpha"
         outputDocumentId="doc-9"
         ingestNotice={null}
-        fallbackWaitState={{ formatLabel: 'JSON', agentName: 'Codex' }}
+        fallbackWaitState={{
+          requestId: 1,
+          formatLabel: 'JSON',
+          agentName: 'Codex',
+          progressLine: 'Generating output...',
+        }}
         inputEditorRef={createInputEditorRef()}
         outputEditorRef={createOutputEditorRef()}
         onEditInputChange={vi.fn()}
@@ -303,6 +308,7 @@ describe('EditorShell', () => {
     expect(screen.getByTestId('fallback-wait-message')).toHaveTextContent(
       'Malformed JSON. Calling Codex.',
     );
+    expect(screen.getByTestId('fallback-wait-line')).toHaveTextContent('Generating output...');
     expect(screen.queryByTestId('output-editor')).not.toBeInTheDocument();
   });
 });

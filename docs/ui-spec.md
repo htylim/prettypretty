@@ -77,6 +77,7 @@
 - Output mode fold/view state persists for the current document identity during the app session.
 - Output-mode prettify indentation and Monaco tab/guide indentation are sourced from the same persisted preference value (`indentSize`) so they stay synchronized.
 - While fallback agent execution is pending, editors are hidden behind a dedicated wait screen with a status message (`Malformed <format>. Calling <agent>.`) and spinner.
+- Wait screen includes a single-line live status area that shows the latest fallback execution output line for the active request only.
 - If fallback fails, output mode still opens after completion and renders passthrough/error behavior already defined by prettifier result handling.
 - Theme persistence behavior: renderer hydrates `themeMode` from persisted preferences at startup and uses optimistic updates with rollback on failed writes.
 - Indentation persistence behavior: renderer hydrates `indentSize` from persisted preferences at startup and uses it as the single runtime source for formatter + Monaco indentation.

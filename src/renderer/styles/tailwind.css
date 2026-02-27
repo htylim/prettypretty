@@ -278,6 +278,17 @@ body {
   font-weight: 650;
 }
 
+.fallback-wait-line {
+  margin: 14px 0 0;
+  font-family: var(--font-code);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .empty-state {
   display: grid;
   place-items: center;

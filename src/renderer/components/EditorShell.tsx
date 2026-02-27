@@ -13,8 +13,10 @@ type EditorShellProps = {
   outputDocumentId: string;
   ingestNotice: string | null;
   fallbackWaitState: {
+    requestId: number;
     formatLabel: string;
     agentName: string;
+    progressLine: string | null;
   } | null;
   inputEditorRef: RefObject<InputEditorHandle | null>;
   outputEditorRef: RefObject<OutputEditorHandle | null>;
@@ -44,6 +46,7 @@ export const EditorShell = ({
   const fallbackWaitMessage = fallbackWaitState
     ? `Malformed ${fallbackWaitState.formatLabel}. Calling ${fallbackWaitState.agentName}.`
     : null;
+  const fallbackProgressLine = fallbackWaitState?.progressLine ?? 'Waiting for agent output...';
 
   const handleDrop: DragEventHandler<HTMLDivElement> = async (event) => {
     event.preventDefault();
@@ -99,6 +102,9 @@ export const EditorShell = ({
               <span aria-hidden="true" className="fallback-wait-spinner" />
               <span className="fallback-wait-progress-label">Processing...</span>
             </div>
+            <p className="fallback-wait-line" data-testid="fallback-wait-line">
+              {fallbackProgressLine}
+            </p>
           </div>
         </div>
       ) : !hasContent ? (

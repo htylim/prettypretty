@@ -16,8 +16,15 @@ type PrettifierServiceDependencies = {
   now?: () => number;
 };
 
+type PrettifierRunOptions = {
+  onFallbackProgress?: (line: string) => void;
+};
+
 export type PrettifierService = {
-  run: (request: PrettifyRunRequest) => Promise<PrettifyRunResponse>;
+  run: (
+    request: PrettifyRunRequest,
+    options?: PrettifierRunOptions,
+  ) => Promise<PrettifyRunResponse>;
 };
 
 const summarizeFallbackResult = (
@@ -55,12 +62,13 @@ export const createPrettifierService = ({
   now = Date.now,
 }: PrettifierServiceDependencies): PrettifierService => {
   return {
-    run: async (request) => {
+    run: async (request, options = {}) => {
       const startedAt = now();
       logger.info('prettifier.run.requested', {
         trigger: request.trigger,
         inputLength: request.inputText.length,
         indentSize: request.indentSize,
+        requestId: request.requestId,
       });
 
       const localResult = runLocalPrettifier(request.inputText, request.indentSize);
@@ -156,10 +164,15 @@ export const createPrettifierService = ({
 
       let fallbackResult: AgentFallbackExecutionResult;
       try {
-        fallbackResult = await fallbackExecutor.execute({
+        const fallbackExecutionInput = {
           agent: fallbackAgent,
           prompt,
           inputText: request.inputText,
+          ...(options.onFallbackProgress ? { onProgressLine: options.onFallbackProgress } : {}),
+        };
+
+        fallbackResult = await fallbackExecutor.execute({
+          ...fallbackExecutionInput,
         });
       } catch (error) {
         logger.error('prettifier.fallback.end', {

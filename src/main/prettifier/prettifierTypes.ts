@@ -16,12 +16,19 @@ const isPrettifyTrigger = (value: unknown): value is PrettifyTrigger => {
   return typeof value === 'string' && PRETTIFY_TRIGGERS.has(value as PrettifyTrigger);
 };
 
+const isRequestId = (value: unknown): value is number => {
+  return (
+    typeof value === 'number' && Number.isInteger(value) && Number.isFinite(value) && value >= 1
+  );
+};
+
 export const isPrettifyRunRequest = (value: unknown): value is PrettifyRunRequest => {
   if (!isRecord(value)) {
     return false;
   }
 
   return (
+    isRequestId(value.requestId) &&
     typeof value.inputText === 'string' &&
     isIndentSize(value.indentSize) &&
     isPrettifyTrigger(value.trigger)

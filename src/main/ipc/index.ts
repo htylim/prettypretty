@@ -113,7 +113,7 @@ export const registerIpcHandlers = ({
     return await preferencesService.reset();
   });
 
-  ipcMain.handle(IPCChannels.prettifierRun, async (_event, request: unknown) => {
+  ipcMain.handle(IPCChannels.prettifierRun, async (event, request: unknown) => {
     if (!isPrettifyRunRequest(request)) {
       logger.warn('ipc.validation.error', {
         channel: IPCChannels.prettifierRun,
@@ -121,7 +121,14 @@ export const registerIpcHandlers = ({
       throw new Error('Invalid prettifier request payload');
     }
 
-    return await prettifierService.run(request);
+    return await prettifierService.run(request, {
+      onFallbackProgress: (line) => {
+        event.sender.send(IPCChannels.prettifierProgress, {
+          requestId: request.requestId,
+          line,
+        });
+      },
+    });
   });
 
   ipcMain.handle(IPCChannels.telemetryLogEvent, async (_event, event: unknown) => {

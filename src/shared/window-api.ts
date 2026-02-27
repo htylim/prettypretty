@@ -1,5 +1,9 @@
 import type { AppInfo, OpenFileResult, SaveFileResult } from './ipc-contracts';
-import type { PrettifyRunRequest, PrettifyRunResponse } from './prettifier';
+import type {
+  PrettifierProgressEvent,
+  PrettifyRunRequest,
+  PrettifyRunResponse,
+} from './prettifier';
 import type { Preferences, PreferencesPatch } from './preferences';
 import type { TelemetryEvent } from './telemetry';
 
@@ -27,6 +31,7 @@ export interface WindowApi {
   };
   prettifier: {
     run: (request: PrettifyRunRequest) => Promise<PrettifyRunResponse>;
+    onProgress: (listener: (event: PrettifierProgressEvent) => void) => () => void;
   };
   telemetry: {
     log: (event: TelemetryEvent) => Promise<void>;
