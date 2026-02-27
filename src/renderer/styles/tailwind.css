@@ -213,80 +213,77 @@ body {
 }
 
 .fallback-wait-screen {
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   width: 100%;
   height: 100%;
-  padding: 28px;
-}
-
-.fallback-wait-card {
-  width: min(560px, 100%);
-  border: 1px solid color-mix(in oklab, var(--accent) 26%, var(--line));
-  border-radius: 18px;
-  background: linear-gradient(
-    145deg,
-    color-mix(in oklab, var(--panel-alt) 78%, var(--accent-soft)),
-    color-mix(in oklab, var(--panel) 88%, var(--accent-soft))
-  );
-  box-shadow: var(--shadow-soft);
-  padding: clamp(24px, 4vw, 36px);
-  animation: fallback-wait-enter 220ms ease-out;
-}
-
-.fallback-wait-eyebrow {
-  margin: 0;
-  font-size: 0.8rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--muted);
+  padding: 48px 32px;
 }
 
 .fallback-wait-message {
-  margin: 12px 0 0;
+  margin: 0;
+  max-width: 480px;
   font-family: var(--font-display);
-  font-size: clamp(1.35rem, 2.4vw, 1.85rem);
-  line-height: 1.25;
+  font-size: clamp(1.6rem, 2.8vw, 2.15rem);
+  line-height: 1.28;
   color: var(--text);
+  text-align: center;
   text-wrap: balance;
+  animation: fallback-fade-up 500ms ease-out both;
 }
 
 .fallback-wait-progress {
-  margin-top: 22px;
+  position: relative;
+  margin-top: 32px;
+  padding-top: 28px;
   display: inline-flex;
   align-items: center;
-  gap: 12px;
-  border: 1px solid color-mix(in oklab, var(--line) 72%, transparent);
-  border-radius: 999px;
-  padding: 10px 14px;
-  background: color-mix(in oklab, var(--panel-alt) 72%, var(--accent-soft));
-  color: var(--text);
+  gap: 10px;
+  color: var(--muted);
+  animation: fallback-fade-up 500ms ease-out 120ms both;
+}
+
+.fallback-wait-progress::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 36px;
+  height: 1px;
+  background: color-mix(in oklab, var(--accent) 50%, var(--line));
 }
 
 .fallback-wait-spinner {
-  width: 16px;
-  height: 16px;
-  border-radius: 999px;
-  border: 2px solid color-mix(in oklab, var(--line) 72%, transparent);
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1.5px solid color-mix(in oklab, var(--accent) 22%, transparent);
   border-top-color: var(--accent);
-  animation: llm-spinner-rotate 0.8s linear infinite;
+  animation: llm-spinner-rotate 0.9s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
 }
 
 .fallback-wait-progress-label {
-  font-size: 0.85rem;
-  font-weight: 650;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 
 .fallback-wait-line {
-  margin: 14px 0 0;
+  margin: 20px 0 0;
+  max-width: 380px;
   font-family: var(--font-code);
-  font-size: 0.8rem;
+  font-size: 0.76rem;
   line-height: 1.45;
   color: var(--muted);
+  opacity: 0.6;
+  text-align: center;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  animation: fallback-fade-up 500ms ease-out 220ms both;
 }
 
 .empty-state {
@@ -344,10 +341,10 @@ body {
   }
 }
 
-@keyframes fallback-wait-enter {
+@keyframes fallback-fade-up {
   from {
     opacity: 0;
-    transform: translateY(8px);
+    transform: translateY(12px);
   }
 
   to {

@@ -93,19 +93,16 @@ export const EditorShell = ({
           data-testid="fallback-wait-screen"
           role="status"
         >
-          <div className="fallback-wait-card">
-            <p className="fallback-wait-eyebrow">Prettifier Fallback</p>
-            <p className="fallback-wait-message" data-testid="fallback-wait-message">
-              {fallbackWaitMessage}
-            </p>
-            <div className="fallback-wait-progress">
-              <span aria-hidden="true" className="fallback-wait-spinner" />
-              <span className="fallback-wait-progress-label">Processing...</span>
-            </div>
-            <p className="fallback-wait-line" data-testid="fallback-wait-line">
-              {fallbackProgressLine}
-            </p>
+          <p className="fallback-wait-message" data-testid="fallback-wait-message">
+            {fallbackWaitMessage}
+          </p>
+          <div className="fallback-wait-progress">
+            <span aria-hidden="true" className="fallback-wait-spinner" />
+            <span className="fallback-wait-progress-label">Processing...</span>
           </div>
+          <p className="fallback-wait-line" data-testid="fallback-wait-line">
+            {fallbackProgressLine}
+          </p>
         </div>
       ) : !hasContent ? (
         <div className="empty-state">
