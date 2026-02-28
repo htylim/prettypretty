@@ -18,10 +18,11 @@
 1. App starts in `src/main/index.ts`.
 2. Main process sets explicit app menu labels via `src/main/menu/applicationMenu.ts` using fixed app naming (`prettypretty`) to avoid macOS dev menu fallback label `Electron`, and exposes `Preferences...` in the macOS app menu to open `<userData>/preferences.json` in the OS default editor.
 3. Main window is created from `src/main/windows/mainWindow.ts`.
-4. Main process initializes `PreferencesStore` + `PreferencesService` using `app.getPath('userData')/preferences.json`.
-5. Preload script exposes `window.prettypretty`.
-6. Renderer calls preload APIs for open/save/copy/info/preferences/prettifier/telemetry.
-7. Main process handles IPC, prettifier orchestration, and other side effects.
+4. Main window `close` event immediately calls `app.exit(0)` so app lifetime is tied to main window lifetime (including macOS `Cmd+W`).
+5. Main process initializes `PreferencesStore` + `PreferencesService` using `app.getPath('userData')/preferences.json`.
+6. Preload script exposes `window.prettypretty`.
+7. Renderer calls preload APIs for open/save/copy/info/preferences/prettifier/telemetry.
+8. Main process handles IPC, prettifier orchestration, and other side effects.
 
 ## Preferences Data Flow
 
