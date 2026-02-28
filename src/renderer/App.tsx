@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { PrettifyTrigger } from '../shared/prettifier';
-import type { Preferences } from '../shared/preferences';
+import type { PrettifyRunStatus, PrettifyTrigger } from '../shared/prettifier';
+import type { IndentSize, Preferences } from '../shared/preferences';
 import type { TelemetryEventName } from '../shared/telemetry';
 import type { WindowApi } from '../shared/window-api';
 import type { ThemeMode } from '../shared/types';
@@ -8,6 +8,7 @@ import { EditorShell } from './components/EditorShell';
 import type { InputEditorHandle } from './components/InputEditor';
 import type { OutputEditorHandle } from './components/OutputEditor';
 import { detectFallbackFormatLabel } from './prettifier/detectFallbackFormat';
+import { reindentText } from './prettifier/reindentText';
 import { Toolbar } from './components/Toolbar';
 import { createPrettifierService } from './prettifier/prettifierService';
 import { useUiStore } from './state/uiStore';
@@ -43,6 +44,10 @@ type FallbackAgentOption = {
   name: string;
   enabled: boolean;
 };
+type OutputFormattingState = {
+  isPrettified: boolean;
+  indentSize: IndentSize | null;
+};
 
 const EMPTY_FILE_NOTICE = 'File has no content.';
 const UNKNOWN_FALLBACK_AGENT_NAME = 'fallback agent';
@@ -73,6 +78,10 @@ const getIngestEventName = (source: IngestSource): TelemetryEventName => {
   }
 
   return 'renderer.ingest.paste';
+};
+
+const isAppliedPrettifyStatus = (status: PrettifyRunStatus): boolean => {
+  return status === 'applied-local' || status === 'applied-fallback';
 };
 
 const getConfiguredFallbackAgent = (
@@ -106,9 +115,14 @@ export const App = () => {
   const inputEditorRef = useRef<InputEditorHandle>(null);
   const outputEditorRef = useRef<OutputEditorHandle>(null);
   const latestThemeRequestIdRef = useRef(0);
+  const latestIndentSizeRequestIdRef = useRef(0);
   const latestFallbackAgentRequestIdRef = useRef(0);
   const latestPrettifyRequestIdRef = useRef(0);
   const lastPrettifiedInputRef = useRef<string | null>(null);
+  const outputFormattingRef = useRef<OutputFormattingState>({
+    isPrettified: false,
+    indentSize: null,
+  });
   const paneMode = useUiStore((state) => state.paneMode);
   const themeMode = useUiStore((state) => state.themeMode);
   const indentSize = useUiStore((state) => state.indentSize);
@@ -161,6 +175,10 @@ export const App = () => {
       setIsLlmRunning(false);
       setFallbackWaitState(null);
       setOutputText(nextInputText);
+      outputFormattingRef.current = {
+        isPrettified: false,
+        indentSize: null,
+      };
 
       const localResult = prettifierService.prettifyDetailed(nextInputText);
       void logTelemetry('renderer.prettifier.local.result', {
@@ -177,6 +195,10 @@ export const App = () => {
 
         setOutputText(localResult.outputText);
         lastPrettifiedInputRef.current = nextInputText;
+        outputFormattingRef.current = {
+          isPrettified: true,
+          indentSize,
+        };
         if (options.switchToOutputOnComplete) {
           setPaneMode('output');
         }
@@ -191,6 +213,10 @@ export const App = () => {
 
         setOutputText(nextInputText);
         lastPrettifiedInputRef.current = nextInputText;
+        outputFormattingRef.current = {
+          isPrettified: false,
+          indentSize: null,
+        };
         if (options.switchToOutputOnComplete) {
           setPaneMode('output');
         }
@@ -242,6 +268,10 @@ export const App = () => {
 
         setOutputText(response.outputText);
         lastPrettifiedInputRef.current = nextInputText;
+        outputFormattingRef.current = {
+          isPrettified: isAppliedPrettifyStatus(response.status),
+          indentSize: isAppliedPrettifyStatus(response.status) ? indentSize : null,
+        };
         if (options.switchToOutputOnComplete) {
           setPaneMode('output');
         }
@@ -252,6 +282,10 @@ export const App = () => {
 
         setOutputText(nextInputText);
         lastPrettifiedInputRef.current = nextInputText;
+        outputFormattingRef.current = {
+          isPrettified: false,
+          indentSize: null,
+        };
         if (options.switchToOutputOnComplete) {
           setPaneMode('output');
         }
@@ -281,6 +315,10 @@ export const App = () => {
         setIsLlmRunning(false);
         setFallbackWaitState(null);
         setOutputText('');
+        outputFormattingRef.current = {
+          isPrettified: false,
+          indentSize: null,
+        };
         setPaneMode('input');
         setIngestNotice(EMPTY_FILE_NOTICE);
         return;
@@ -292,6 +330,10 @@ export const App = () => {
         setIsLlmRunning(false);
         setFallbackWaitState(null);
         setOutputText('');
+        outputFormattingRef.current = {
+          isPrettified: false,
+          indentSize: null,
+        };
         setPaneMode('input');
         if (source !== 'paste') {
           setIngestNotice(null);
@@ -343,6 +385,10 @@ export const App = () => {
     setIsLlmRunning(false);
     setFallbackWaitState(null);
     setOutputText('');
+    outputFormattingRef.current = {
+      isPrettified: false,
+      indentSize: null,
+    };
     reset();
   }, [reset]);
 
@@ -429,6 +475,76 @@ export const App = () => {
       }
     },
     [setThemeMode, themeMode],
+  );
+
+  const persistIndentSize = useCallback(
+    async (nextIndentSize: IndentSize): Promise<void> => {
+      const previousIndentSize = indentSize;
+      if (nextIndentSize === previousIndentSize) {
+        return;
+      }
+
+      const previousOutputText = outputText;
+      const previousOutputFormatting = { ...outputFormattingRef.current };
+      const canReindentOutput =
+        paneMode === 'output' &&
+        inputText.trim().length > 0 &&
+        previousOutputFormatting.isPrettified &&
+        previousOutputFormatting.indentSize !== null &&
+        previousOutputFormatting.indentSize !== nextIndentSize;
+
+      setIndentSize(nextIndentSize);
+
+      if (canReindentOutput && previousOutputFormatting.indentSize !== null) {
+        setOutputText(
+          reindentText(previousOutputText, previousOutputFormatting.indentSize, nextIndentSize),
+        );
+        outputFormattingRef.current = {
+          isPrettified: true,
+          indentSize: nextIndentSize,
+        };
+      }
+
+      const api = getWindowApi();
+      if (!api) {
+        return;
+      }
+
+      const requestId = latestIndentSizeRequestIdRef.current + 1;
+      latestIndentSizeRequestIdRef.current = requestId;
+
+      try {
+        const updatedPreferences = await api.preferences.update({ indentSize: nextIndentSize });
+
+        if (requestId === latestIndentSizeRequestIdRef.current) {
+          setIndentSize(updatedPreferences.indentSize);
+          if (
+            canReindentOutput &&
+            updatedPreferences.indentSize !== nextIndentSize &&
+            previousOutputFormatting.indentSize !== null
+          ) {
+            setOutputText((currentOutputText) =>
+              reindentText(currentOutputText, nextIndentSize, updatedPreferences.indentSize),
+            );
+            outputFormattingRef.current = {
+              isPrettified: true,
+              indentSize: updatedPreferences.indentSize,
+            };
+          }
+        }
+      } catch (error) {
+        if (requestId === latestIndentSizeRequestIdRef.current) {
+          setIndentSize(previousIndentSize);
+          if (canReindentOutput) {
+            setOutputText(previousOutputText);
+            outputFormattingRef.current = previousOutputFormatting;
+          }
+        }
+
+        console.error('Failed to persist indentation preferences', error);
+      }
+    },
+    [indentSize, inputText, outputText, paneMode, setIndentSize],
   );
 
   const persistFallbackAgentId = useCallback(
@@ -613,6 +729,7 @@ export const App = () => {
         <Toolbar
           paneMode={paneMode}
           themeMode={themeMode}
+          indentSize={indentSize}
           fallbackAgentId={fallbackAgentId}
           fallbackAgentOptions={fallbackAgentOptions}
           hasContent={hasContent}
@@ -623,6 +740,7 @@ export const App = () => {
           onSave={() => void saveOutput()}
           onCopy={() => void copyOutput()}
           onThemeModeChange={(mode) => void persistThemeMode(mode)}
+          onIndentSizeChange={(size) => void persistIndentSize(size)}
           onFallbackAgentIdChange={(agentId) => void persistFallbackAgentId(agentId)}
         />
 

@@ -1,9 +1,12 @@
 import type { PaneMode, ThemeMode } from '../../shared/types';
+import type { IndentSize } from '../../shared/preferences';
 import { FallbackAgentDropdown, type FallbackAgentOption } from './FallbackAgentDropdown';
+import { IndentSizeDropdown } from './IndentSizeDropdown';
 
 type ToolbarProps = {
   paneMode: PaneMode;
   themeMode: ThemeMode;
+  indentSize: IndentSize;
   fallbackAgentId: string | null;
   fallbackAgentOptions: FallbackAgentOption[];
   hasContent: boolean;
@@ -14,6 +17,7 @@ type ToolbarProps = {
   onSave: () => void;
   onCopy: () => void;
   onThemeModeChange: (nextMode: ThemeMode) => void;
+  onIndentSizeChange: (nextIndentSize: IndentSize) => void;
   onFallbackAgentIdChange: (nextAgentId: string | null) => void;
 };
 
@@ -37,6 +41,7 @@ const tooltips = {
 export const Toolbar = ({
   paneMode,
   themeMode,
+  indentSize,
   fallbackAgentId,
   fallbackAgentOptions,
   hasContent,
@@ -47,6 +52,7 @@ export const Toolbar = ({
   onSave,
   onCopy,
   onThemeModeChange,
+  onIndentSizeChange,
   onFallbackAgentIdChange,
 }: ToolbarProps) => {
   const isOutput = paneMode === 'output';
@@ -134,6 +140,8 @@ export const Toolbar = ({
       </div>
 
       <div className="toolbar-right">
+        <IndentSizeDropdown indentSize={indentSize} onIndentSizeChange={onIndentSizeChange} />
+
         <FallbackAgentDropdown
           fallbackAgentId={fallbackAgentId}
           fallbackAgentOptions={fallbackAgentOptions}

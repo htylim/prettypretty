@@ -39,6 +39,7 @@
   - `preferences:get-all`
   - `preferences:update`
   - `preferences:reset`
+- Toolbar preferences (`themeMode`, `indentSize`, `fallbackAgentId`) use optimistic renderer updates with request-id sequencing and rollback on failed persistence.
 - Store writes are serialized and atomic (temp file + flush + rename).
 - Invalid/corrupt preferences files are rolled to `preferences.corrupt.<timestamp>.json` and replaced with defaults.
 
@@ -81,6 +82,7 @@
   - Python-literal normalization + JSON5 parse.
 - If local parsing succeeds, renderer uses local output immediately.
 - If local parsing fails/unsupported, renderer calls main-process `prettifier:run` IPC and shows a dedicated wait screen (hiding editors) while fallback is running.
+- When `indentSize` changes while output pane shows already-prettified text, renderer reindents current output locally (leading-whitespace remap) instead of triggering a new prettifier/fallback run.
 - Main process streams best-effort fallback progress lines over `prettifier:progress` IPC; renderer binds updates to request id and renders only the latest line in the wait screen.
 - Main prettifier service resolves configured fallback agent from preferences and executes via `child_process.spawn`.
 - Fallback execution enforces timeout and output-size caps and classifies failures into typed statuses.

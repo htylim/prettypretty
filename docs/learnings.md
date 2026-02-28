@@ -38,6 +38,7 @@ Do not add routine status updates, implementation history, or one-time decisions
 - Do not switch to output editor before malformed-input fallback completes; keep editors hidden behind a dedicated waiting state so users never see raw malformed passthrough during in-flight fallback.
 - Do not stream fallback progress into renderer without request-id correlation; stale async lines from prior runs can overwrite the active wait-state if events are not gated by run id.
 - Do not run prettifier/fallback on every input keystroke; trigger prettification only on explicit output-mode requests or cost and latency spike while typing.
+- Do not rerun prettifier/fallback when only indentation preference changes and output is already prettified; remap leading whitespace locally to avoid unnecessary agent calls and latency.
 - Do not include raw input/output/prompt bodies in verbose logs; log only bounded metadata (lengths, statuses, durations, ids) to keep diagnostics safe and readable.
 - Do not couple log event capture to verbose transport flags; keep session capture always on and use `-v` only to gate stdout emission.
 - Do not keep fallback agent default unset when fallback behavior is a primary test path; set a valid default agent id so malformed-input fallback is testable without manual profile edits.
