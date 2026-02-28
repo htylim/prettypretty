@@ -38,6 +38,11 @@ type FallbackWaitState = {
   agentName: string;
   progressLine: string | null;
 };
+type FallbackAgentOption = {
+  id: string;
+  name: string;
+  enabled: boolean;
+};
 
 const EMPTY_FILE_NOTICE = 'File has no content.';
 const UNKNOWN_FALLBACK_AGENT_NAME = 'fallback agent';
@@ -101,6 +106,7 @@ export const App = () => {
   const inputEditorRef = useRef<InputEditorHandle>(null);
   const outputEditorRef = useRef<OutputEditorHandle>(null);
   const latestThemeRequestIdRef = useRef(0);
+  const latestFallbackAgentRequestIdRef = useRef(0);
   const latestPrettifyRequestIdRef = useRef(0);
   const lastPrettifiedInputRef = useRef<string | null>(null);
   const paneMode = useUiStore((state) => state.paneMode);
@@ -117,6 +123,8 @@ export const App = () => {
   const [outputText, setOutputText] = useState('');
   const [isLlmRunning, setIsLlmRunning] = useState(false);
   const [fallbackWaitState, setFallbackWaitState] = useState<FallbackWaitState | null>(null);
+  const [fallbackAgentId, setFallbackAgentId] = useState<string | null>(null);
+  const [fallbackAgentOptions, setFallbackAgentOptions] = useState<FallbackAgentOption[]>([]);
 
   const prettifierService = useMemo(() => createPrettifierService(indentSize), [indentSize]);
   const outputDocumentId = useMemo(() => getOutputDocumentId(outputText), [outputText]);
@@ -423,6 +431,49 @@ export const App = () => {
     [setThemeMode, themeMode],
   );
 
+  const persistFallbackAgentId = useCallback(
+    async (nextFallbackAgentId: string | null): Promise<void> => {
+      const previousFallbackAgentId = fallbackAgentId;
+      if (nextFallbackAgentId === previousFallbackAgentId) {
+        return;
+      }
+
+      setFallbackAgentId(nextFallbackAgentId);
+
+      const api = getWindowApi();
+      if (!api) {
+        return;
+      }
+
+      const requestId = latestFallbackAgentRequestIdRef.current + 1;
+      latestFallbackAgentRequestIdRef.current = requestId;
+
+      try {
+        const updatedPreferences = await api.preferences.update({
+          fallbackAgentId: nextFallbackAgentId,
+        });
+
+        if (requestId === latestFallbackAgentRequestIdRef.current) {
+          setFallbackAgentId(updatedPreferences.fallbackAgentId);
+          setFallbackAgentOptions(
+            updatedPreferences.agents.map((agent) => ({
+              id: agent.id,
+              name: agent.name,
+              enabled: agent.enabled,
+            })),
+          );
+        }
+      } catch (error) {
+        if (requestId === latestFallbackAgentRequestIdRef.current) {
+          setFallbackAgentId(previousFallbackAgentId);
+        }
+
+        console.error('Failed to persist fallback agent preferences', error);
+      }
+    },
+    [fallbackAgentId],
+  );
+
   useEffect(() => {
     const api = getWindowApi();
     if (!api) {
@@ -457,6 +508,14 @@ export const App = () => {
         if (!cancelled) {
           setThemeMode(preferences.themeMode);
           setIndentSize(preferences.indentSize);
+          setFallbackAgentId(preferences.fallbackAgentId);
+          setFallbackAgentOptions(
+            preferences.agents.map((agent) => ({
+              id: agent.id,
+              name: agent.name,
+              enabled: agent.enabled,
+            })),
+          );
         }
       } catch (error) {
         console.error('Failed to load preferences', error);
@@ -554,6 +613,8 @@ export const App = () => {
         <Toolbar
           paneMode={paneMode}
           themeMode={themeMode}
+          fallbackAgentId={fallbackAgentId}
+          fallbackAgentOptions={fallbackAgentOptions}
           hasContent={hasContent}
           onNew={handleNew}
           onPaneModeChange={handlePaneModeChange}
@@ -562,6 +623,7 @@ export const App = () => {
           onSave={() => void saveOutput()}
           onCopy={() => void copyOutput()}
           onThemeModeChange={(mode) => void persistThemeMode(mode)}
+          onFallbackAgentIdChange={(agentId) => void persistFallbackAgentId(agentId)}
         />
 
         <EditorShell

@@ -101,6 +101,99 @@ body {
   gap: 8px;
 }
 
+.dropdown {
+  position: relative;
+}
+
+.dropdown-trigger {
+  height: 36px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: color-mix(in oklab, var(--panel-alt) 84%, var(--accent-soft) 16%);
+  color: var(--text);
+  font-size: 0.84rem;
+  font-weight: 600;
+  padding: 0 10px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: transform 140ms ease;
+}
+
+.dropdown-trigger:hover {
+  transform: translateY(-1px);
+}
+
+.dropdown-trigger-label {
+  white-space: nowrap;
+}
+
+.dropdown-chevron {
+  color: var(--muted);
+  transition: transform 180ms ease;
+  flex-shrink: 0;
+}
+
+.dropdown-chevron-open {
+  transform: rotate(180deg);
+}
+
+.dropdown-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  box-shadow: var(--shadow-soft);
+  padding: 4px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  animation: dropdown-reveal 120ms ease-out;
+}
+
+.dropdown-option {
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 7px 10px;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 80ms ease;
+}
+
+.dropdown-option:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--accent-soft) 50%, var(--panel-alt));
+}
+
+.dropdown-option-active {
+  color: var(--accent);
+}
+
+.dropdown-option-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+@keyframes dropdown-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .btn {
   height: 36px;
   border-radius: 12px;
@@ -160,6 +253,8 @@ body {
 
 .btn:focus-visible,
 .seg:focus-visible,
+.dropdown-trigger:focus-visible,
+.dropdown-option:focus-visible,
 .empty-state-link:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 1px;

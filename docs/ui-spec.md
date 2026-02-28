@@ -43,7 +43,10 @@
 - Theme mode control on the right: segmented `Light/Dark` toggle with explicit active segment.
 - Theme preference persistence: selected theme is stored through preload/main preferences APIs and restored on next app launch.
 - Indentation preference has no user-facing control in current scope; renderer consumes persisted `indentSize` value only.
-- Fallback agent preferences (`agents`, `fallbackAgentId`) currently have no user-facing settings controls.
+- Fallback agent control on the right: custom dropdown (not native `<select>`) with `No Fallback` plus one option per configured agent.
+- Dropdown trigger displays the selected agent name (or `No Fallback`) with a chevron indicator; no external label.
+- Disabled agents are visible in the dropdown panel but non-selectable (`<name> (Disabled)`).
+- Fallback preference persistence: selected fallback agent id (or no fallback) is stored through preload/main preferences APIs and restored on next app launch.
 
 ## App Menu (macOS)
 
@@ -81,3 +84,4 @@
 - If fallback fails, output mode still opens after completion and renders passthrough/error behavior already defined by prettifier result handling.
 - Theme persistence behavior: renderer hydrates `themeMode` from persisted preferences at startup and uses optimistic updates with rollback on failed writes.
 - Indentation persistence behavior: renderer hydrates `indentSize` from persisted preferences at startup and uses it as the single runtime source for formatter + Monaco indentation.
+- Fallback preference behavior: renderer hydrates both `fallbackAgentId` and configured agent list from persisted preferences at startup and writes selection changes with optimistic UI + rollback on failed writes.

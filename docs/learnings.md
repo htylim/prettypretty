@@ -37,3 +37,6 @@ Do not add routine status updates, implementation history, or one-time decisions
 - Do not include raw input/output/prompt bodies in verbose logs; log only bounded metadata (lengths, statuses, durations, ids) to keep diagnostics safe and readable.
 - Do not couple log event capture to verbose transport flags; keep session capture always on and use `-v` only to gate stdout emission.
 - Do not keep fallback agent default unset when fallback behavior is a primary test path; set a valid default agent id so malformed-input fallback is testable without manual profile edits.
+- Do not hide fallback configuration behind config-file edits when runtime agent switching is required; expose `fallbackAgentId` in toolbar UI with a `No Fallback` option and all configured agents so fallback behavior is testable in-session.
+- Do not use native `<select>` for toolbar dropdowns; OS-native rendering breaks visual consistency. Use a custom dropdown with click-to-open panel, outside-click/escape dismissal, and tokenized styling matching existing toolbar controls.
+- Do not use `VITE_DEV_SERVER_URL` for dev-mode URL detection with electron-vite v5; the correct env var is `ELECTRON_RENDERER_URL`. Using the wrong name causes the main process to silently fall back to stale built files in `out/`, making dev changes invisible.

@@ -9,6 +9,11 @@ const createProps = (
 ): ComponentProps<typeof Toolbar> => ({
   paneMode: 'input',
   themeMode: 'light',
+  fallbackAgentId: 'codex',
+  fallbackAgentOptions: [
+    { id: 'amp', name: 'Amp', enabled: true },
+    { id: 'codex', name: 'Codex', enabled: true },
+  ],
   hasContent: true,
   onNew: vi.fn(),
   onPaneModeChange: vi.fn(),
@@ -17,6 +22,7 @@ const createProps = (
   onSave: vi.fn(),
   onCopy: vi.fn(),
   onThemeModeChange: vi.fn(),
+  onFallbackAgentIdChange: vi.fn(),
   ...overrides,
 });
 
@@ -131,6 +137,61 @@ describe('Toolbar', () => {
   it('does not render a toolbar search input', () => {
     render(<Toolbar {...createProps({ paneMode: 'output' })} />);
     expect(screen.queryByTestId('search-input')).not.toBeInTheDocument();
+  });
+
+  it('renders fallback agent dropdown with no-fallback option and all configured agents', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <Toolbar
+        {...createProps({
+          paneMode: 'output',
+          fallbackAgentId: null,
+          fallbackAgentOptions: [
+            { id: 'amp', name: 'Amp', enabled: true },
+            { id: 'codex', name: 'Codex', enabled: false },
+          ],
+        })}
+      />,
+    );
+
+    const trigger = screen.getByTestId('fallback-agent-select');
+    expect(trigger).toHaveTextContent('No Fallback');
+
+    await user.click(trigger);
+
+    const panel = screen.getByTestId('fallback-agent-panel');
+    expect(panel).toBeInTheDocument();
+    expect(screen.getByTestId('fallback-option-none')).toHaveTextContent('No Fallback');
+    expect(screen.getByTestId('fallback-option-amp')).toHaveTextContent('Amp');
+    expect(screen.getByTestId('fallback-option-codex')).toBeDisabled();
+    expect(screen.getByTestId('fallback-option-codex')).toHaveTextContent('Codex (Disabled)');
+  });
+
+  it('calls fallback change handler with selected agent id or null', async () => {
+    const user = userEvent.setup();
+    const onFallbackAgentIdChange = vi.fn();
+
+    render(
+      <Toolbar
+        {...createProps({
+          paneMode: 'output',
+          fallbackAgentId: 'codex',
+          onFallbackAgentIdChange,
+        })}
+      />,
+    );
+
+    const trigger = screen.getByTestId('fallback-agent-select');
+    await user.click(trigger);
+    await user.click(screen.getByTestId('fallback-option-amp'));
+
+    await user.click(trigger);
+    await user.click(screen.getByTestId('fallback-option-none'));
+
+    expect(onFallbackAgentIdChange).toHaveBeenCalledTimes(2);
+    expect(onFallbackAgentIdChange).toHaveBeenNthCalledWith(1, 'amp');
+    expect(onFallbackAgentIdChange).toHaveBeenNthCalledWith(2, null);
   });
 
   it('renders pane segments with active/disabled states and explicit mode changes', async () => {

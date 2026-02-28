@@ -153,10 +153,18 @@ beforeEach(() => {
   copyMock.mockResolvedValue(undefined);
   preferencesGetAllMock.mockResolvedValue(createPreferences());
   preferencesUpdateMock.mockImplementation(
-    async (patch: { themeMode?: string; indentSize?: number }) => ({
+    async (patch: {
+      themeMode?: string;
+      indentSize?: number;
+      fallbackAgentId?: string | null;
+    }) => ({
       ...createPreferences(),
       themeMode: patch.themeMode ?? 'light',
       indentSize: patch.indentSize ?? 2,
+      fallbackAgentId:
+        patch.fallbackAgentId !== undefined
+          ? patch.fallbackAgentId
+          : createPreferences().fallbackAgentId,
     }),
   );
   preferencesResetMock.mockResolvedValue(createPreferences());
@@ -484,6 +492,72 @@ describe('App', () => {
       expect(document.documentElement.dataset.theme).toBe('dark');
     });
     expect(preferencesUpdateMock).toHaveBeenCalledWith({ themeMode: 'dark' });
+  });
+
+  it('renders fallback selector with no-fallback and configured agent options', async () => {
+    preferencesGetAllMock.mockResolvedValue(
+      createPreferences({
+        fallbackAgentId: null,
+        agents: [
+          {
+            id: 'amp',
+            name: 'Amp',
+            executable: 'amp',
+            argsTemplate: ['-x'],
+            promptTemplate: '<TEXT>\n{input}\n</TEXT>',
+            promptDelivery: 'stdin',
+            enabled: true,
+            timeoutMs: 30_000,
+            maxOutputBytes: 1_000_000,
+          },
+          {
+            id: 'codex',
+            name: 'Codex',
+            executable: 'codex',
+            argsTemplate: ['exec', '--skip-git-repo-check', '-'],
+            promptTemplate: '<TEXT>\n{input}\n</TEXT>',
+            promptDelivery: 'stdin',
+            enabled: false,
+            timeoutMs: 30_000,
+            maxOutputBytes: 1_000_000,
+          },
+        ],
+      }),
+    );
+
+    render(<App />);
+
+    const trigger = await screen.findByTestId('fallback-agent-select');
+    await waitFor(() => {
+      expect(trigger).toHaveTextContent('No Fallback');
+    });
+
+    await userEvent.click(trigger);
+
+    expect(screen.getByTestId('fallback-option-none')).toHaveTextContent('No Fallback');
+    expect(screen.getByTestId('fallback-option-amp')).toHaveTextContent('Amp');
+    expect(screen.getByTestId('fallback-option-codex')).toBeDisabled();
+    expect(screen.getByTestId('fallback-option-codex')).toHaveTextContent('Codex (Disabled)');
+  });
+
+  it('persists fallback agent selection changes from the toolbar dropdown', async () => {
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    const trigger = await screen.findByTestId('fallback-agent-select');
+
+    await waitFor(() => {
+      expect(trigger).toHaveTextContent('Codex');
+    });
+
+    await user.click(trigger);
+    await user.click(screen.getByTestId('fallback-option-amp'));
+    expect(preferencesUpdateMock).toHaveBeenCalledWith({ fallbackAgentId: 'amp' });
+
+    await user.click(trigger);
+    await user.click(screen.getByTestId('fallback-option-none'));
+    expect(preferencesUpdateMock).toHaveBeenCalledWith({ fallbackAgentId: null });
   });
 
   it('hydrates indent size from preferences and applies it to local formatted output', async () => {

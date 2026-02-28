@@ -27,8 +27,8 @@ const createLogWindowOptions = (): BrowserWindowConstructorOptions => ({
 });
 
 const loadLogWindow = async (window: BrowserWindow): Promise<void> => {
-  if (process.env.VITE_DEV_SERVER_URL) {
-    const logWindowUrl = new URL(process.env.VITE_DEV_SERVER_URL);
+  if (process.env.ELECTRON_RENDERER_URL) {
+    const logWindowUrl = new URL(process.env.ELECTRON_RENDERER_URL);
     logWindowUrl.searchParams.set('window', 'log');
     await window.loadURL(logWindowUrl.toString());
     return;
