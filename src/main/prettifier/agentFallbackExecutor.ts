@@ -49,12 +49,13 @@ export type SpawnProcessLike = (
   options: { shell: false; stdio: 'pipe' },
 ) => SpawnedProcess;
 
-const isMarkdownFencedOutput = (outputText: string): boolean => {
-  return /^```[\s\S]*```$/u.test(outputText.trim());
-};
+const extractMarkdownFencedContent = (outputText: string): string | null => {
+  const match = outputText.trim().match(/^```[^\n`]*\n([\s\S]*?)\n```$/u);
+  if (!match || typeof match[1] !== 'string') {
+    return null;
+  }
 
-const isUnchangedEcho = (outputText: string, inputText: string): boolean => {
-  return outputText.trim() === inputText.trim();
+  return match[1];
 };
 
 const ANSI_ESCAPE_PATTERN = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*[ -/]*[@-~]`, 'gu');
@@ -94,7 +95,7 @@ export const createAgentFallbackExecutor = (
   const now = dependencies.now ?? Date.now;
 
   return {
-    execute: async ({ agent, prompt, inputText, onProgressLine }) => {
+    execute: async ({ agent, prompt, onProgressLine }) => {
       const startedAt = now();
       const args =
         agent.promptDelivery === 'arg' ? [...agent.argsTemplate, prompt] : [...agent.argsTemplate];
@@ -213,16 +214,19 @@ export const createAgentFallbackExecutor = (
           }
 
           const trimmedOutput = stdout.trim();
-          if (
-            !trimmedOutput ||
-            isMarkdownFencedOutput(stdout) ||
-            isUnchangedEcho(stdout, inputText)
-          ) {
+          if (!trimmedOutput) {
             finish('failed-invalid-output', null, lastExitCode);
             return;
           }
 
-          finish('applied', stdout, lastExitCode);
+          const fencedContent = extractMarkdownFencedContent(stdout);
+          const outputText = fencedContent ?? stdout;
+          if (!outputText.trim()) {
+            finish('failed-invalid-output', null, lastExitCode);
+            return;
+          }
+
+          finish('applied', outputText, lastExitCode);
         });
       });
     },

@@ -191,7 +191,7 @@ describe('agentFallbackExecutor', () => {
     });
   });
 
-  it('returns failed-invalid-output for markdown fenced output', async () => {
+  it('unwraps markdown fenced output', async () => {
     const executor = createAgentFallbackExecutor({
       spawn: spawnMock as unknown as SpawnProcessLike,
     });
@@ -205,12 +205,12 @@ describe('agentFallbackExecutor', () => {
     child.emit('close', 0);
 
     await expect(promise).resolves.toMatchObject({
-      status: 'failed-invalid-output',
-      outputText: null,
+      status: 'applied',
+      outputText: '{"a":1}',
     });
   });
 
-  it('returns failed-invalid-output for unchanged echo output', async () => {
+  it('accepts unchanged non-empty output', async () => {
     const executor = createAgentFallbackExecutor({
       spawn: spawnMock as unknown as SpawnProcessLike,
     });
@@ -224,8 +224,8 @@ describe('agentFallbackExecutor', () => {
     child.emit('close', 0);
 
     await expect(promise).resolves.toMatchObject({
-      status: 'failed-invalid-output',
-      outputText: null,
+      status: 'applied',
+      outputText: '{"a":1}',
     });
   });
 
