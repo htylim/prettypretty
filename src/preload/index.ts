@@ -1,6 +1,19 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import { IPCChannels } from '../shared/ipc-contracts';
 import type { WindowApi } from './api';
+import type { ThemeMode } from '../shared/types';
+
+const INITIAL_THEME_MODE_ARG_PREFIX = '--prettypretty-theme-mode=';
+
+const getInitialThemeMode = (): ThemeMode | null => {
+  const themeModeArg = process.argv.find((arg) => arg.startsWith(INITIAL_THEME_MODE_ARG_PREFIX));
+  if (!themeModeArg) {
+    return null;
+  }
+
+  const rawThemeMode = themeModeArg.slice(INITIAL_THEME_MODE_ARG_PREFIX.length);
+  return rawThemeMode === 'light' || rawThemeMode === 'dark' ? rawThemeMode : null;
+};
 
 const api: WindowApi = {
   dialog: {
@@ -16,6 +29,7 @@ const api: WindowApi = {
   },
   app: {
     getInfo: () => ipcRenderer.invoke(IPCChannels.appGetInfo),
+    initialThemeMode: getInitialThemeMode(),
   },
   logs: {
     getHistory: () => ipcRenderer.invoke(IPCChannels.logsGetHistory),

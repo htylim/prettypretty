@@ -183,7 +183,10 @@ beforeEach(() => {
       dialog: { openFile: openFileMock },
       file: { save: saveMock },
       clipboard: { copy: copyMock },
-      app: { getInfo: vi.fn().mockResolvedValue({ name: 'prettypretty', version: '0.1.0' }) },
+      app: {
+        getInfo: vi.fn().mockResolvedValue({ name: 'prettypretty', version: '0.1.0' }),
+        initialThemeMode: null,
+      },
       preferences: {
         getAll: preferencesGetAllMock,
         update: preferencesUpdateMock,

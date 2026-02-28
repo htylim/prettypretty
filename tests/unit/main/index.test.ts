@@ -113,6 +113,20 @@ const flushMicrotasks = async (): Promise<void> => {
   await Promise.resolve();
 };
 
+const waitForWindowCreation = async (): Promise<void> => {
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    if (browserWindowConstructorMock.mock.calls.length > 0) {
+      return;
+    }
+
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
+  }
+
+  throw new Error('Timed out waiting for main window creation');
+};
+
 const getAppEventHandler = (event: string): ((...args: unknown[]) => void) => {
   const handler = appEventHandlers.get(event);
   if (!handler) {
@@ -134,6 +148,7 @@ const getMainWindowClosedHandler = (): (() => void) => {
 const loadMainEntry = async (): Promise<void> => {
   await import('../../../src/main/index');
   await flushMicrotasks();
+  await waitForWindowCreation();
 };
 
 describe('main process window lifecycle', () => {
@@ -169,6 +184,12 @@ describe('main process window lifecycle', () => {
     await loadMainEntry();
 
     expect(browserWindowConstructorMock).toHaveBeenCalledTimes(1);
+    const firstWindowOptions = browserWindowConstructorMock.mock.calls[0]?.[0] as {
+      webPreferences?: { additionalArguments?: string[] };
+    };
+    expect(firstWindowOptions.webPreferences?.additionalArguments).toContain(
+      '--prettypretty-theme-mode=light',
+    );
     expect(appEventHandlers.has('activate')).toBe(false);
 
     const closedHandler = getMainWindowClosedHandler();

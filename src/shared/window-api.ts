@@ -6,6 +6,7 @@ import type {
 } from './prettifier';
 import type { Preferences, PreferencesPatch } from './preferences';
 import type { TelemetryEvent } from './telemetry';
+import type { ThemeMode } from './types';
 
 export interface WindowApi {
   dialog: {
@@ -19,6 +20,7 @@ export interface WindowApi {
   };
   app: {
     getInfo: () => Promise<AppInfo>;
+    initialThemeMode: ThemeMode | null;
   };
   logs: {
     getHistory: () => Promise<string[]>;

@@ -11,18 +11,20 @@
 
 - Visual tokens and component skinning live in `src/renderer/styles/tailwind.css`.
 - Light/dark theming is driven by `document.documentElement.dataset.theme`, consumed through `:root[data-theme='dark']`.
+- Renderer boot (`src/renderer/main.tsx`) seeds `themeMode` + `documentElement.dataset.theme` from preload-provided `window.prettypretty.app.initialThemeMode` before first React render to avoid first-paint theme flicker.
 - React components (`Toolbar`, `FallbackAgentDropdown`, `EditorShell`, `App`) bind semantic class names while keeping behavior/state logic separate from styling.
 
 ## Runtime Flow
 
 1. App starts in `src/main/index.ts`.
 2. Main process sets explicit app menu labels via `src/main/menu/applicationMenu.ts` using fixed app naming (`prettypretty`) to avoid macOS dev menu fallback label `Electron`, and exposes `Preferences...` in the macOS app menu to open `<userData>/preferences.json` in the OS default editor.
-3. Main window is created from `src/main/windows/mainWindow.ts`.
-4. Main window `close` event immediately calls `app.exit(0)` so app lifetime is tied to main window lifetime (including macOS `Cmd+W`).
-5. Main process initializes `PreferencesStore` + `PreferencesService` using `app.getPath('userData')/preferences.json`.
-6. Preload script exposes `window.prettypretty`.
-7. Renderer calls preload APIs for open/save/copy/info/preferences/prettifier/telemetry.
-8. Main process handles IPC, prettifier orchestration, and other side effects.
+3. Main process initializes `PreferencesStore` + `PreferencesService` using `app.getPath('userData')/preferences.json`.
+4. Main process resolves persisted preferences before window creation and passes `themeMode` into `BrowserWindow` (`backgroundColor` + `additionalArguments`) in `src/main/windows/mainWindow.ts`.
+5. Main window is created from `src/main/windows/mainWindow.ts` using the resolved initial theme for startup `backgroundColor`.
+6. Main window `close` event immediately calls `app.exit(0)` so app lifetime is tied to main window lifetime (including macOS `Cmd+W`).
+7. Preload script exposes `window.prettypretty`.
+8. Renderer calls preload APIs for open/save/copy/info/preferences/prettifier/telemetry.
+9. Main process handles IPC, prettifier orchestration, and other side effects.
 
 ## Preferences Data Flow
 

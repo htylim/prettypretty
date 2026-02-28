@@ -11,6 +11,7 @@ import { PreferencesStore } from './preferences/preferencesStore';
 import { createPrettifierService } from './prettifier/prettifierService';
 import { openOrFocusLogWindow } from './windows/logWindow';
 import { createMainWindow } from './windows/mainWindow';
+import type { ThemeMode } from '../shared/types';
 
 const bootstrap = async (): Promise<void> => {
   const runtimeFlags = parseRuntimeFlags();
@@ -46,10 +47,21 @@ const bootstrap = async (): Promise<void> => {
   const preferencesStore = new PreferencesStore(app.getPath('userData'));
   const preferencesService = new PreferencesService(preferencesStore);
   const prettifierService = createPrettifierService({ preferencesService, logger });
+  let initialThemeMode: ThemeMode = 'light';
+
+  try {
+    const preferences = await preferencesService.getAll();
+    initialThemeMode = preferences.themeMode;
+  } catch (error) {
+    logger.error('app.preferences.initial-load-failed', {
+      reason: error instanceof Error ? error.message : 'unknown',
+      fallbackThemeMode: initialThemeMode,
+    });
+  }
 
   registerIpcHandlers({ preferencesService, prettifierService, logger, logStore: sessionLogStore });
   logger.info('app.bootstrap.ipc-registered');
-  const mainWindow = await createMainWindow();
+  const mainWindow = await createMainWindow(initialThemeMode);
   mainWindow.once('close', () => {
     logger.info('app.window.close-requested', {
       source: 'main',
