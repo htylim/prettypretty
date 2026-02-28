@@ -11,7 +11,7 @@
 
 - Visual tokens and component skinning live in `src/renderer/styles/tailwind.css`.
 - Light/dark theming is driven by `document.documentElement.dataset.theme`, consumed through `:root[data-theme='dark']`.
-- React components (`Toolbar`, `EditorShell`, `App`) bind semantic class names while keeping behavior/state logic separate from styling.
+- React components (`Toolbar`, `FallbackAgentDropdown`, `EditorShell`, `App`) bind semantic class names while keeping behavior/state logic separate from styling.
 
 ## Runtime Flow
 
