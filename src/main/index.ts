@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron';
+import { app } from 'electron';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { registerIpcHandlers } from './ipc';
@@ -49,25 +49,20 @@ const bootstrap = async (): Promise<void> => {
 
   registerIpcHandlers({ preferencesService, prettifierService, logger, logStore: sessionLogStore });
   logger.info('app.bootstrap.ipc-registered');
-  await createMainWindow();
+  const mainWindow = await createMainWindow();
+  mainWindow.once('close', () => {
+    logger.info('app.window.close-requested', {
+      source: 'main',
+    });
+    app.exit(0);
+  });
   logger.info('app.window.created', {
     source: 'bootstrap',
-  });
-
-  app.on('activate', async () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      await createMainWindow();
-      logger.info('app.window.created', {
-        source: 'activate',
-      });
-    }
   });
 };
 
 app.whenReady().then(bootstrap);
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+  app.exit(0);
 });
