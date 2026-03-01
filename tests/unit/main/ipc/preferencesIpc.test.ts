@@ -6,9 +6,18 @@ import type { Preferences } from '../../../../src/shared/preferences';
 import { createDefaultPreferences } from '../../../../src/main/preferences/preferencesDefaults';
 import { registerIpcHandlers } from '../../../../src/main/ipc';
 
-const { handleMock, writeTextMock, showOpenDialogMock, showSaveDialogMock } = vi.hoisted(() => {
+const {
+  handleMock,
+  readFileMock,
+  writeFileMock,
+  writeTextMock,
+  showOpenDialogMock,
+  showSaveDialogMock,
+} = vi.hoisted(() => {
   return {
     handleMock: vi.fn(),
+    readFileMock: vi.fn(),
+    writeFileMock: vi.fn(),
     writeTextMock: vi.fn(),
     showOpenDialogMock: vi.fn(),
     showSaveDialogMock: vi.fn(),
@@ -31,6 +40,13 @@ vi.mock('electron', () => {
     ipcMain: {
       handle: handleMock,
     },
+  };
+});
+
+vi.mock('node:fs/promises', () => {
+  return {
+    readFile: readFileMock,
+    writeFile: writeFileMock,
   };
 });
 
@@ -81,6 +97,8 @@ describe('registerIpcHandlers preferences channels', () => {
     logger.warn.mockReset();
     logger.error.mockReset();
     writeTextMock.mockReset();
+    readFileMock.mockReset();
+    writeFileMock.mockReset();
     showOpenDialogMock.mockReset();
     showSaveDialogMock.mockReset();
 
@@ -102,6 +120,66 @@ describe('registerIpcHandlers preferences channels', () => {
 
     expect(preferencesService.update).toHaveBeenCalledWith({ themeMode: 'dark', indentSize: 6 });
     expect(result).toEqual(preferences);
+  });
+
+  it('returns opened file content on valid open dialog selection', async () => {
+    const openFileHandler = getRegisteredHandler(IPCChannels.dialogOpenFile);
+    showOpenDialogMock.mockResolvedValue({
+      canceled: false,
+      filePaths: ['/tmp/sample.json'],
+    });
+    readFileMock.mockResolvedValue('{"a":1}');
+
+    const result = await openFileHandler({});
+
+    expect(showOpenDialogMock).toHaveBeenCalledTimes(1);
+    expect(readFileMock).toHaveBeenCalledWith('/tmp/sample.json', 'utf8');
+    expect(result).toEqual({ path: '/tmp/sample.json', content: '{"a":1}' });
+    expect(logger.info).toHaveBeenCalledWith('ingest.open-file', {
+      fileExtension: '.json',
+      contentLength: 7,
+      isEmpty: false,
+    });
+  });
+
+  it('returns null when open dialog is canceled', async () => {
+    const openFileHandler = getRegisteredHandler(IPCChannels.dialogOpenFile);
+    showOpenDialogMock.mockResolvedValue({
+      canceled: true,
+      filePaths: [],
+    });
+
+    const result = await openFileHandler({});
+
+    expect(result).toBeNull();
+    expect(readFileMock).not.toHaveBeenCalled();
+  });
+
+  it('writes file and returns path on successful save', async () => {
+    const fileSaveHandler = getRegisteredHandler(IPCChannels.fileSave);
+    showSaveDialogMock.mockResolvedValue({
+      canceled: false,
+      filePath: '/tmp/prettified.json',
+    });
+
+    const result = await fileSaveHandler({}, '{"saved":true}');
+
+    expect(showSaveDialogMock).toHaveBeenCalledTimes(1);
+    expect(writeFileMock).toHaveBeenCalledWith('/tmp/prettified.json', '{"saved":true}', 'utf8');
+    expect(result).toEqual({ path: '/tmp/prettified.json' });
+  });
+
+  it('returns null when save dialog is canceled', async () => {
+    const fileSaveHandler = getRegisteredHandler(IPCChannels.fileSave);
+    showSaveDialogMock.mockResolvedValue({
+      canceled: true,
+      filePath: null,
+    });
+
+    const result = await fileSaveHandler({}, '{"saved":true}');
+
+    expect(result).toBeNull();
+    expect(writeFileMock).not.toHaveBeenCalled();
   });
 
   it('rejects invalid preferences payloads', async () => {

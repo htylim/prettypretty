@@ -52,3 +52,5 @@ Do not add routine status updates, implementation history, or one-time decisions
 - Do not issue an extra renderer `preferences.getAll()` call before fallback execution; use hydrated renderer fallback selection state to decide wait-screen behavior and let main own final fallback execution decisions.
 - Do not scatter ad-hoc `console.error` calls across renderer flows; route renderer failures through one shared reporter utility (`reportRendererError`) for consistent handling and easier evolution.
 - Do not trust IPC primitive payload types implicitly; validate string channels (for example save/copy text) at the main-process boundary and reject invalid payloads consistently.
+- Do not rely on external globally-installed AI CLIs for fallback e2e coverage; configure a deterministic test-only fallback agent via preferences (for example `node -e ...`) so wait/progress/completion paths are stable in CI and local runs.
+- Do not let e2e tests leak preference mutations across runs; reset persisted preferences at test boundaries to keep app-launch defaults deterministic and avoid cross-test pollution.

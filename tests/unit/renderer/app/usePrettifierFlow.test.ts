@@ -65,7 +65,7 @@ type HarnessHandle = {
 };
 
 type HarnessProps = {
-  api: WindowApi;
+  api: WindowApi | null;
   logTelemetry: (
     name: string,
     meta: Record<string, string | number | boolean | null>,
@@ -241,5 +241,23 @@ describe('usePrettifierFlow', () => {
       expect(ref.current?.getOutputText()).toContain('"latest": 2');
     });
     expect(ref.current?.getOutputText()).not.toContain('"stale": 1');
+  });
+
+  it('falls back to passthrough output when bridge is unavailable', async () => {
+    const telemetry = vi.fn().mockResolvedValue(undefined);
+    const ref = { current: null as HarnessHandle | null };
+
+    render(createElement(PrettifierHarness, { api: null, logTelemetry: telemetry, ref }));
+
+    act(() => {
+      ref.current?.ingestInputText('{bad', 'paste');
+    });
+
+    await waitFor(() => {
+      expect(ref.current?.getPaneMode()).toBe('output');
+    });
+    expect(ref.current?.getOutputText()).toBe('{bad');
+    expect(ref.current?.getIsLlmRunning()).toBe(false);
+    expect(ref.current?.getFallbackWaitState()).toBeNull();
   });
 });

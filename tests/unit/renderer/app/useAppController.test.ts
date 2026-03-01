@@ -182,4 +182,95 @@ describe('useAppController', () => {
     expect(outputCollapse).toHaveBeenCalledTimes(1);
     expect(outputExpand).toHaveBeenCalledTimes(1);
   });
+
+  it('blocks output mode switches while fallback execution is active', () => {
+    usePrettifierFlowMock.mockReturnValueOnce({
+      outputText: '',
+      isLlmRunning: true,
+      fallbackWaitState: {
+        requestId: 1,
+        formatLabel: 'JSON',
+        agentName: 'Codex',
+        progressLine: 'working...',
+      },
+      runPrettifier: vi.fn(),
+      ingestInputText: vi.fn(),
+      resetPrettifierState: vi.fn(),
+      isInputAlreadyPrettified: vi.fn().mockReturnValue(false),
+      reindentOutputIfPrettified: vi.fn().mockReturnValue(null),
+      restoreOutputFromSnapshot: vi.fn(),
+      alignOutputIndentAfterPersist: vi.fn(),
+    });
+
+    act(() => {
+      useUiStore.setState({
+        paneMode: 'input',
+        inputText: '{bad',
+      });
+    });
+
+    const inputEditorRef: RefObject<InputEditorHandle | null> = {
+      current: {
+        collapseAll: vi.fn(),
+        expandAll: vi.fn(),
+      },
+    };
+    const outputEditorRef: RefObject<OutputEditorHandle | null> = {
+      current: {
+        collapseAll: vi.fn(),
+        expandAll: vi.fn(),
+        openFind: vi.fn(),
+      },
+    };
+    const ref = { current: null as HarnessHandle | null };
+
+    render(createElement(ControllerHarness, { inputEditorRef, outputEditorRef, ref }));
+
+    act(() => {
+      ref.current?.getController().onPaneModeChange('output');
+    });
+
+    expect(useUiStore.getState().paneMode).toBe('input');
+    expect(usePrettifierFlowMock.mock.results[0]?.value.runPrettifier).not.toHaveBeenCalled();
+  });
+
+  it('safely no-ops side-effect actions when preload bridge is unavailable', async () => {
+    const originalBridge = (window as Window & { prettypretty?: unknown }).prettypretty;
+    Object.defineProperty(window, 'prettypretty', {
+      configurable: true,
+      value: undefined,
+    });
+
+    const inputEditorRef: RefObject<InputEditorHandle | null> = {
+      current: {
+        collapseAll: vi.fn(),
+        expandAll: vi.fn(),
+      },
+    };
+    const outputEditorRef: RefObject<OutputEditorHandle | null> = {
+      current: {
+        collapseAll: vi.fn(),
+        expandAll: vi.fn(),
+        openFind: vi.fn(),
+      },
+    };
+    const ref = { current: null as HarnessHandle | null };
+
+    try {
+      render(createElement(ControllerHarness, { inputEditorRef, outputEditorRef, ref }));
+
+      await act(async () => {
+        await ref.current?.getController().onSave();
+        await ref.current?.getController().onCopy();
+        await ref.current?.getController().onOpenFile();
+      });
+
+      expect(usePrettifierFlowMock.mock.results[0]?.value.ingestInputText).not.toHaveBeenCalled();
+    } finally {
+      Object.defineProperty(window, 'prettypretty', {
+        configurable: true,
+        value: originalBridge,
+      });
+    }
+  });
 });

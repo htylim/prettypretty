@@ -12,7 +12,9 @@
 
 - Every renderer module/component needs a unit test file.
 - Tests need to cover all main scenarios for the unit they are testing, plus edge cases.
-- E2E tests validate Electron boot and bridge behavior.
+- E2E tests validate Electron runtime user journeys, not only boot/smoke behavior.
+- E2E scope must cover critical flows: ingestion parity (`open/drop/paste`), fallback enabled/disabled behavior, preference persistence across relaunch, and log-window lifecycle/streaming.
+- Prefer deterministic test setup for fallback e2e (test-configured local executables) over machine-specific external CLI dependencies.
 - Coverage is reported, not threshold-gated.
 
 ## Code Quality

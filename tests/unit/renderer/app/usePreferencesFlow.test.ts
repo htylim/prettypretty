@@ -51,7 +51,7 @@ type HarnessHandle = {
 };
 
 type HarnessProps = {
-  api: WindowApi;
+  api: WindowApi | null;
 };
 
 const PreferencesHarness = forwardRef<HarnessHandle, HarnessProps>(({ api }, ref) => {
@@ -101,6 +101,16 @@ const createWindowApi = (
     prettifier: { run: vi.fn(), onProgress: vi.fn() },
     telemetry: { log: vi.fn() },
   };
+};
+
+const createDeferred = <T>() => {
+  let resolve!: (value: T) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+  return { promise, resolve, reject };
 };
 
 describe('usePreferencesFlow', () => {
@@ -188,5 +198,58 @@ describe('usePreferencesFlow', () => {
     expect(update).toHaveBeenCalledWith({ fallbackAgentId: 'amp' });
     expect(ref.current?.getFallbackAgentId()).toBe('amp');
     expect(ref.current?.getFallbackAgentOptionIds()).toEqual(['amp', 'codex']);
+  });
+
+  it('ignores stale theme persistence responses when overlapping requests resolve out of order', async () => {
+    const getAll = vi.fn().mockResolvedValue(createPreferences({ themeMode: 'light' }));
+    const firstUpdate = createDeferred<Preferences>();
+    const secondUpdate = createDeferred<Preferences>();
+    const update = vi
+      .fn()
+      .mockReturnValueOnce(firstUpdate.promise)
+      .mockReturnValueOnce(secondUpdate.promise);
+    const api = createWindowApi(getAll, update);
+    const ref = { current: null as HarnessHandle | null };
+
+    render(createElement(PreferencesHarness, { api, ref }));
+
+    await waitFor(() => {
+      expect(ref.current?.getThemeMode()).toBe('light');
+    });
+
+    const firstPersist = ref.current?.persistThemeMode('dark');
+    await waitFor(() => {
+      expect(ref.current?.getThemeMode()).toBe('dark');
+    });
+
+    const secondPersist = ref.current?.persistThemeMode('light');
+    await waitFor(() => {
+      expect(update).toHaveBeenCalledTimes(2);
+    });
+
+    await act(async () => {
+      secondUpdate.resolve(createPreferences({ themeMode: 'light' }));
+      firstUpdate.resolve(createPreferences({ themeMode: 'dark' }));
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      await Promise.all([firstPersist, secondPersist]);
+    });
+
+    expect(update).toHaveBeenCalledTimes(2);
+    expect(ref.current?.getThemeMode()).toBe('light');
+  });
+
+  it('keeps optimistic theme update when preload bridge is unavailable', async () => {
+    const ref = { current: null as HarnessHandle | null };
+
+    render(createElement(PreferencesHarness, { api: null, ref }));
+
+    await act(async () => {
+      await ref.current?.persistThemeMode('dark');
+    });
+
+    expect(ref.current?.getThemeMode()).toBe('dark');
   });
 });
