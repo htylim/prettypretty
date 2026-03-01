@@ -49,13 +49,14 @@
 
 ## Dropdowns
 
-- Custom dropdown controls (e.g. fallback agent selector) must use `.dropdown` container with `.dropdown-trigger` button and `.dropdown-panel` floating options.
+- Custom dropdown controls (e.g. indentation-size selector, fallback agent selector) must use `.dropdown` container with `.dropdown-trigger` button and `.dropdown-panel` floating options.
 - Trigger uses same pill geometry as `.btn` (height `36px`, radius `12px`, same border and mixed background).
 - Trigger includes a `.dropdown-chevron` SVG that rotates on open (`.dropdown-chevron-open`).
 - Panel floats below trigger with radius `12px`, tokenized border/background, and `dropdown-reveal` entry animation.
 - Options use `.dropdown-option` with `.dropdown-option-active` for selected state (accent color) and `.dropdown-option-disabled` for non-selectable items.
 - Dropdowns do not use a visible label; the selected value inside the trigger serves as context.
 - Focus ring applies to both `.dropdown-trigger` and `.dropdown-option`.
+- Toolbar right-side control order is: indentation-size dropdown first, fallback-agent dropdown second, theme segmented toggle last.
 
 ## Inputs
 

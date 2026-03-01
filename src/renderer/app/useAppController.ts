@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { RefObject } from 'react';
 import type { IndentSize } from '../../shared/preferences';
 import type { TelemetryEventName } from '../../shared/telemetry';
@@ -40,6 +40,7 @@ export type UseAppControllerResult = {
   onSave: () => Promise<void>;
   onCopy: () => Promise<void>;
   onThemeModeChange: (mode: ThemeMode) => Promise<void>;
+  onIndentSizeChange: (size: IndentSize) => Promise<void>;
   onFallbackAgentIdChange: (agentId: string | null) => Promise<void>;
   onEditInputChange: (value: string) => void;
   onIngestInput: (value: string, source: IngestSource) => void;
@@ -56,6 +57,7 @@ export const useAppController = ({
   inputEditorRef,
   outputEditorRef,
 }: UseAppControllerOptions): UseAppControllerResult => {
+  const latestIndentSizeRequestIdRef = useRef(0);
   const paneMode = useUiStore((state) => state.paneMode);
   const themeMode = useUiStore((state) => state.themeMode);
   const indentSize = useUiStore((state) => state.indentSize);
@@ -100,6 +102,9 @@ export const useAppController = ({
     ingestInputText,
     resetPrettifierState,
     isInputAlreadyPrettified,
+    reindentOutputIfPrettified,
+    restoreOutputFromSnapshot,
+    alignOutputIndentAfterPersist,
   } = usePrettifierFlow({
     indentSize,
     setPaneMode,
@@ -149,6 +154,58 @@ export const useAppController = ({
     resetPrettifierState();
     reset();
   }, [reset, resetPrettifierState]);
+
+  const persistIndentSize = useCallback(
+    async (nextIndentSize: IndentSize): Promise<void> => {
+      const previousIndentSize = indentSize;
+      if (nextIndentSize === previousIndentSize) {
+        return;
+      }
+
+      const reindentSnapshot = reindentOutputIfPrettified({
+        paneMode,
+        inputText,
+        nextIndentSize,
+      });
+
+      setIndentSize(nextIndentSize);
+
+      const api = getWindowApi();
+      if (!api) {
+        return;
+      }
+
+      const requestId = latestIndentSizeRequestIdRef.current + 1;
+      latestIndentSizeRequestIdRef.current = requestId;
+
+      try {
+        const updatedPreferences = await api.preferences.update({ indentSize: nextIndentSize });
+
+        if (requestId === latestIndentSizeRequestIdRef.current) {
+          setIndentSize(updatedPreferences.indentSize);
+          if (reindentSnapshot) {
+            alignOutputIndentAfterPersist(nextIndentSize, updatedPreferences.indentSize);
+          }
+        }
+      } catch (error) {
+        if (requestId === latestIndentSizeRequestIdRef.current) {
+          setIndentSize(previousIndentSize);
+          restoreOutputFromSnapshot(reindentSnapshot);
+        }
+
+        reportRendererError('Failed to persist indentation preferences', error);
+      }
+    },
+    [
+      alignOutputIndentAfterPersist,
+      indentSize,
+      inputText,
+      paneMode,
+      reindentOutputIfPrettified,
+      restoreOutputFromSnapshot,
+      setIndentSize,
+    ],
+  );
 
   const handlePaneModeChange = useCallback(
     (nextMode: PaneMode): void => {
@@ -246,6 +303,7 @@ export const useAppController = ({
     onSave: saveOutput,
     onCopy: copyOutput,
     onThemeModeChange: persistThemeMode,
+    onIndentSizeChange: persistIndentSize,
     onFallbackAgentIdChange: persistFallbackAgentId,
     onEditInputChange: setInputText,
     onIngestInput: ingestInputText,

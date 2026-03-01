@@ -1,9 +1,9 @@
 import { useRef } from 'react';
+import { useAppController } from './app/useAppController';
 import { EditorShell } from './components/EditorShell';
 import type { InputEditorHandle } from './components/InputEditor';
 import type { OutputEditorHandle } from './components/OutputEditor';
 import { Toolbar } from './components/Toolbar';
-import { useAppController } from './app/useAppController';
 
 export const App = () => {
   const inputEditorRef = useRef<InputEditorHandle>(null);
@@ -17,6 +17,7 @@ export const App = () => {
         <Toolbar
           paneMode={controller.paneMode}
           themeMode={controller.themeMode}
+          indentSize={controller.indentSize}
           fallbackAgentId={controller.fallbackAgentId}
           fallbackAgentOptions={controller.fallbackAgentOptions}
           hasContent={controller.hasContent}
@@ -27,6 +28,7 @@ export const App = () => {
           onSave={() => void controller.onSave()}
           onCopy={() => void controller.onCopy()}
           onThemeModeChange={(mode) => void controller.onThemeModeChange(mode)}
+          onIndentSizeChange={(size) => void controller.onIndentSizeChange(size)}
           onFallbackAgentIdChange={(agentId) => void controller.onFallbackAgentIdChange(agentId)}
         />
 

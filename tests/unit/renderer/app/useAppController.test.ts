@@ -62,6 +62,9 @@ describe('useAppController', () => {
       ingestInputText: vi.fn(),
       resetPrettifierState: vi.fn(),
       isInputAlreadyPrettified: vi.fn().mockReturnValue(false),
+      reindentOutputIfPrettified: vi.fn().mockReturnValue(null),
+      restoreOutputFromSnapshot: vi.fn(),
+      alignOutputIndentAfterPersist: vi.fn(),
     });
 
     usePreferencesFlowMock.mockReturnValue({
@@ -108,9 +111,18 @@ describe('useAppController', () => {
       { id: 'codex', name: 'Codex', enabled: true },
     ]);
 
-    await controller?.onThemeModeChange('dark');
-    await controller?.onFallbackAgentIdChange(null);
-    controller?.onIngestInput('{"next":1}', 'paste');
+    await act(async () => {
+      await controller?.onThemeModeChange('dark');
+    });
+    await act(async () => {
+      await controller?.onIndentSizeChange(6);
+    });
+    await act(async () => {
+      await controller?.onFallbackAgentIdChange(null);
+    });
+    act(() => {
+      controller?.onIngestInput('{"next":1}', 'paste');
+    });
 
     expect(usePreferencesFlowMock.mock.results[0]?.value.persistThemeMode).toHaveBeenCalledWith(
       'dark',
@@ -122,6 +134,7 @@ describe('useAppController', () => {
       '{"next":1}',
       'paste',
     );
+    expect(useUiStore.getState().indentSize).toBe(6);
   });
 
   it('routes collapse and expand actions to active editor ref', () => {

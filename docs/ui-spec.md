@@ -42,7 +42,8 @@
 - Toolbar action visual treatment follows the design-style button pattern.
 - Theme mode control on the right: segmented `Light/Dark` toggle with explicit active segment.
 - Theme preference persistence: selected theme is stored through preload/main preferences APIs and restored on next app launch.
-- Indentation preference has no user-facing control in current scope; renderer consumes persisted `indentSize` value only.
+- Indentation preference is user-configurable from a custom toolbar dropdown (`Indent: <size>`) with options `1..8`.
+- Indentation preference persistence: selected `indentSize` is stored through preload/main preferences APIs and restored on next app launch.
 - Fallback agent control on the right: custom dropdown (not native `<select>`) with `No Fallback` plus one option per configured agent.
 - Dropdown trigger displays the selected agent name (or `No Fallback`) with a chevron indicator; no external label.
 - Disabled agents are visible in the dropdown panel but non-selectable (`<name> (Disabled)`).
@@ -79,6 +80,8 @@
 - Output mode search uses Monaco native find widget (triggered by `Cmd+F` in output mode).
 - Output mode fold/view state persists for the current document identity during the app session.
 - Output-mode prettify indentation and Monaco tab/guide indentation are sourced from the same persisted preference value (`indentSize`) so they stay synchronized.
+- If output mode currently displays already-prettified text, changing `indentSize` reindents the visible output locally by line-leading whitespace remap (no new prettifier/fallback request).
+- If output is passthrough/non-prettified, changing `indentSize` does not mutate existing output text.
 - While fallback agent execution is pending, editors are hidden behind a dedicated wait screen with a status message (`Malformed <format>. Calling <agent>.`) and spinner.
 - Wait screen includes a single-line live status area that shows the latest fallback execution output line for the active request only.
 - If fallback fails, output mode still opens after completion and renders passthrough/error behavior already defined by prettifier result handling.

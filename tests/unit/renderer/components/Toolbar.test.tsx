@@ -9,6 +9,7 @@ const createProps = (
 ): ComponentProps<typeof Toolbar> => ({
   paneMode: 'input',
   themeMode: 'light',
+  indentSize: 2,
   fallbackAgentId: 'codex',
   fallbackAgentOptions: [
     { id: 'amp', name: 'Amp', enabled: true },
@@ -22,6 +23,7 @@ const createProps = (
   onSave: vi.fn(),
   onCopy: vi.fn(),
   onThemeModeChange: vi.fn(),
+  onIndentSizeChange: vi.fn(),
   onFallbackAgentIdChange: vi.fn(),
   ...overrides,
 });
@@ -225,5 +227,18 @@ describe('Toolbar', () => {
 
     expect(onThemeModeChange).toHaveBeenCalledTimes(2);
     expect(onThemeModeChange).toHaveBeenNthCalledWith(2, 'light');
+  });
+
+  it('renders indentation dropdown in toolbar right cluster before fallback dropdown', () => {
+    render(<Toolbar {...createProps({ paneMode: 'output' })} />);
+
+    const toolbarRight = screen.getByTestId('indent-size-select').closest('.toolbar-right');
+    const triggerLabels = Array.from(
+      toolbarRight?.querySelectorAll('.dropdown-trigger-label') ?? [],
+    )
+      .map((node) => node.textContent?.trim())
+      .filter((label): label is string => Boolean(label));
+
+    expect(triggerLabels).toEqual(['Indent: 2', 'Codex']);
   });
 });

@@ -504,6 +504,17 @@ describe('App', () => {
     expect(preferencesUpdateMock).toHaveBeenCalledWith({ themeMode: 'dark' });
   });
 
+  it('persists indentation size changes from the toolbar dropdown', async () => {
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await user.click(screen.getByTestId('indent-size-select'));
+    await user.click(screen.getByTestId('indent-size-option-6'));
+
+    expect(preferencesUpdateMock).toHaveBeenCalledWith({ indentSize: 6 });
+  });
+
   it('renders fallback selector with no-fallback and configured agent options', async () => {
     preferencesGetAllMock.mockResolvedValue(
       createPreferences({
@@ -580,6 +591,70 @@ describe('App', () => {
 
     const output = await screen.findByTestId('output-editor');
     expect(output.textContent ?? '').toContain('\n        "inner": 1');
+  });
+
+  it('reindents already prettified output when indentation preference changes without rerunning prettifier', async () => {
+    const user = userEvent.setup();
+    openFileMock.mockResolvedValue({ path: '/tmp/example.json', content: '{"outer":{"inner":1}}' });
+
+    render(<App />);
+    await user.click(screen.getByRole('button', { name: 'Click' }));
+
+    const output = await screen.findByTestId('output-editor');
+    expect(output.textContent ?? '').toContain('\n    "inner": 1');
+    expect(prettifierRunMock).not.toHaveBeenCalled();
+
+    await user.click(screen.getByTestId('indent-size-select'));
+    await user.click(screen.getByTestId('indent-size-option-4'));
+
+    expect(screen.getByTestId('output-editor').textContent ?? '').toContain('\n        "inner": 1');
+    expect(prettifierRunMock).not.toHaveBeenCalled();
+  });
+
+  it('does not reindent passthrough output when indentation preference changes', async () => {
+    const user = userEvent.setup();
+    prettifierRunMock.mockResolvedValue(
+      createPrettifierResponse({
+        status: 'passthrough-no-fallback',
+        outputText: '{bad',
+        fallbackStatus: 'skipped-no-fallback',
+        agentId: null,
+      }),
+    );
+
+    act(() => {
+      useUiStore.setState({
+        paneMode: 'input',
+        inputText: '{bad',
+        ingestNotice: null,
+      });
+    });
+
+    render(<App />);
+    await user.click(screen.getByTestId('pane-segment-output'));
+
+    await waitFor(() => {
+      expect(prettifierRunMock).toHaveBeenCalledTimes(1);
+    });
+    expect(screen.getByTestId('output-editor')).toHaveTextContent('{bad');
+
+    await user.click(screen.getByTestId('indent-size-select'));
+    await user.click(screen.getByTestId('indent-size-option-7'));
+
+    expect(screen.getByTestId('output-editor')).toHaveTextContent('{bad');
+    expect(prettifierRunMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not run prettifier when indentation changes with empty input', async () => {
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await user.click(screen.getByTestId('indent-size-select'));
+    await user.click(screen.getByTestId('indent-size-option-5'));
+
+    expect(preferencesUpdateMock).toHaveBeenCalledWith({ indentSize: 5 });
+    expect(prettifierRunMock).not.toHaveBeenCalled();
   });
 
   it('wires collapse and expand toolbar actions to output editor in output mode', async () => {
