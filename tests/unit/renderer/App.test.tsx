@@ -80,6 +80,13 @@ const createPrettifierResponse = (
   ...overrides,
 });
 
+const renderApp = async (): Promise<void> => {
+  render(<App />);
+  await act(async () => {
+    await Promise.resolve();
+  });
+};
+
 vi.mock('../../../src/renderer/components/InputEditor', async () => {
   const React = await import('react');
 
@@ -215,8 +222,8 @@ beforeEach(() => {
 });
 
 describe('App', () => {
-  it('renders empty-state prompt with input active and output disabled in input mode', () => {
-    render(<App />);
+  it('renders empty-state prompt with input active and output disabled in input mode', async () => {
+    await renderApp();
 
     expect(screen.getByTestId('empty-state-cta')).toHaveTextContent(/^Paste, Drop or Click$/);
     expect(screen.getByTestId('pane-segment-input')).toHaveAttribute('aria-pressed', 'true');
@@ -228,7 +235,7 @@ describe('App', () => {
     const user = userEvent.setup();
     openFileMock.mockResolvedValue({ path: '/tmp/example.json', content: '{"a":1}' });
 
-    render(<App />);
+    await renderApp();
 
     await user.click(screen.getByRole('button', { name: 'Click' }));
 
@@ -241,7 +248,7 @@ describe('App', () => {
       text: vi.fn().mockResolvedValue('{"a":1}'),
     } as unknown as File;
 
-    render(<App />);
+    await renderApp();
 
     fireEvent.drop(screen.getByTestId('editor-shell'), {
       dataTransfer: { files: [droppedFile] },
@@ -252,7 +259,7 @@ describe('App', () => {
   });
 
   it('uses paste ingestion path to switch to output and render local formatted content', async () => {
-    render(<App />);
+    await renderApp();
 
     fireEvent.paste(screen.getByTestId('editor-shell'), {
       clipboardData: {
@@ -268,7 +275,7 @@ describe('App', () => {
     const user = userEvent.setup();
     openFileMock.mockResolvedValue({ path: '/tmp/empty.json', content: '' });
 
-    render(<App />);
+    await renderApp();
     await user.click(screen.getByRole('button', { name: 'Click' }));
 
     expect(screen.getByTestId('pane-segment-input')).toHaveAttribute('aria-pressed', 'true');
@@ -281,7 +288,7 @@ describe('App', () => {
       text: vi.fn().mockResolvedValue(''),
     } as unknown as File;
 
-    render(<App />);
+    await renderApp();
 
     fireEvent.drop(screen.getByTestId('editor-shell'), {
       dataTransfer: { files: [droppedFile] },
@@ -295,7 +302,7 @@ describe('App', () => {
   });
 
   it('keeps input mode for empty paste and does not show empty-file notice', async () => {
-    render(<App />);
+    await renderApp();
 
     fireEvent.paste(screen.getByTestId('editor-shell'), {
       clipboardData: {
@@ -311,7 +318,7 @@ describe('App', () => {
     expect(prettifierRunMock).not.toHaveBeenCalled();
   });
 
-  it('typing in input editor updates text without forcing output mode', () => {
+  it('typing in input editor updates text without forcing output mode', async () => {
     act(() => {
       useUiStore.setState({
         paneMode: 'input',
@@ -320,7 +327,7 @@ describe('App', () => {
       });
     });
 
-    render(<App />);
+    await renderApp();
 
     fireEvent.change(screen.getByTestId('input-editor'), {
       target: { value: '{bad' },
@@ -347,7 +354,7 @@ describe('App', () => {
       });
     });
 
-    render(<App />);
+    await renderApp();
     await user.click(screen.getByTestId('pane-segment-output'));
 
     await waitFor(() => {
@@ -369,7 +376,7 @@ describe('App', () => {
       });
     });
 
-    render(<App />);
+    await renderApp();
     await user.click(screen.getByTestId('pane-segment-output'));
 
     expect(await screen.findByTestId('fallback-wait-screen')).toBeInTheDocument();
@@ -399,7 +406,7 @@ describe('App', () => {
       });
     });
 
-    render(<App />);
+    await renderApp();
     await user.click(screen.getByTestId('pane-segment-output'));
     expect(await screen.findByTestId('fallback-wait-screen')).toBeInTheDocument();
 
@@ -430,7 +437,7 @@ describe('App', () => {
     const deferredRun = createDeferred<PrettifyRunResponse>();
     prettifierRunMock.mockReturnValue(deferredRun.promise);
 
-    render(<App />);
+    await renderApp();
 
     fireEvent.paste(screen.getByTestId('editor-shell'), {
       clipboardData: {
@@ -465,7 +472,7 @@ describe('App', () => {
       });
     });
 
-    render(<App />);
+    await renderApp();
 
     await user.click(screen.getByTestId('pane-segment-output'));
     fireEvent.paste(screen.getByTestId('editor-shell'), {
@@ -486,7 +493,7 @@ describe('App', () => {
   it('switches theme via segmented control and updates document dataset', async () => {
     const user = userEvent.setup();
 
-    render(<App />);
+    await renderApp();
 
     expect(document.documentElement.dataset.theme).toBe('light');
     await user.click(screen.getByTestId('theme-segment-dark'));
@@ -528,7 +535,7 @@ describe('App', () => {
       }),
     );
 
-    render(<App />);
+    await renderApp();
 
     const trigger = await screen.findByTestId('fallback-agent-select');
     await waitFor(() => {
@@ -546,7 +553,7 @@ describe('App', () => {
   it('persists fallback agent selection changes from the toolbar dropdown', async () => {
     const user = userEvent.setup();
 
-    render(<App />);
+    await renderApp();
 
     const trigger = await screen.findByTestId('fallback-agent-select');
 
@@ -568,7 +575,7 @@ describe('App', () => {
     const user = userEvent.setup();
     openFileMock.mockResolvedValue({ path: '/tmp/example.json', content: '{"outer":{"inner":1}}' });
 
-    render(<App />);
+    await renderApp();
     await user.click(screen.getByRole('button', { name: 'Click' }));
 
     const output = await screen.findByTestId('output-editor');
@@ -586,7 +593,7 @@ describe('App', () => {
       });
     });
 
-    render(<App />);
+    await renderApp();
     await user.click(screen.getByRole('button', { name: 'Collapse' }));
     await user.click(screen.getByRole('button', { name: 'Expand' }));
 
@@ -594,7 +601,7 @@ describe('App', () => {
     expect(outputExpandAllMock).toHaveBeenCalledTimes(1);
   });
 
-  it('supports command shortcuts for pane switching, save/copy, and reset', () => {
+  it('supports command shortcuts for pane switching, save/copy, and reset', async () => {
     act(() => {
       useUiStore.setState({
         paneMode: 'output',
@@ -603,7 +610,7 @@ describe('App', () => {
       });
     });
 
-    render(<App />);
+    await renderApp();
 
     fireEvent.keyDown(window, { key: 'i', metaKey: true });
     expect(screen.getByTestId('pane-segment-input')).toHaveAttribute('aria-pressed', 'true');

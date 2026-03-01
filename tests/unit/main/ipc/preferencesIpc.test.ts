@@ -6,9 +6,12 @@ import type { Preferences } from '../../../../src/shared/preferences';
 import { createDefaultPreferences } from '../../../../src/main/preferences/preferencesDefaults';
 import { registerIpcHandlers } from '../../../../src/main/ipc';
 
-const { handleMock } = vi.hoisted(() => {
+const { handleMock, writeTextMock, showOpenDialogMock, showSaveDialogMock } = vi.hoisted(() => {
   return {
     handleMock: vi.fn(),
+    writeTextMock: vi.fn(),
+    showOpenDialogMock: vi.fn(),
+    showSaveDialogMock: vi.fn(),
   };
 });
 
@@ -19,11 +22,11 @@ vi.mock('electron', () => {
       getVersion: vi.fn().mockReturnValue('0.1.0'),
     },
     clipboard: {
-      writeText: vi.fn(),
+      writeText: writeTextMock,
     },
     dialog: {
-      showOpenDialog: vi.fn(),
-      showSaveDialog: vi.fn(),
+      showOpenDialog: showOpenDialogMock,
+      showSaveDialog: showSaveDialogMock,
     },
     ipcMain: {
       handle: handleMock,
@@ -77,6 +80,9 @@ describe('registerIpcHandlers preferences channels', () => {
     logger.info.mockReset();
     logger.warn.mockReset();
     logger.error.mockReset();
+    writeTextMock.mockReset();
+    showOpenDialogMock.mockReset();
+    showSaveDialogMock.mockReset();
 
     registerIpcHandlers({ preferencesService, prettifierService, logger, logStore });
   });
@@ -105,5 +111,19 @@ describe('registerIpcHandlers preferences channels', () => {
       'Invalid preferences patch payload',
     );
     expect(preferencesService.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid file save payloads', async () => {
+    const fileSaveHandler = getRegisteredHandler(IPCChannels.fileSave);
+
+    await expect(fileSaveHandler({}, { bad: true })).rejects.toThrow('Invalid file save payload');
+    expect(showSaveDialogMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid clipboard payloads', async () => {
+    const clipboardHandler = getRegisteredHandler(IPCChannels.clipboardCopy);
+
+    expect(() => clipboardHandler({}, { bad: true })).toThrow('Invalid clipboard payload');
+    expect(writeTextMock).not.toHaveBeenCalled();
   });
 });

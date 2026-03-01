@@ -14,6 +14,16 @@
 - Renderer boot (`src/renderer/main.tsx`) seeds `themeMode` + `documentElement.dataset.theme` from preload-provided `window.prettypretty.app.initialThemeMode` before first React render to avoid first-paint theme flicker.
 - React components (`Toolbar`, `FallbackAgentDropdown`, `EditorShell`, `App`) bind semantic class names while keeping behavior/state logic separate from styling.
 
+## Renderer Controller Layer
+
+- `src/renderer/App.tsx` is a thin composition shell only.
+- `src/renderer/app/useAppController.ts` owns renderer orchestration and UI wiring.
+- `src/renderer/app/usePrettifierFlow.ts` owns prettifier execution flow, request-id race guards, and fallback wait/progress state.
+- `src/renderer/app/usePreferencesFlow.ts` owns preferences hydration and optimistic persistence sequencing for theme/fallback agent.
+- `src/renderer/app/useKeyboardShortcuts.ts` owns keyboard shortcut bindings and mode gating.
+- `src/renderer/app/appDomain.ts` contains pure helper functions/constants shared by renderer controller hooks.
+- `src/renderer/app/reportRendererError.ts` provides a single renderer-side error reporting path.
+
 ## Runtime Flow
 
 1. App starts in `src/main/index.ts`.
@@ -48,6 +58,7 @@
 - Node integration disabled.
 - Renderer has no direct Node access.
 - IPC channels are explicit and typed.
+- Main-process IPC handlers validate payloads at the boundary (including primitive channels such as save/copy text) and reject invalid payloads with `ipc.validation.error` telemetry.
 
 ## Logging
 
@@ -79,6 +90,7 @@
   - strict JSON parse,
   - JSON5 parse for JS/TS object-literal style input,
   - Python-literal normalization + JSON5 parse.
+- Local parser implementation is shared across processes in `src/shared/localPrettifier.ts` and reused by both renderer and main-process prettifier flows.
 - If local parsing succeeds, renderer uses local output immediately.
 - If local parsing fails/unsupported, renderer calls main-process `prettifier:run` IPC and shows a dedicated wait screen (hiding editors) while fallback is running.
 - Main process streams best-effort fallback progress lines over `prettifier:progress` IPC; renderer binds updates to request id and renders only the latest line in the wait screen.

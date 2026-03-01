@@ -1,0 +1,87 @@
+import { fireEvent, render } from '@testing-library/react';
+import { createElement } from 'react';
+import { describe, expect, it, vi } from 'vitest';
+import { useKeyboardShortcuts } from '../../../../src/renderer/app/useKeyboardShortcuts';
+
+type HarnessProps = {
+  isOutputMode: boolean;
+  paneMode: 'input' | 'output';
+  hasContent: boolean;
+  handleNew: () => void;
+  handlePaneModeChange: (nextMode: 'input' | 'output') => void;
+  saveOutput: () => Promise<void>;
+  copyOutput: () => Promise<void>;
+  openFind: () => void;
+};
+
+const KeyboardHarness = (props: HarnessProps) => {
+  useKeyboardShortcuts(props);
+  return null;
+};
+
+const createDefaults = () => ({
+  isOutputMode: false,
+  paneMode: 'input' as const,
+  hasContent: false,
+  handleNew: vi.fn(),
+  handlePaneModeChange: vi.fn(),
+  saveOutput: vi.fn().mockResolvedValue(undefined),
+  copyOutput: vi.fn().mockResolvedValue(undefined),
+  openFind: vi.fn(),
+});
+
+describe('useKeyboardShortcuts', () => {
+  it('runs copy shortcut only in output mode with Cmd+Shift+C', () => {
+    const defaults = createDefaults();
+    const { rerender } = render(createElement(KeyboardHarness, defaults));
+
+    fireEvent.keyDown(window, { key: 'c', metaKey: true, shiftKey: true });
+    expect(defaults.copyOutput).not.toHaveBeenCalled();
+
+    rerender(
+      createElement(KeyboardHarness, {
+        ...defaults,
+        hasContent: true,
+        isOutputMode: true,
+        paneMode: 'output',
+      }),
+    );
+
+    fireEvent.keyDown(window, { key: 'c', metaKey: true, shiftKey: true });
+    expect(defaults.copyOutput).toHaveBeenCalledTimes(1);
+  });
+
+  it('gates Cmd+O by output availability and switches when allowed', () => {
+    const defaults = createDefaults();
+    const { rerender } = render(createElement(KeyboardHarness, defaults));
+
+    fireEvent.keyDown(window, { key: 'o', metaKey: true });
+    expect(defaults.handlePaneModeChange).not.toHaveBeenCalled();
+
+    rerender(createElement(KeyboardHarness, { ...defaults, hasContent: true }));
+
+    fireEvent.keyDown(window, { key: 'o', metaKey: true });
+    expect(defaults.handlePaneModeChange).toHaveBeenCalledWith('output');
+  });
+
+  it('handles Cmd+N/Cmd+S/Cmd+F with mode and modifier guards', () => {
+    const defaults = createDefaults();
+    render(
+      createElement(KeyboardHarness, {
+        ...defaults,
+        hasContent: true,
+        isOutputMode: true,
+        paneMode: 'output',
+      }),
+    );
+
+    fireEvent.keyDown(window, { key: 'n', metaKey: true });
+    fireEvent.keyDown(window, { key: 's', metaKey: true });
+    fireEvent.keyDown(window, { key: 'f', metaKey: true });
+    fireEvent.keyDown(window, { key: 's', metaKey: true, ctrlKey: true });
+
+    expect(defaults.handleNew).toHaveBeenCalledTimes(1);
+    expect(defaults.saveOutput).toHaveBeenCalledTimes(1);
+    expect(defaults.openFind).toHaveBeenCalledTimes(1);
+  });
+});

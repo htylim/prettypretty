@@ -17,6 +17,10 @@ type IpcDependencies = {
   logStore: Pick<SessionLogStore, 'getSnapshot'>;
 };
 
+const isString = (value: unknown): value is string => {
+  return typeof value === 'string';
+};
+
 export const registerIpcHandlers = ({
   preferencesService,
   prettifierService,
@@ -58,7 +62,14 @@ export const registerIpcHandlers = ({
     return { path, content };
   });
 
-  ipcMain.handle(IPCChannels.fileSave, async (_event, content: string) => {
+  ipcMain.handle(IPCChannels.fileSave, async (_event, content: unknown) => {
+    if (!isString(content)) {
+      logger.warn('ipc.validation.error', {
+        channel: IPCChannels.fileSave,
+      });
+      throw new Error('Invalid file save payload');
+    }
+
     const result = await dialog.showSaveDialog({
       title: 'Save prettified text',
       defaultPath: 'prettified.txt',
@@ -80,6 +91,13 @@ export const registerIpcHandlers = ({
   });
 
   ipcMain.handle(IPCChannels.clipboardCopy, (_event, content: string) => {
+    if (!isString(content)) {
+      logger.warn('ipc.validation.error', {
+        channel: IPCChannels.clipboardCopy,
+      });
+      throw new Error('Invalid clipboard payload');
+    }
+
     clipboard.writeText(content);
   });
 
