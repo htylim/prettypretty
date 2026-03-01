@@ -35,7 +35,7 @@ test('renders Monaco output editor and keeps collapse/expand stable in output mo
     const pasteEvent = new runtime.Event('paste', { bubbles: true, cancelable: true });
     Object.defineProperty(pasteEvent, 'clipboardData', {
       value: {
-        getData: () => '{"root":{"nested":1}}',
+        getData: () => '{"root":{"nested":{"leaf":3}}}',
       },
     });
     shell.dispatchEvent(pasteEvent);
@@ -51,6 +51,19 @@ test('renders Monaco output editor and keeps collapse/expand stable in output mo
   await collapseButton.click();
   await expandButton.click();
   await expect(page.locator('[data-testid="output-editor"] .monaco-editor')).toBeVisible();
+
+  const nestedLine = page
+    .locator('[data-testid="output-editor"] .view-line')
+    .filter({ hasText: '"nested"' })
+    .first();
+  await expect(nestedLine).toBeVisible();
+  await expect(page.getByTestId('output-editor')).toContainText('"leaf": 3');
+
+  await nestedLine.click({ modifiers: ['Meta'] });
+  await expect(page.getByTestId('output-editor')).not.toContainText('"leaf": 3');
+
+  await expandButton.click();
+  await expect(page.getByTestId('output-editor')).toContainText('"leaf": 3');
 
   await app.close();
 });

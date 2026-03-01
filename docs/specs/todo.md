@@ -1,11 +1,3 @@
-- make cmd , to open a editor on the configuration file
 - light/dark mode to switch with input/output mode
-- Have cmd+ and cmd- to collapse and expand one level at a time (and tie to buttons)
-- add cmd+click or ctrl+click to collapse the block you are clicking (and expanding it)
-- have prettyfying logic to trigger now when input text change, but when output pane is activated (maybe is already like that, check)
+- add cmd+click to collapse/expand the clicked indent block in both editors (implemented)
 - when giving a file to read and load content do a check for file size limits
-- implement `docs/specs/0007-prettifier-service-agent-fallback-execution.md`
-- add loading bar
-- Have a dropdown/toggle to select which AI to fallback to in the UI
-- Have a macos menu bar component to keep prettypretty loaded into memory (and hidden), and have a shortcut key (configurable) that would automatically copy text into clipboard, launch the UI and pate the clipboard into the app.
-- Create e2e tests that verify the layout of the indented text and that all is as should be

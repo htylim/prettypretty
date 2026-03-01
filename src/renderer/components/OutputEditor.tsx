@@ -10,6 +10,7 @@ import {
   PRETTYPRETTY_LIGHT_THEME,
   registerMonacoThemes,
 } from '../output/monacoThemes';
+import { registerCmdClickFoldToggle } from '../output/indentBlockFolding';
 import { getOutputEditorOptions } from '../output/outputEditorConfig';
 
 export type OutputEditorHandle = {
@@ -31,6 +32,7 @@ export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
   ({ value, themeMode, documentId, indentSize }, ref) => {
     const editorRef = useRef<MonacoEditor.IStandaloneCodeEditor | null>(null);
     const currentDocumentIdRef = useRef(documentId);
+    const interactionDisposablesRef = useRef<Array<{ dispose: () => void }>>([]);
     const options = useMemo(() => getOutputEditorOptions(indentSize), [indentSize]);
     const language = useMemo(() => detectOutputLanguage(value), [value]);
     const theme = themeMode === 'dark' ? PRETTYPRETTY_DARK_THEME : PRETTYPRETTY_LIGHT_THEME;
@@ -71,6 +73,10 @@ export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
           return;
         }
 
+        for (const disposable of interactionDisposablesRef.current) {
+          disposable.dispose();
+        }
+        interactionDisposablesRef.current = [];
         viewStateByDocumentId.set(currentDocumentIdRef.current, editor.saveViewState());
         editorRef.current = null;
       },
@@ -107,6 +113,7 @@ export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
       if (initialViewState) {
         editor.restoreViewState(initialViewState);
       }
+      interactionDisposablesRef.current = [registerCmdClickFoldToggle(editor)];
     };
 
     return (

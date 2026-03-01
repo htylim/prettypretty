@@ -97,7 +97,7 @@ describe('Toolbar', () => {
   it('uses shared style for toolbar action buttons', () => {
     render(<Toolbar {...createProps({ paneMode: 'output' })} />);
 
-    const actionButtons = ['New', 'Expand', 'Collapse', 'Save', 'Copy'] as const;
+    const actionButtons = ['New', 'Collapse', 'Expand', 'Save', 'Copy'] as const;
 
     for (const label of actionButtons) {
       const button = screen.getByRole('button', { name: label });
@@ -105,16 +105,16 @@ describe('Toolbar', () => {
     }
   });
 
-  it('renders output actions in expand-then-collapse order', () => {
+  it('renders output actions in collapse-then-expand order', () => {
     render(<Toolbar {...createProps({ paneMode: 'output' })} />);
 
-    const expandButton = screen.getByRole('button', { name: 'Expand' });
-    const toolbarLeft = expandButton.closest('.toolbar-left');
+    const collapseButton = screen.getByRole('button', { name: 'Collapse' });
+    const toolbarLeft = collapseButton.closest('.toolbar-left');
     const actionLabels = Array.from(toolbarLeft?.querySelectorAll('button.btn') ?? []).map(
       (button) => button.getAttribute('aria-label') || button.textContent?.trim(),
     );
 
-    expect(actionLabels).toEqual(['New', 'Expand', 'Collapse', 'Save', 'Copy']);
+    expect(actionLabels).toEqual(['New', 'Collapse', 'Expand', 'Save', 'Copy']);
   });
 
   it('shows tooltips with shortcut hints for primary controls', () => {

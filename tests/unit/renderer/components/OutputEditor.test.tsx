@@ -22,6 +22,8 @@ const {
   setScrollLeftMock,
   setPositionMock,
   getActionMock,
+  toggleFoldRunMock,
+  onMouseDownDisposeMock,
 } = vi.hoisted(() => ({
   configureMonacoMock: vi.fn(),
   registerMonacoThemesMock: vi.fn(),
@@ -40,6 +42,8 @@ const {
   setScrollLeftMock: vi.fn(),
   setPositionMock: vi.fn(),
   getActionMock: vi.fn(),
+  toggleFoldRunMock: vi.fn(async () => undefined),
+  onMouseDownDisposeMock: vi.fn(),
 }));
 
 vi.mock('../../../../src/renderer/output/configureMonaco', () => ({
@@ -72,6 +76,14 @@ type MonacoRenderProps = {
 };
 
 let viewStateCounter = 0;
+let mouseDownHandler: ((event: MonacoEditor.IEditorMouseEvent) => void) | null = null;
+let modelLines = ['{"a": 1}'];
+
+const modelMock = {
+  getLineCount: () => modelLines.length,
+  getLineContent: (lineNumber: number) => modelLines[lineNumber - 1] ?? '',
+  getOptions: () => ({ tabSize: 2 }),
+} as unknown as MonacoEditor.ITextModel;
 
 const editorMock = {
   getAction: (id: string): { run: () => Promise<void> } | undefined => {
@@ -88,6 +100,10 @@ const editorMock = {
       return { run: findRunMock };
     }
 
+    if (id === 'editor.toggleFold') {
+      return { run: toggleFoldRunMock };
+    }
+
     return undefined;
   },
   saveViewState: () => {
@@ -100,6 +116,11 @@ const editorMock = {
   setScrollLeft: setScrollLeftMock,
   setPosition: setPositionMock,
   focus: focusMock,
+  getModel: () => modelMock,
+  onMouseDown: (handler: (event: MonacoEditor.IEditorMouseEvent) => void) => {
+    mouseDownHandler = handler;
+    return { dispose: onMouseDownDisposeMock };
+  },
 } as unknown as MonacoEditor.IStandaloneCodeEditor;
 
 const monacoMock = {
@@ -150,6 +171,10 @@ describe('OutputEditor', () => {
     setScrollLeftMock.mockClear();
     setPositionMock.mockClear();
     getActionMock.mockClear();
+    toggleFoldRunMock.mockClear();
+    onMouseDownDisposeMock.mockClear();
+    mouseDownHandler = null;
+    modelLines = ['{"a": 1}'];
   });
 
   it('renders Monaco in read-only mode with line numbers seam', () => {
@@ -243,5 +268,61 @@ describe('OutputEditor', () => {
       (args) => args[0] as { token?: string },
     );
     expect(restoredStates.some((state) => state?.token === 'view-state-0')).toBe(true);
+  });
+
+  it('toggles fold only on Cmd+click within an indent block', () => {
+    modelLines = ['{', '  "nested": {', '    "x": 1', '  }', '}'];
+    render(
+      <OutputEditor
+        documentId="doc-hover-B"
+        themeMode="light"
+        indentSize={2}
+        value={modelLines.join('\n')}
+      />,
+    );
+
+    const regularClickPreventDefault = vi.fn();
+    const regularClickStopPropagation = vi.fn();
+    mouseDownHandler?.({
+      target: { position: { lineNumber: 3, column: 6 } },
+      event: {
+        altKey: false,
+        metaKey: false,
+        browserEvent: { detail: 1 },
+        preventDefault: regularClickPreventDefault,
+        stopPropagation: regularClickStopPropagation,
+      },
+    } as unknown as MonacoEditor.IEditorMouseEvent);
+
+    expect(toggleFoldRunMock).not.toHaveBeenCalled();
+    expect(regularClickPreventDefault).not.toHaveBeenCalled();
+
+    const cmdClickPreventDefault = vi.fn();
+    const cmdClickStopPropagation = vi.fn();
+    mouseDownHandler?.({
+      target: { position: { lineNumber: 3, column: 6 } },
+      event: {
+        metaKey: true,
+        browserEvent: { detail: 1 },
+        preventDefault: cmdClickPreventDefault,
+        stopPropagation: cmdClickStopPropagation,
+      },
+    } as unknown as MonacoEditor.IEditorMouseEvent);
+
+    expect(getActionMock).toHaveBeenCalledWith('editor.toggleFold');
+    expect(toggleFoldRunMock).toHaveBeenCalledTimes(1);
+    expect(cmdClickPreventDefault).toHaveBeenCalledTimes(1);
+    expect(cmdClickStopPropagation).toHaveBeenCalledTimes(1);
+    expect(setPositionMock).toHaveBeenCalledWith({ lineNumber: 2, column: 1 });
+  });
+
+  it('disposes mouse listeners on unmount', () => {
+    const { unmount } = render(
+      <OutputEditor documentId="doc-unmount-A" themeMode="light" indentSize={2} value='{"x":1}' />,
+    );
+
+    unmount();
+
+    expect(onMouseDownDisposeMock).toHaveBeenCalledTimes(1);
   });
 });

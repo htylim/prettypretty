@@ -102,16 +102,6 @@ export const Toolbar = ({
 
         <>
           <button
-            aria-label="Expand"
-            className={`${buttonClass} btn-icon`}
-            disabled={areFoldActionsDisabled}
-            onClick={onExpandAll}
-            title={tooltips.expand}
-            type="button"
-          >
-            <VscExpandAll />
-          </button>
-          <button
             aria-label="Collapse"
             className={`${buttonClass} btn-icon`}
             disabled={areFoldActionsDisabled}
@@ -120,6 +110,16 @@ export const Toolbar = ({
             type="button"
           >
             <VscCollapseAll />
+          </button>
+          <button
+            aria-label="Expand"
+            className={`${buttonClass} btn-icon`}
+            disabled={areFoldActionsDisabled}
+            onClick={onExpandAll}
+            title={tooltips.expand}
+            type="button"
+          >
+            <VscExpandAll />
           </button>
           <button
             aria-label="Save"
