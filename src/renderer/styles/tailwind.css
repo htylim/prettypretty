@@ -431,10 +431,8 @@ body {
 
 .input-editor .monaco-editor,
 .input-editor .monaco-editor-background,
-.input-editor .margin,
 .output-editor .monaco-editor,
-.output-editor .monaco-editor-background,
-.output-editor .margin {
+.output-editor .monaco-editor-background {
   background: transparent !important;
 }
 
