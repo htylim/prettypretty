@@ -42,9 +42,9 @@
 - Toolbar action visual treatment follows the design-style button pattern.
 - Theme mode control on the right: segmented `Light/Dark` toggle with explicit active segment.
 - Theme preference persistence: selected theme is stored through preload/main preferences APIs and restored on next app launch.
-- Indentation preference is user-configurable from a custom toolbar dropdown (`Indent: <size>`) with options `1..8`.
+- Indentation preference is user-configurable from a custom toolbar dropdown (`Indent: <size>`) with options `1..8` on the left.
 - Indentation preference persistence: selected `indentSize` is stored through preload/main preferences APIs and restored on next app launch.
-- Fallback agent control on the right: custom dropdown (not native `<select>`) with `No Fallback` plus one option per configured agent.
+- Fallback agent control on the left: custom dropdown (not native `<select>`) with `No Fallback` plus one option per configured agent.
 - Dropdown trigger displays the selected agent name (or `No Fallback`) with a chevron indicator; no external label.
 - Disabled agents are visible in the dropdown panel but non-selectable (`<name> (Disabled)`).
 - Fallback preference persistence: selected fallback agent id (or no fallback) is stored through preload/main preferences APIs and restored on next app launch.

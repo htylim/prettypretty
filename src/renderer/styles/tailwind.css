@@ -187,7 +187,16 @@ body {
   font-size: 0.84rem;
   padding: 0 12px;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   transition: background-color 100ms ease;
+}
+
+.btn-icon {
+  padding: 0 8px;
+  font-size: 1.1rem;
 }
 
 .btn:hover:not(:disabled) {
@@ -388,7 +397,7 @@ body {
   color: var(--accent);
   text-decoration: underline;
   text-underline-offset: 0.12em;
-  font-weight: 700;
+  font-weight: inherit;
   font-size: inherit;
   cursor: pointer;
 }

@@ -32,7 +32,8 @@
 ## Buttons
 
 - Toolbar action buttons (`New`, `Expand`, `Collapse`, `Save`, `Copy`) must use class `.btn`.
-- Toolbar controls should include `title` tooltips that describe the action and include keyboard shortcut hints where available.
+- `Expand`, `Collapse`, `Save`, and `Copy` buttons use icons from `react-icons/vsc` (VS Code Codicons) instead of text labels.
+- Toolbar controls should include `title` tooltips that describe the action and include keyboard shortcut hints where available, and icon-only buttons must have an `aria-label`.
 - `.btn` is the default action button style:
   - Height `32px`, radius `4px`.
   - Border `1px solid transparent`.
@@ -56,7 +57,8 @@
 - Options use `.dropdown-option` with `.dropdown-option-active` for selected state (accent color) and `.dropdown-option-disabled` for non-selectable items.
 - Dropdowns do not use a visible label; the selected value inside the trigger serves as context.
 - Focus ring applies to both `.dropdown-trigger` and `.dropdown-option`.
-- Toolbar right-side control order is: indentation-size dropdown first, fallback-agent dropdown second, theme segmented toggle last.
+- Toolbar left-side controls include the indentation-size dropdown and fallback-agent dropdown after the Copy button.
+- Toolbar right-side control order is just the theme segmented toggle.
 
 ## Inputs
 

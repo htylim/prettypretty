@@ -43,9 +43,13 @@ export const EditorShell = ({
   onOpenFile,
 }: EditorShellProps) => {
   const hasContent = inputText.trim().length > 0;
-  const fallbackWaitMessage = fallbackWaitState
-    ? `Malformed ${fallbackWaitState.formatLabel}. Calling ${fallbackWaitState.agentName}.`
-    : null;
+  const fallbackWaitMessage = fallbackWaitState ? (
+    <>
+      Malformed {fallbackWaitState.formatLabel}
+      <br />
+      Calling {fallbackWaitState.agentName}
+    </>
+  ) : null;
   const fallbackProgressLine = fallbackWaitState?.progressLine ?? 'Waiting for agent output...';
 
   const handleDrop: DragEventHandler<HTMLDivElement> = async (event) => {

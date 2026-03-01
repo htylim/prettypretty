@@ -306,7 +306,7 @@ describe('EditorShell', () => {
 
     expect(screen.getByTestId('fallback-wait-screen')).toBeInTheDocument();
     expect(screen.getByTestId('fallback-wait-message')).toHaveTextContent(
-      'Malformed JSON. Calling Codex.',
+      /Malformed JSON\s*Calling Codex/,
     );
     expect(screen.getByTestId('fallback-wait-line')).toHaveTextContent('Generating output...');
     expect(screen.queryByTestId('output-editor')).not.toBeInTheDocument();

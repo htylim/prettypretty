@@ -94,14 +94,14 @@ describe('Toolbar', () => {
     }
   });
 
-  it('uses one shared style for toolbar action buttons', () => {
+  it('uses shared style for toolbar action buttons', () => {
     render(<Toolbar {...createProps({ paneMode: 'output' })} />);
 
     const actionButtons = ['New', 'Expand', 'Collapse', 'Save', 'Copy'] as const;
 
     for (const label of actionButtons) {
       const button = screen.getByRole('button', { name: label });
-      expect(button.className).toBe('btn');
+      expect(button.className).toMatch(/\bbtn\b/);
     }
   });
 
@@ -111,7 +111,7 @@ describe('Toolbar', () => {
     const expandButton = screen.getByRole('button', { name: 'Expand' });
     const toolbarLeft = expandButton.closest('.toolbar-left');
     const actionLabels = Array.from(toolbarLeft?.querySelectorAll('button.btn') ?? []).map(
-      (button) => button.textContent?.trim(),
+      (button) => button.getAttribute('aria-label') || button.textContent?.trim(),
     );
 
     expect(actionLabels).toEqual(['New', 'Expand', 'Collapse', 'Save', 'Copy']);
@@ -229,13 +229,11 @@ describe('Toolbar', () => {
     expect(onThemeModeChange).toHaveBeenNthCalledWith(2, 'light');
   });
 
-  it('renders indentation dropdown in toolbar right cluster before fallback dropdown', () => {
+  it('renders indentation dropdown in toolbar left cluster before fallback dropdown', () => {
     render(<Toolbar {...createProps({ paneMode: 'output' })} />);
 
-    const toolbarRight = screen.getByTestId('indent-size-select').closest('.toolbar-right');
-    const triggerLabels = Array.from(
-      toolbarRight?.querySelectorAll('.dropdown-trigger-label') ?? [],
-    )
+    const toolbarLeft = screen.getByTestId('indent-size-select').closest('.toolbar-left');
+    const triggerLabels = Array.from(toolbarLeft?.querySelectorAll('.dropdown-trigger-label') ?? [])
       .map((node) => node.textContent?.trim())
       .filter((label): label is string => Boolean(label));
 

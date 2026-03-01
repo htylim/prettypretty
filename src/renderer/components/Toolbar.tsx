@@ -1,3 +1,4 @@
+import { VscExpandAll, VscCollapseAll, VscSave, VscCopy } from 'react-icons/vsc';
 import type { PaneMode, ThemeMode } from '../../shared/types';
 import type { IndentSize } from '../../shared/preferences';
 import { FallbackAgentDropdown, type FallbackAgentOption } from './FallbackAgentDropdown';
@@ -30,8 +31,8 @@ const tooltips = {
   new: 'New (Cmd+N)',
   input: 'Switch to input (Cmd+I)',
   output: 'Switch to output (Cmd+O)',
-  expand: 'Expand all',
-  collapse: 'Collapse all',
+  expand: 'Expand',
+  collapse: 'Collapse',
   save: 'Save (Cmd+S)',
   copy: 'Copy (Cmd+Shift+C)',
   lightTheme: 'Switch to light theme',
@@ -101,45 +102,47 @@ export const Toolbar = ({
 
         <>
           <button
-            className={buttonClass}
+            aria-label="Expand"
+            className={`${buttonClass} btn-icon`}
             disabled={areFoldActionsDisabled}
             onClick={onExpandAll}
             title={tooltips.expand}
             type="button"
           >
-            Expand
+            <VscExpandAll />
           </button>
           <button
-            className={buttonClass}
+            aria-label="Collapse"
+            className={`${buttonClass} btn-icon`}
             disabled={areFoldActionsDisabled}
             onClick={onCollapseAll}
             title={tooltips.collapse}
             type="button"
           >
-            Collapse
+            <VscCollapseAll />
           </button>
           <button
-            className={buttonClass}
+            aria-label="Save"
+            className={`${buttonClass} btn-icon`}
             disabled={areOutputPersistenceActionsDisabled}
             onClick={onSave}
             title={tooltips.save}
             type="button"
           >
-            Save
+            <VscSave />
           </button>
           <button
-            className={buttonClass}
+            aria-label="Copy"
+            className={`${buttonClass} btn-icon`}
             disabled={areOutputPersistenceActionsDisabled}
             onClick={onCopy}
             title={tooltips.copy}
             type="button"
           >
-            Copy
+            <VscCopy />
           </button>
         </>
-      </div>
 
-      <div className="toolbar-right">
         <IndentSizeDropdown indentSize={indentSize} onIndentSizeChange={onIndentSizeChange} />
 
         <FallbackAgentDropdown
@@ -147,7 +150,9 @@ export const Toolbar = ({
           fallbackAgentOptions={fallbackAgentOptions}
           onFallbackAgentIdChange={onFallbackAgentIdChange}
         />
+      </div>
 
+      <div className="toolbar-right">
         <div className={segmentedContainerClass} data-testid="theme-toggle" role="group">
           <button
             aria-pressed={themeMode === 'light'}
