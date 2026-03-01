@@ -12,21 +12,21 @@
 
 ## Typography
 
-- Display font token: `--font-display` (`Bodoni MT`, fallback `Didot`, serif).
-- UI font token: `--font-ui` (`Avenir Next`, fallback `Segoe UI`, sans-serif).
-- Code font token: `--font-code` (`SFMono-Regular`, fallback `Menlo`, `Consolas`, monospace).
-- Use display typography for expressive headline/CTA copy only; use UI/code fonts everywhere else.
+- Display font token: `--font-display` (`-apple-system`, `BlinkMacSystemFont`, `"Segoe UI"`, `system-ui`, `sans-serif`).
+- UI font token: `--font-ui` (`-apple-system`, `BlinkMacSystemFont`, `"Segoe UI"`, `system-ui`, `sans-serif`).
+- Code font token: `--font-code` (`"SF Mono"`, `Menlo`, `Monaco`, `Consolas`, `"Courier New"`, `monospace`).
+- Use system UI fonts to match the native IDE aesthetic; use code fonts for the editor and log outputs.
 
 ## Color System
 
-- Light mode tokens use the warm parchment direction:
-  - Background: `--bg #f6f2eb`, `--bg-alt #eee6d8`.
-  - Surfaces: `--panel #f8f4ec`, `--panel-alt #fffdf8`.
-  - Accent: `--accent #b8733b`.
-- Dark mode tokens use the neutral VS Code-like direction:
+- Light mode tokens use the VS Code Light+ inspired direction:
+  - Background: `--bg #ffffff`, `--bg-alt #f3f3f3`.
+  - Surfaces: `--panel #f3f3f3`, `--panel-alt #ffffff`.
+  - Accent: `--accent #007acc`.
+- Dark mode tokens use the VS Code Dark+ inspired direction:
   - Background: `--bg #1e1e1e`, `--bg-alt #252526`.
-  - Surfaces: `--panel #252526`, `--panel-alt #1f1f1f`.
-  - Accent: `--accent #3794ff`.
+  - Surfaces: `--panel #252526`, `--panel-alt #1e1e1e`.
+  - Accent: `--accent #007acc`.
 - Keep contrast and hierarchy by deriving borders, muted text, focus rings, and soft accents from these token groups.
 
 ## Buttons
@@ -34,10 +34,10 @@
 - Toolbar action buttons (`New`, `Expand`, `Collapse`, `Save`, `Copy`) must use class `.btn`.
 - Toolbar controls should include `title` tooltips that describe the action and include keyboard shortcut hints where available.
 - `.btn` is the default action button style:
-  - Height `36px`, radius `12px`.
-  - Border `1px solid var(--line)`.
-  - Surface from `var(--panel-alt)` mixed with `var(--accent-soft)`.
-  - Font weight `600`.
+  - Height `32px`, radius `4px`.
+  - Border `1px solid transparent`.
+  - Transparent surface by default, soft accent background on hover.
+  - Font weight `400`.
 - Do not create per-action button color variants for toolbar actions.
 
 ## Toggles
@@ -50,9 +50,9 @@
 ## Dropdowns
 
 - Custom dropdown controls (e.g. indentation-size selector, fallback agent selector) must use `.dropdown` container with `.dropdown-trigger` button and `.dropdown-panel` floating options.
-- Trigger uses same pill geometry as `.btn` (height `36px`, radius `12px`, same border and mixed background).
+- Trigger uses same pill geometry as `.btn` (height `32px`, radius `4px`, transparent background, soft accent background on hover).
 - Trigger includes a `.dropdown-chevron` SVG that rotates on open (`.dropdown-chevron-open`).
-- Panel floats below trigger with radius `12px`, tokenized border/background, and `dropdown-reveal` entry animation.
+- Panel floats below trigger with radius `4px`, tokenized border/background, and `dropdown-reveal` entry animation.
 - Options use `.dropdown-option` with `.dropdown-option-active` for selected state (accent color) and `.dropdown-option-disabled` for non-selectable items.
 - Dropdowns do not use a visible label; the selected value inside the trigger serves as context.
 - Focus ring applies to both `.dropdown-trigger` and `.dropdown-option`.
@@ -61,7 +61,7 @@
 ## Inputs
 
 - Shared form geometry for toolbar controls:
-  - Height aligned to action buttons (`36px`).
+  - Height aligned to action buttons (`32px`).
   - Rounded corners and tokenized border/background.
 
 ## Text-Link Actions
@@ -73,18 +73,19 @@
 
 - Toolbar container must use `.toolbar`.
 - Editor container must use `.editor-shell`.
-- Keep the established rounded geometry:
-  - Toolbar radius `20px`.
-  - Editor radius `24px`.
-  - Toolbar button/input controls use `12px` radius pills.
+- Keep the established edge-to-edge VS Code geometry:
+  - Application shell has no margins or padding.
+  - Toolbar spans the full width with no border radius and only a bottom border.
+  - Editor spans the full width and remaining height with no outer borders or radius.
+  - Toolbar button/input controls use `4px` radius pills.
 
 ## Monaco Editors
 
 - Input and output modes are both rendered by Monaco (separate instances).
 - Monaco theme IDs are fixed: `prettypretty-light` and `prettypretty-dark`.
 - Monaco themes must align with token direction from `src/renderer/styles/tailwind.css`:
-  - light mode uses warm parchment tones,
-  - dark mode uses neutral VS Code-like tones.
+  - light mode uses Light+ tones,
+  - dark mode uses Dark+ tones.
 - Input and output editors should share the same Monaco preference set.
 - Output editor stays read-only; input editor stays editable.
 - Monaco editors must keep visible:

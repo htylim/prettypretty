@@ -1,39 +1,35 @@
 @import 'tailwindcss';
 
 :root {
-  --font-display: 'Bodoni MT', 'Didot', serif;
-  --font-ui: 'Avenir Next', 'Segoe UI', sans-serif;
-  --font-code: 'SFMono-Regular', 'Menlo', 'Consolas', monospace;
+  --font-display: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-code: 'SF Mono', Menlo, Monaco, Consolas, 'Courier New', monospace;
 
-  --bg: #f6f2eb;
-  --bg-alt: #eee6d8;
-  --panel: #f8f4ec;
-  --panel-alt: #fffdf8;
-  --text: #2a1f15;
-  --muted: #776758;
-  --line: #d6c8b6;
-  --accent: #b8733b;
-  --accent-soft: #efe0cb;
-  --shadow-soft: 0 8px 20px rgba(107, 81, 58, 0.08);
-  --focus-ring: color-mix(in oklab, var(--accent) 52%, #ffffff 12%);
-  --backdrop-layer-1: linear-gradient(135deg, rgba(167, 118, 59, 0.08), transparent 42%);
-  --backdrop-layer-2: radial-gradient(circle at 100% 0%, rgba(198, 159, 110, 0.2), transparent 33%);
+  --bg: #ffffff;
+  --bg-alt: #f3f3f3;
+  --panel: #f3f3f3;
+  --panel-alt: #ffffff;
+  --text: #333333;
+  --muted: #616161;
+  --line: #cccccc;
+  --accent: #007acc;
+  --accent-soft: #e4e6f1;
+  --shadow-soft: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --focus-ring: var(--accent);
 }
 
 :root[data-theme='dark'] {
   --bg: #1e1e1e;
   --bg-alt: #252526;
   --panel: #252526;
-  --panel-alt: #1f1f1f;
-  --text: #d4d4d4;
-  --muted: #9da2a6;
+  --panel-alt: #1e1e1e;
+  --text: #cccccc;
+  --muted: #858585;
   --line: #3c3c3c;
-  --accent: #3794ff;
-  --accent-soft: #2a3342;
-  --shadow-soft: 0 10px 24px rgba(0, 0, 0, 0.3);
-  --focus-ring: color-mix(in oklab, var(--accent) 58%, #ffffff 8%);
-  --backdrop-layer-1: linear-gradient(180deg, rgba(255, 255, 255, 0.012), transparent 25%);
-  --backdrop-layer-2: radial-gradient(circle at 85% 0%, rgba(55, 148, 255, 0.12), transparent 28%);
+  --accent: #007acc;
+  --accent-soft: #37373d;
+  --shadow-soft: 0 4px 12px rgba(0, 0, 0, 0.25);
+  --focus-ring: var(--accent);
 }
 
 html,
@@ -55,20 +51,11 @@ body {
   width: 100%;
   overflow: hidden;
   color: var(--text);
-  background: radial-gradient(circle at 0% 0%, var(--bg-alt), var(--bg));
+  background: var(--bg);
 }
 
 .app-backdrop {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-
-.app-backdrop::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: var(--backdrop-layer-1), var(--backdrop-layer-2);
+  display: none;
 }
 
 .app-shell {
@@ -76,21 +63,17 @@ body {
   z-index: 1;
   display: flex;
   flex-direction: column;
-  gap: 12px;
   height: 100%;
-  padding: 10px;
 }
 
 .toolbar {
-  border: 1px solid var(--line);
-  border-radius: 20px;
+  border-bottom: 1px solid var(--line);
   background: var(--panel);
-  box-shadow: var(--shadow-soft);
-  padding: 10px 12px;
+  padding: 8px 12px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
 }
 
 .toolbar-left,
@@ -98,7 +81,7 @@ body {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 12px;
 }
 
 .dropdown {
@@ -106,23 +89,23 @@ body {
 }
 
 .dropdown-trigger {
-  height: 36px;
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  background: color-mix(in oklab, var(--panel-alt) 84%, var(--accent-soft) 16%);
+  height: 32px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  background: transparent;
   color: var(--text);
   font-size: 0.84rem;
-  font-weight: 600;
-  padding: 0 10px;
+  font-weight: 400;
+  padding: 0 8px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  transition: transform 140ms ease;
+  transition: background-color 100ms ease;
 }
 
 .dropdown-trigger:hover {
-  transform: translateY(-1px);
+  background: var(--accent-soft);
 }
 
 .dropdown-trigger-label {
@@ -141,11 +124,11 @@ body {
 
 .dropdown-panel {
   position: absolute;
-  top: calc(100% + 6px);
+  top: calc(100% + 4px);
   right: 0;
   min-width: 100%;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 4px;
   background: var(--panel);
   box-shadow: var(--shadow-soft);
   padding: 4px;
@@ -158,12 +141,12 @@ body {
 .dropdown-option {
   width: 100%;
   border: 0;
-  border-radius: 8px;
+  border-radius: 4px;
   background: transparent;
   color: var(--text);
   font-size: 0.82rem;
-  font-weight: 600;
-  padding: 7px 10px;
+  font-weight: 400;
+  padding: 6px 10px;
   text-align: left;
   cursor: pointer;
   white-space: nowrap;
@@ -195,55 +178,55 @@ body {
 }
 
 .btn {
-  height: 36px;
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  background: color-mix(in oklab, var(--panel-alt) 82%, var(--accent-soft) 18%);
+  height: 32px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  background: transparent;
   color: var(--text);
-  font-weight: 600;
-  font-size: 0.88rem;
-  padding: 0 14px;
+  font-weight: 400;
+  font-size: 0.84rem;
+  padding: 0 12px;
   cursor: pointer;
-  transition: transform 140ms ease;
+  transition: background-color 100ms ease;
 }
 
-.btn:hover {
-  transform: translateY(-1px);
+.btn:hover:not(:disabled) {
+  background: var(--accent-soft);
 }
 
 .btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
-  transform: none;
 }
 
 .segmented {
   display: inline-flex;
-  border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 4px;
   padding: 2px;
-  background: var(--panel-alt);
+  background: var(--bg-alt);
 }
 
 .seg {
-  height: 30px;
+  height: 28px;
   border: 0;
-  border-radius: 9px;
-  padding: 0 14px;
+  border-radius: 4px;
+  padding: 0 10px;
   background: transparent;
-  color: var(--text);
-  font-weight: 600;
+  color: var(--muted);
+  font-weight: 400;
   font-size: 0.84rem;
   cursor: pointer;
-  transition: background-color 120ms ease;
+  transition: all 100ms ease;
 }
 
 .seg-active {
-  background: color-mix(in oklab, var(--accent) 17%, var(--panel-alt));
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: var(--shadow-soft);
 }
 
 .seg-inactive:hover {
-  background: color-mix(in oklab, var(--accent-soft) 40%, var(--panel-alt));
+  color: var(--text);
 }
 
 .seg:disabled {
@@ -256,18 +239,16 @@ body {
 .dropdown-trigger:focus-visible,
 .dropdown-option:focus-visible,
 .empty-state-link:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 1px;
+  outline: 1px solid var(--focus-ring);
+  outline-offset: -1px;
 }
 
 .editor-shell {
   position: relative;
   flex: 1;
   min-height: 0;
-  border: 1px solid var(--line);
-  border-radius: 24px;
-  background: var(--panel-alt);
-  box-shadow: var(--shadow-soft);
+  border: 0;
+  background: var(--bg);
   overflow: hidden;
 }
 
@@ -281,22 +262,22 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  border: 1px solid color-mix(in oklab, var(--accent) 30%, var(--line));
-  border-radius: 12px;
-  padding: 10px 12px;
-  background: color-mix(in oklab, var(--accent-soft) 72%, var(--panel-alt));
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 8px 12px;
+  background: var(--panel);
   color: var(--text);
   font-size: 0.86rem;
-  font-weight: 600;
+  font-weight: 400;
 }
 
 .ingest-notice-dismiss {
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 4px;
   background: transparent;
   color: var(--text);
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: 600;
   padding: 4px 8px;
   cursor: pointer;
 }
