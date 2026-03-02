@@ -10,6 +10,7 @@ const createPreferences = (overrides: Partial<Preferences> = {}): Preferences =>
   version: 2,
   themeMode: 'light',
   indentSize: 2,
+  fallbackWarningLineThreshold: 300,
   agents: [
     {
       id: 'amp',
@@ -44,6 +45,7 @@ const baseCodexAgent = createPreferences().agents[1]!;
 type HarnessHandle = {
   getThemeMode: () => ThemeMode;
   getIndentSize: () => number;
+  getFallbackWarningLineThreshold: () => number;
   getFallbackAgentId: () => string | null;
   getFallbackAgentOptionIds: () => string[];
   persistThemeMode: (mode: ThemeMode) => Promise<void>;
@@ -70,6 +72,7 @@ const PreferencesHarness = forwardRef<HarnessHandle, HarnessProps>(({ api }, ref
     () => ({
       getThemeMode: () => themeMode,
       getIndentSize: () => indentSize,
+      getFallbackWarningLineThreshold: () => flow.fallbackWarningLineThreshold,
       getFallbackAgentId: () => flow.fallbackAgentId,
       getFallbackAgentOptionIds: () => flow.fallbackAgentOptions.map((option) => option.id),
       persistThemeMode: flow.persistThemeMode,
@@ -119,6 +122,7 @@ describe('usePreferencesFlow', () => {
       createPreferences({
         themeMode: 'dark',
         indentSize: 4,
+        fallbackWarningLineThreshold: 420,
         fallbackAgentId: 'amp',
       }),
     );
@@ -132,6 +136,7 @@ describe('usePreferencesFlow', () => {
       expect(ref.current?.getThemeMode()).toBe('dark');
     });
     expect(ref.current?.getIndentSize()).toBe(4);
+    expect(ref.current?.getFallbackWarningLineThreshold()).toBe(420);
     expect(ref.current?.getFallbackAgentId()).toBe('amp');
     expect(ref.current?.getFallbackAgentOptionIds()).toEqual(['amp', 'codex']);
   });

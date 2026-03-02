@@ -88,3 +88,5 @@
 - Theme persistence behavior: renderer hydrates `themeMode` from persisted preferences at startup and uses optimistic updates with rollback on failed writes.
 - Indentation persistence behavior: renderer hydrates `indentSize` from persisted preferences at startup and uses it as the single runtime source for formatter + Monaco indentation.
 - Fallback preference behavior: renderer hydrates both `fallbackAgentId` and configured agent list from persisted preferences at startup and writes selection changes with optimistic UI + rollback on failed writes.
+- Large-content fallback guard: when malformed/unsupported input exceeds the persisted `fallbackWarningLineThreshold` (default `300` lines), renderer shows a confirmation modal (`Content is <N> lines. Use fallback agent?`) before starting fallback execution.
+- Current scope persists `fallbackWarningLineThreshold` in preferences with default `300`; there is no toolbar control for changing it yet.

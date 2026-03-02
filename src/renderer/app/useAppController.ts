@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import type { IndentSize } from '../../shared/preferences';
 import type { TelemetryEventName } from '../../shared/telemetry';
@@ -30,6 +30,8 @@ export type UseAppControllerResult = {
   outputText: string;
   outputDocumentId: string;
   fallbackWaitState: FallbackWaitState | null;
+  fallbackWarningLineThreshold: number;
+  fallbackConfirmationLineCount: number | null;
   fallbackAgentId: string | null;
   fallbackAgentOptions: FallbackAgentOption[];
   hasContent: boolean;
@@ -46,6 +48,8 @@ export type UseAppControllerResult = {
   onIngestInput: (value: string, source: IngestSource) => void;
   onDismissIngestNotice: () => void;
   onOpenFile: () => Promise<void>;
+  onConfirmFallback: () => void;
+  onCancelFallback: () => void;
 };
 
 const getWindowApi = (): WindowApi | null => {
@@ -58,6 +62,7 @@ export const useAppController = ({
   outputEditorRef,
 }: UseAppControllerOptions): UseAppControllerResult => {
   const latestIndentSizeRequestIdRef = useRef(0);
+  const fallbackConfirmationResolverRef = useRef<((accepted: boolean) => void) | null>(null);
   const paneMode = useUiStore((state) => state.paneMode);
   const themeMode = useUiStore((state) => state.themeMode);
   const indentSize = useUiStore((state) => state.indentSize);
@@ -69,6 +74,9 @@ export const useAppController = ({
   const setIndentSize = useUiStore((state) => state.setIndentSize);
   const setInputText = useUiStore((state) => state.setInputText);
   const setIngestNotice = useUiStore((state) => state.setIngestNotice);
+  const [fallbackConfirmationLineCount, setFallbackConfirmationLineCount] = useState<number | null>(
+    null,
+  );
 
   const logTelemetry = useCallback(
     async (name: TelemetryEventName, meta: TelemetryMeta): Promise<void> => {
@@ -86,13 +94,37 @@ export const useAppController = ({
     [],
   );
 
-  const { fallbackAgentId, fallbackAgentOptions, persistThemeMode, persistFallbackAgentId } =
-    usePreferencesFlow({
-      themeMode,
-      setThemeMode,
-      setIndentSize,
-      getWindowApi,
+  const {
+    fallbackAgentId,
+    fallbackAgentOptions,
+    fallbackWarningLineThreshold,
+    persistThemeMode,
+    persistFallbackAgentId,
+  } = usePreferencesFlow({
+    themeMode,
+    setThemeMode,
+    setIndentSize,
+    getWindowApi,
+  });
+
+  const requestFallbackConfirmation = useCallback((lineCount: number): Promise<boolean> => {
+    return new Promise<boolean>((resolve) => {
+      const previousResolver = fallbackConfirmationResolverRef.current;
+      if (previousResolver) {
+        previousResolver(false);
+      }
+
+      fallbackConfirmationResolverRef.current = resolve;
+      setFallbackConfirmationLineCount(lineCount);
     });
+  }, []);
+
+  const settleFallbackConfirmation = useCallback((accepted: boolean): void => {
+    const resolver = fallbackConfirmationResolverRef.current;
+    fallbackConfirmationResolverRef.current = null;
+    setFallbackConfirmationLineCount(null);
+    resolver?.(accepted);
+  }, []);
 
   const {
     outputText,
@@ -107,12 +139,14 @@ export const useAppController = ({
     alignOutputIndentAfterPersist,
   } = usePrettifierFlow({
     indentSize,
+    fallbackWarningLineThreshold,
     setPaneMode,
     setInputText,
     setIngestNotice,
     fallbackAgentId,
     fallbackAgentOptions,
     getWindowApi,
+    requestFallbackConfirmation,
     logTelemetry,
   });
 
@@ -271,6 +305,15 @@ export const useAppController = ({
     document.documentElement.dataset.theme = themeMode;
   }, [themeMode]);
 
+  useEffect(() => {
+    return () => {
+      if (fallbackConfirmationResolverRef.current) {
+        fallbackConfirmationResolverRef.current(false);
+        fallbackConfirmationResolverRef.current = null;
+      }
+    };
+  }, []);
+
   useKeyboardShortcuts({
     isOutputMode,
     paneMode,
@@ -293,6 +336,8 @@ export const useAppController = ({
     outputText,
     outputDocumentId,
     fallbackWaitState,
+    fallbackWarningLineThreshold,
+    fallbackConfirmationLineCount,
     fallbackAgentId,
     fallbackAgentOptions,
     hasContent,
@@ -309,5 +354,7 @@ export const useAppController = ({
     onIngestInput: ingestInputText,
     onDismissIngestNotice: () => setIngestNotice(null),
     onOpenFile: openFile,
+    onConfirmFallback: () => settleFallbackConfirmation(true),
+    onCancelFallback: () => settleFallbackConfirmation(false),
   };
 };

@@ -70,6 +70,7 @@ describe('useAppController', () => {
     usePreferencesFlowMock.mockReturnValue({
       fallbackAgentId: 'codex',
       fallbackAgentOptions: [{ id: 'codex', name: 'Codex', enabled: true }],
+      fallbackWarningLineThreshold: 300,
       persistThemeMode: vi.fn().mockResolvedValue(undefined),
       persistFallbackAgentId: vi.fn().mockResolvedValue(undefined),
     });
@@ -107,6 +108,7 @@ describe('useAppController', () => {
     expect(controller?.hasContent).toBe(true);
     expect(controller?.outputDocumentId).toMatch(/^output-/u);
     expect(controller?.fallbackAgentId).toBe('codex');
+    expect(controller?.fallbackWarningLineThreshold).toBe(300);
     expect(controller?.fallbackAgentOptions).toEqual([
       { id: 'codex', name: 'Codex', enabled: true },
     ]);

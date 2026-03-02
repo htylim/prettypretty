@@ -37,12 +37,14 @@ type TelemetryMeta = Record<string, string | number | boolean | null>;
 
 type UsePrettifierFlowOptions = {
   indentSize: IndentSize;
+  fallbackWarningLineThreshold: number;
   setPaneMode: (mode: PaneMode) => void;
   setInputText: (text: string) => void;
   setIngestNotice: (notice: string | null) => void;
   fallbackAgentId: string | null;
   fallbackAgentOptions: FallbackAgentOption[];
   getWindowApi: () => WindowApi | null;
+  requestFallbackConfirmation: (lineCount: number) => Promise<boolean>;
   logTelemetry: (name: TelemetryEventName, meta: TelemetryMeta) => Promise<void>;
 };
 
@@ -79,14 +81,24 @@ const isAppliedPrettifyStatus = (status: PrettifyRunStatus): boolean => {
   return status === 'applied-local' || status === 'applied-fallback';
 };
 
+const getLineCount = (value: string): number => {
+  if (value.length === 0) {
+    return 0;
+  }
+
+  return value.split(/\r\n|\r|\n/u).length;
+};
+
 export const usePrettifierFlow = ({
   indentSize,
+  fallbackWarningLineThreshold,
   setPaneMode,
   setInputText,
   setIngestNotice,
   fallbackAgentId,
   fallbackAgentOptions,
   getWindowApi,
+  requestFallbackConfirmation,
   logTelemetry,
 }: UsePrettifierFlowOptions): UsePrettifierFlowResult => {
   const latestPrettifyRequestIdRef = useRef(0);
@@ -156,6 +168,27 @@ export const usePrettifierFlow = ({
         fallbackAgentOptions,
       );
 
+      const lineCount = getLineCount(nextInputText);
+      const shouldPromptForFallbackConfirmation =
+        fallbackAgent.shouldWaitForFallback && lineCount > fallbackWarningLineThreshold;
+
+      if (shouldPromptForFallbackConfirmation) {
+        const shouldUseFallbackAgent = await requestFallbackConfirmation(lineCount);
+        if (requestId !== latestPrettifyRequestIdRef.current) {
+          return;
+        }
+
+        if (!shouldUseFallbackAgent) {
+          setOutputText(nextInputText);
+          lastPrettifiedInputRef.current = nextInputText;
+          outputFormattingRef.current = createEmptyFormattingState();
+          if (options.switchToOutputOnComplete) {
+            setPaneMode('output');
+          }
+          return;
+        }
+      }
+
       if (fallbackAgent.shouldWaitForFallback) {
         setFallbackWaitState({
           requestId,
@@ -209,10 +242,12 @@ export const usePrettifierFlow = ({
     [
       fallbackAgentId,
       fallbackAgentOptions,
+      fallbackWarningLineThreshold,
       getWindowApi,
       indentSize,
       logTelemetry,
       prettifierService,
+      requestFallbackConfirmation,
       setPaneMode,
     ],
   );

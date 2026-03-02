@@ -2,6 +2,7 @@ import {
   AGENT_PROMPT_TOKEN_INDENT_SIZE,
   AGENT_PROMPT_TOKEN_INPUT,
   CURRENT_PREFERENCES_VERSION,
+  DEFAULT_FALLBACK_WARNING_LINE_THRESHOLD,
   DEFAULT_INDENT_SIZE,
   type AgentConfig,
   type Preferences,
@@ -47,6 +48,7 @@ export const createDefaultPreferences = (): Preferences => ({
   version: CURRENT_PREFERENCES_VERSION,
   themeMode: 'light',
   indentSize: DEFAULT_INDENT_SIZE,
+  fallbackWarningLineThreshold: DEFAULT_FALLBACK_WARNING_LINE_THRESHOLD,
   agents: createDefaultAgents(),
   fallbackAgentId: 'codex',
 });

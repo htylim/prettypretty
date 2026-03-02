@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import { useAppController } from './app/useAppController';
+import { ConfirmationModal } from './components/ConfirmationModal';
 import { EditorShell } from './components/EditorShell';
 import type { InputEditorHandle } from './components/InputEditor';
 import type { OutputEditorHandle } from './components/OutputEditor';
@@ -49,6 +50,16 @@ export const App = () => {
           onOpenFile={controller.onOpenFile}
         />
       </div>
+
+      <ConfirmationModal
+        cancelLabel="Cancel"
+        confirmLabel="Use fallback agent"
+        isOpen={controller.fallbackConfirmationLineCount !== null}
+        message={`Content exceeds ${controller.fallbackWarningLineThreshold} lines. Use fallback agent?`}
+        onCancel={controller.onCancelFallback}
+        onConfirm={controller.onConfirmFallback}
+        title="Large content"
+      />
     </main>
   );
 };

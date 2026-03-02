@@ -66,7 +66,12 @@ const getRegisteredHandler = (channel: string): ((...args: unknown[]) => unknown
 
 describe('registerIpcHandlers preferences channels', () => {
   const defaults = createDefaultPreferences();
-  const preferences: Preferences = { ...defaults, themeMode: 'dark', indentSize: 4 };
+  const preferences: Preferences = {
+    ...defaults,
+    themeMode: 'dark',
+    indentSize: 4,
+    fallbackWarningLineThreshold: 350,
+  };
   const preferencesService = {
     getAll: vi.fn(),
     update: vi.fn(),
@@ -116,9 +121,20 @@ describe('registerIpcHandlers preferences channels', () => {
 
   it('forwards valid preferences update payloads to service', async () => {
     const updateHandler = getRegisteredHandler(IPCChannels.preferencesUpdate);
-    const result = await updateHandler({}, { themeMode: 'dark', indentSize: 6 });
+    const result = await updateHandler(
+      {},
+      {
+        themeMode: 'dark',
+        indentSize: 6,
+        fallbackWarningLineThreshold: 410,
+      },
+    );
 
-    expect(preferencesService.update).toHaveBeenCalledWith({ themeMode: 'dark', indentSize: 6 });
+    expect(preferencesService.update).toHaveBeenCalledWith({
+      themeMode: 'dark',
+      indentSize: 6,
+      fallbackWarningLineThreshold: 410,
+    });
     expect(result).toEqual(preferences);
   });
 

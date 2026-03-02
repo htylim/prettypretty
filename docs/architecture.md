@@ -40,7 +40,7 @@
 
 - Source of truth is main-process `PreferencesService` (`src/main/preferences`).
 - Disk persistence is JSON at `<userData>/preferences.json`.
-- Current persisted settings include `themeMode`, `indentSize` (integer `1..8`, default `2`), `agents`, and `fallbackAgentId`.
+- Current persisted settings include `themeMode`, `indentSize` (integer `1..8`, default `2`), `fallbackWarningLineThreshold` (positive integer, default `300`), `agents`, and `fallbackAgentId`.
 - `agents` stores fallback command configuration (`executable`, `argsTemplate`, `promptTemplate`, `promptDelivery`, `enabled`, `timeoutMs`, `maxOutputBytes`).
 - `fallbackAgentId` is either `null` to disable fallback or a valid enabled agent id (default: `codex`).
 - Prompt template tokens currently supported by the preferences model are `{input}` and `{indentSize}`.
@@ -50,6 +50,7 @@
   - `preferences:update`
   - `preferences:reset`
 - Toolbar preferences (`themeMode`, `indentSize`, `fallbackAgentId`) use optimistic renderer updates with request-id sequencing and rollback on failed persistence.
+- `fallbackWarningLineThreshold` is hydrated from preferences and consumed by renderer prettifier orchestration to gate large fallback runs; current scope does not expose a toolbar write path for this value.
 - Store writes are serialized and atomic (temp file + flush + rename).
 - Invalid/corrupt preferences files are rolled to `preferences.corrupt.<timestamp>.json` and replaced with defaults.
 
@@ -94,6 +95,7 @@
 - Local parser implementation is shared across processes in `src/shared/localPrettifier.ts` and reused by both renderer and main-process prettifier flows.
 - If local parsing succeeds, renderer uses local output immediately.
 - If local parsing fails/unsupported, renderer calls main-process `prettifier:run` IPC and shows a dedicated wait screen (hiding editors) while fallback is running.
+- Before calling main-process fallback for malformed/unsupported input, renderer checks `fallbackWarningLineThreshold`; when input line count exceeds the threshold, it requires explicit modal confirmation.
 - When `indentSize` changes while output pane shows already-prettified text, renderer reindents current output locally (leading-whitespace remap) instead of triggering a new prettifier/fallback run.
 - Main process streams best-effort fallback progress lines over `prettifier:progress` IPC; renderer binds updates to request id and renders only the latest line in the wait screen.
 - Main prettifier service resolves configured fallback agent from preferences and executes via `child_process.spawn`.

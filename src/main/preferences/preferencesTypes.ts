@@ -1,5 +1,6 @@
 import {
   CURRENT_PREFERENCES_VERSION,
+  DEFAULT_FALLBACK_WARNING_LINE_THRESHOLD,
   DEFAULT_INDENT_SIZE,
   type AgentConfig,
   type AgentPromptDelivery,
@@ -92,6 +93,7 @@ export const isPreferencesPatch = (value: unknown): value is PreferencesPatch =>
     if (
       key !== 'themeMode' &&
       key !== 'indentSize' &&
+      key !== 'fallbackWarningLineThreshold' &&
       key !== 'agents' &&
       key !== 'fallbackAgentId'
     ) {
@@ -109,6 +111,16 @@ export const isPreferencesPatch = (value: unknown): value is PreferencesPatch =>
   if ('indentSize' in value) {
     const { indentSize } = value;
     if (indentSize !== undefined && !isIndentSize(indentSize)) {
+      return false;
+    }
+  }
+
+  if ('fallbackWarningLineThreshold' in value) {
+    const { fallbackWarningLineThreshold } = value;
+    if (
+      fallbackWarningLineThreshold !== undefined &&
+      !isPositiveInteger(fallbackWarningLineThreshold)
+    ) {
       return false;
     }
   }
@@ -192,6 +204,9 @@ export const migratePreferences = (value: unknown): Preferences | null => {
   }
 
   const indentSize = isIndentSize(value.indentSize) ? value.indentSize : DEFAULT_INDENT_SIZE;
+  const fallbackWarningLineThreshold = isPositiveInteger(value.fallbackWarningLineThreshold)
+    ? value.fallbackWarningLineThreshold
+    : DEFAULT_FALLBACK_WARNING_LINE_THRESHOLD;
 
   if (value.version === 1) {
     const defaults = createDefaultPreferences();
@@ -200,6 +215,7 @@ export const migratePreferences = (value: unknown): Preferences | null => {
       version: CURRENT_PREFERENCES_VERSION,
       themeMode: value.themeMode,
       indentSize,
+      fallbackWarningLineThreshold,
       agents: cloneAgents(defaults.agents),
       fallbackAgentId: defaults.fallbackAgentId,
     };
@@ -215,6 +231,7 @@ export const migratePreferences = (value: unknown): Preferences | null => {
     version: CURRENT_PREFERENCES_VERSION,
     themeMode: value.themeMode,
     indentSize,
+    fallbackWarningLineThreshold,
     agents,
     fallbackAgentId: migrateFallbackAgentId(value.fallbackAgentId, agents),
   };

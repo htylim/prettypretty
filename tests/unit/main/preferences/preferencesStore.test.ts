@@ -182,6 +182,20 @@ describe('PreferencesStore', () => {
     expect(files.some((name) => name.startsWith('preferences.corrupt.'))).toBe(false);
   });
 
+  it('migrates missing fallback warning line threshold to default in current version payload', async () => {
+    const { directory, filePath, store } = await createStore();
+    const defaults = createDefaults();
+    const legacyPayload = JSON.parse(JSON.stringify(defaults)) as Record<string, unknown>;
+    delete legacyPayload.fallbackWarningLineThreshold;
+    await writeFile(filePath, JSON.stringify(legacyPayload), 'utf8');
+
+    const loaded = await store.load();
+    const files = await readdir(directory);
+
+    expect(loaded.fallbackWarningLineThreshold).toBe(defaults.fallbackWarningLineThreshold);
+    expect(files.some((name) => name.startsWith('preferences.corrupt.'))).toBe(false);
+  });
+
   it('migrates codex executable to app path when stored as bare command', async () => {
     const { filePath, store } = await createStore();
     const defaults = createDefaults();

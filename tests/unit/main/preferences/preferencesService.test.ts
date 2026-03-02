@@ -25,10 +25,24 @@ describe('PreferencesService', () => {
     const save = vi.fn().mockResolvedValue(undefined);
     const service = new PreferencesService({ load, save });
 
-    const next = await service.update({ themeMode: 'dark', indentSize: 4 });
+    const next = await service.update({
+      themeMode: 'dark',
+      indentSize: 4,
+      fallbackWarningLineThreshold: 450,
+    });
 
-    expect(next).toEqual({ ...basePreferences, themeMode: 'dark', indentSize: 4 });
-    expect(save).toHaveBeenCalledWith({ ...basePreferences, themeMode: 'dark', indentSize: 4 });
+    expect(next).toEqual({
+      ...basePreferences,
+      themeMode: 'dark',
+      indentSize: 4,
+      fallbackWarningLineThreshold: 450,
+    });
+    expect(save).toHaveBeenCalledWith({
+      ...basePreferences,
+      themeMode: 'dark',
+      indentSize: 4,
+      fallbackWarningLineThreshold: 450,
+    });
   });
 
   it('updates indent size without changing theme mode', async () => {
@@ -125,6 +139,18 @@ describe('PreferencesService', () => {
     await expect(service.update({ indentSize: 9 } as unknown as PreferencesPatch)).rejects.toThrow(
       'Invalid preferences patch payload',
     );
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid fallback warning line threshold patches', async () => {
+    const basePreferences = createBasePreferences();
+    const load = vi.fn().mockResolvedValue(basePreferences);
+    const save = vi.fn().mockResolvedValue(undefined);
+    const service = new PreferencesService({ load, save });
+
+    await expect(
+      service.update({ fallbackWarningLineThreshold: 0 } as unknown as PreferencesPatch),
+    ).rejects.toThrow('Invalid preferences patch payload');
     expect(save).not.toHaveBeenCalled();
   });
 

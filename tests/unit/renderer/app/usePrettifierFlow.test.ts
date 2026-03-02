@@ -12,6 +12,7 @@ const createPreferences = (overrides: Partial<Preferences> = {}): Preferences =>
   version: 2,
   themeMode: 'light',
   indentSize: 2,
+  fallbackWarningLineThreshold: 300,
   agents: [
     {
       id: 'codex',
@@ -70,41 +71,55 @@ type HarnessProps = {
     name: string,
     meta: Record<string, string | number | boolean | null>,
   ) => Promise<void>;
+  requestFallbackConfirmation?: (lineCount: number) => Promise<boolean>;
+  fallbackWarningLineThreshold?: number;
 };
 
-const PrettifierHarness = forwardRef<HarnessHandle, HarnessProps>(({ api, logTelemetry }, ref) => {
-  const [paneMode, setPaneMode] = useState<PaneMode>('input');
-  const [inputText, setInputText] = useState('');
-  const [ingestNotice, setIngestNotice] = useState<string | null>(null);
-  const getWindowApi = useCallback(() => api, [api]);
-  const flow = usePrettifierFlow({
-    indentSize: 2,
-    setPaneMode,
-    setInputText,
-    setIngestNotice,
-    fallbackAgentId: 'codex',
-    fallbackAgentOptions: [{ id: 'codex', name: 'Codex', enabled: true }],
-    getWindowApi,
-    logTelemetry,
-  });
-
-  useImperativeHandle(
+const PrettifierHarness = forwardRef<HarnessHandle, HarnessProps>(
+  (
+    {
+      api,
+      logTelemetry,
+      requestFallbackConfirmation = async () => true,
+      fallbackWarningLineThreshold = 300,
+    },
     ref,
-    () => ({
-      ingestInputText: flow.ingestInputText,
-      runPrettifier: flow.runPrettifier,
-      getPaneMode: () => paneMode,
-      getInputText: () => inputText,
-      getOutputText: () => flow.outputText,
-      getIngestNotice: () => ingestNotice,
-      getIsLlmRunning: () => flow.isLlmRunning,
-      getFallbackWaitState: () => flow.fallbackWaitState,
-    }),
-    [flow, ingestNotice, inputText, paneMode],
-  );
+  ) => {
+    const [paneMode, setPaneMode] = useState<PaneMode>('input');
+    const [inputText, setInputText] = useState('');
+    const [ingestNotice, setIngestNotice] = useState<string | null>(null);
+    const getWindowApi = useCallback(() => api, [api]);
+    const flow = usePrettifierFlow({
+      indentSize: 2,
+      fallbackWarningLineThreshold,
+      setPaneMode,
+      setInputText,
+      setIngestNotice,
+      fallbackAgentId: 'codex',
+      fallbackAgentOptions: [{ id: 'codex', name: 'Codex', enabled: true }],
+      getWindowApi,
+      requestFallbackConfirmation,
+      logTelemetry,
+    });
 
-  return null;
-});
+    useImperativeHandle(
+      ref,
+      () => ({
+        ingestInputText: flow.ingestInputText,
+        runPrettifier: flow.runPrettifier,
+        getPaneMode: () => paneMode,
+        getInputText: () => inputText,
+        getOutputText: () => flow.outputText,
+        getIngestNotice: () => ingestNotice,
+        getIsLlmRunning: () => flow.isLlmRunning,
+        getFallbackWaitState: () => flow.fallbackWaitState,
+      }),
+      [flow, ingestNotice, inputText, paneMode],
+    );
+
+    return null;
+  },
+);
 
 PrettifierHarness.displayName = 'PrettifierHarness';
 
@@ -259,5 +274,143 @@ describe('usePrettifierFlow', () => {
     expect(ref.current?.getOutputText()).toBe('{bad');
     expect(ref.current?.getIsLlmRunning()).toBe(false);
     expect(ref.current?.getFallbackWaitState()).toBeNull();
+  });
+
+  it('asks confirmation before fallback when line threshold is exceeded', async () => {
+    const confirmation = vi.fn().mockResolvedValue(true);
+    const run = vi.fn().mockResolvedValue(createPrettifierResponse());
+    const onProgress = vi.fn().mockImplementation(() => vi.fn());
+    const telemetry = vi.fn().mockResolvedValue(undefined);
+    const api: WindowApi = {
+      dialog: { openFile: vi.fn() },
+      file: { save: vi.fn() },
+      clipboard: { copy: vi.fn() },
+      app: { getInfo: vi.fn(), initialThemeMode: null },
+      logs: { getHistory: vi.fn(), onLine: vi.fn() },
+      preferences: {
+        getAll: vi.fn().mockResolvedValue(createPreferences()),
+        update: vi.fn(),
+        reset: vi.fn(),
+      },
+      prettifier: { run, onProgress },
+      telemetry: { log: vi.fn() },
+    };
+    const ref = { current: null as HarnessHandle | null };
+    const largeInput = Array.from({ length: 301 }, (_, index) => `line-${index.toString()}`).join(
+      '\n',
+    );
+
+    render(
+      createElement(PrettifierHarness, {
+        api,
+        logTelemetry: telemetry,
+        requestFallbackConfirmation: confirmation,
+        fallbackWarningLineThreshold: 300,
+        ref,
+      }),
+    );
+
+    act(() => {
+      void ref.current?.runPrettifier(largeInput, 'switch-output', {
+        switchToOutputOnComplete: false,
+      });
+    });
+
+    await waitFor(() => {
+      expect(confirmation).toHaveBeenCalledWith(301);
+    });
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not fallback when confirmation is declined', async () => {
+    const confirmation = vi.fn().mockResolvedValue(false);
+    const run = vi.fn().mockResolvedValue(createPrettifierResponse());
+    const onProgress = vi.fn().mockImplementation(() => vi.fn());
+    const telemetry = vi.fn().mockResolvedValue(undefined);
+    const api: WindowApi = {
+      dialog: { openFile: vi.fn() },
+      file: { save: vi.fn() },
+      clipboard: { copy: vi.fn() },
+      app: { getInfo: vi.fn(), initialThemeMode: null },
+      logs: { getHistory: vi.fn(), onLine: vi.fn() },
+      preferences: {
+        getAll: vi.fn().mockResolvedValue(createPreferences()),
+        update: vi.fn(),
+        reset: vi.fn(),
+      },
+      prettifier: { run, onProgress },
+      telemetry: { log: vi.fn() },
+    };
+    const ref = { current: null as HarnessHandle | null };
+    const largeInput = Array.from({ length: 301 }, (_, index) => `line-${index.toString()}`).join(
+      '\n',
+    );
+
+    render(
+      createElement(PrettifierHarness, {
+        api,
+        logTelemetry: telemetry,
+        requestFallbackConfirmation: confirmation,
+        fallbackWarningLineThreshold: 300,
+        ref,
+      }),
+    );
+
+    act(() => {
+      void ref.current?.runPrettifier(largeInput, 'switch-output', {
+        switchToOutputOnComplete: true,
+      });
+    });
+
+    await waitFor(() => {
+      expect(confirmation).toHaveBeenCalledWith(301);
+    });
+    expect(run).not.toHaveBeenCalled();
+    expect(ref.current?.getOutputText()).toBe(largeInput);
+    expect(ref.current?.getPaneMode()).toBe('output');
+  });
+
+  it('skips confirmation when line count does not exceed threshold', async () => {
+    const confirmation = vi.fn().mockResolvedValue(true);
+    const run = vi.fn().mockResolvedValue(createPrettifierResponse());
+    const onProgress = vi.fn().mockImplementation(() => vi.fn());
+    const telemetry = vi.fn().mockResolvedValue(undefined);
+    const api: WindowApi = {
+      dialog: { openFile: vi.fn() },
+      file: { save: vi.fn() },
+      clipboard: { copy: vi.fn() },
+      app: { getInfo: vi.fn(), initialThemeMode: null },
+      logs: { getHistory: vi.fn(), onLine: vi.fn() },
+      preferences: {
+        getAll: vi.fn().mockResolvedValue(createPreferences()),
+        update: vi.fn(),
+        reset: vi.fn(),
+      },
+      prettifier: { run, onProgress },
+      telemetry: { log: vi.fn() },
+    };
+    const ref = { current: null as HarnessHandle | null };
+    const input = Array.from({ length: 300 }, (_, index) => `line-${index.toString()}`).join('\n');
+
+    render(
+      createElement(PrettifierHarness, {
+        api,
+        logTelemetry: telemetry,
+        requestFallbackConfirmation: confirmation,
+        fallbackWarningLineThreshold: 300,
+        ref,
+      }),
+    );
+
+    act(() => {
+      void ref.current?.runPrettifier(input, 'switch-output', {
+        switchToOutputOnComplete: false,
+      });
+    });
+
+    await waitFor(() => {
+      expect(run).toHaveBeenCalledTimes(1);
+    });
+    expect(confirmation).not.toHaveBeenCalled();
   });
 });

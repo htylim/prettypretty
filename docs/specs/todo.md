@@ -1,3 +1,1 @@
-- light/dark mode to switch with input/output mode
-- add cmd+click to collapse/expand the clicked indent block in both editors (implemented)
-- when giving a file to read and load content do a check for file size limits
+- [x] Add fallback large-content confirmation before agent execution: show `Content is <number> lines. Use fallback agent?` when malformed/unsupported input exceeds persisted threshold (`fallbackWarningLineThreshold`, default `300`).

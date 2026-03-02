@@ -15,6 +15,7 @@ type UsePreferencesFlowOptions = {
 export type UsePreferencesFlowResult = {
   fallbackAgentId: string | null;
   fallbackAgentOptions: FallbackAgentOption[];
+  fallbackWarningLineThreshold: number;
   persistThemeMode: (nextThemeMode: ThemeMode) => Promise<void>;
   persistFallbackAgentId: (nextFallbackAgentId: string | null) => Promise<void>;
 };
@@ -29,6 +30,7 @@ export const usePreferencesFlow = ({
   const latestFallbackAgentRequestIdRef = useRef(0);
   const [fallbackAgentId, setFallbackAgentId] = useState<string | null>(null);
   const [fallbackAgentOptions, setFallbackAgentOptions] = useState<FallbackAgentOption[]>([]);
+  const [fallbackWarningLineThreshold, setFallbackWarningLineThreshold] = useState(300);
 
   const persistThemeMode = useCallback(
     async (nextThemeMode: ThemeMode): Promise<void> => {
@@ -115,6 +117,7 @@ export const usePreferencesFlow = ({
         if (!cancelled) {
           setThemeMode(preferences.themeMode);
           setIndentSize(preferences.indentSize);
+          setFallbackWarningLineThreshold(preferences.fallbackWarningLineThreshold);
           setFallbackAgentId(preferences.fallbackAgentId);
           setFallbackAgentOptions(toFallbackAgentOptions(preferences));
         }
@@ -131,6 +134,7 @@ export const usePreferencesFlow = ({
   return {
     fallbackAgentId,
     fallbackAgentOptions,
+    fallbackWarningLineThreshold,
     persistThemeMode,
     persistFallbackAgentId,
   };

@@ -83,6 +83,8 @@ export class PreferencesService {
       const current = await this.loadCurrent();
       const nextThemeMode = patch.themeMode ?? current.themeMode;
       const nextIndentSize = patch.indentSize ?? current.indentSize;
+      const nextFallbackWarningLineThreshold =
+        patch.fallbackWarningLineThreshold ?? current.fallbackWarningLineThreshold;
       const nextAgents = patch.agents ? cloneAgents(patch.agents) : current.agents;
       const isFallbackAgentIdPatched = patch.fallbackAgentId !== undefined;
       const requestedFallbackAgentId: string | null = isFallbackAgentIdPatched
@@ -101,6 +103,7 @@ export class PreferencesService {
       if (
         nextThemeMode === current.themeMode &&
         nextIndentSize === current.indentSize &&
+        nextFallbackWarningLineThreshold === current.fallbackWarningLineThreshold &&
         nextFallbackAgentId === current.fallbackAgentId &&
         areAgentsEqual(nextAgents, current.agents)
       ) {
@@ -111,6 +114,7 @@ export class PreferencesService {
         ...current,
         themeMode: nextThemeMode,
         indentSize: nextIndentSize,
+        fallbackWarningLineThreshold: nextFallbackWarningLineThreshold,
         agents: cloneAgents(nextAgents),
         fallbackAgentId: nextFallbackAgentId,
       };

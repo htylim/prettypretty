@@ -16,6 +16,7 @@ const createPreferences = (overrides: Partial<Preferences> = {}): Preferences =>
   version: 2,
   themeMode: 'light',
   indentSize: 2,
+  fallbackWarningLineThreshold: 300,
   agents: [
     {
       id: 'codex',

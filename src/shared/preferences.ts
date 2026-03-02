@@ -5,6 +5,7 @@ export type PreferencesVersion = 2;
 export const CURRENT_PREFERENCES_VERSION: PreferencesVersion = 2;
 export type IndentSize = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 export const DEFAULT_INDENT_SIZE: IndentSize = 2;
+export const DEFAULT_FALLBACK_WARNING_LINE_THRESHOLD = 300;
 
 export const AGENT_PROMPT_TOKEN_INPUT = '{input}' as const;
 export const AGENT_PROMPT_TOKEN_INDENT_SIZE = '{indentSize}' as const;
@@ -32,10 +33,14 @@ export type Preferences = {
   version: PreferencesVersion;
   themeMode: ThemeMode;
   indentSize: IndentSize;
+  fallbackWarningLineThreshold: number;
   agents: AgentConfig[];
   fallbackAgentId: string | null;
 };
 
 export type PreferencesPatch = Partial<
-  Pick<Preferences, 'themeMode' | 'indentSize' | 'agents' | 'fallbackAgentId'>
+  Pick<
+    Preferences,
+    'themeMode' | 'indentSize' | 'fallbackWarningLineThreshold' | 'agents' | 'fallbackAgentId'
+  >
 >;

@@ -40,6 +40,7 @@ const createPreferences = (overrides: Partial<Preferences> = {}): Preferences =>
   version: 2,
   themeMode: 'light',
   indentSize: 2,
+  fallbackWarningLineThreshold: 300,
   agents: [
     {
       id: 'amp',
@@ -163,11 +164,13 @@ beforeEach(() => {
     async (patch: {
       themeMode?: string;
       indentSize?: number;
+      fallbackWarningLineThreshold?: number;
       fallbackAgentId?: string | null;
     }) => ({
       ...createPreferences(),
       themeMode: patch.themeMode ?? 'light',
       indentSize: patch.indentSize ?? 2,
+      fallbackWarningLineThreshold: patch.fallbackWarningLineThreshold ?? 300,
       fallbackAgentId:
         patch.fallbackAgentId !== undefined
           ? patch.fallbackAgentId
@@ -361,6 +364,58 @@ describe('App', () => {
       expect(prettifierRunMock).toHaveBeenCalledTimes(1);
     });
     expect(await screen.findByTestId('output-editor')).toHaveTextContent('"fallback": true');
+  });
+
+  it('shows confirmation modal for large malformed input before fallback runs', async () => {
+    const user = userEvent.setup();
+    const largeMalformedInput = `${Array.from(
+      { length: 301 },
+      (_, index) => `line-${index.toString()}: value`,
+    ).join('\n')}\n{bad`;
+
+    act(() => {
+      useUiStore.setState({
+        paneMode: 'input',
+        inputText: largeMalformedInput,
+        ingestNotice: null,
+      });
+    });
+
+    await renderApp();
+    await user.click(screen.getByTestId('pane-segment-output'));
+
+    expect(screen.getByTestId('fallback-confirmation-modal')).toBeInTheDocument();
+    expect(
+      screen.getByText(/Content exceeds 300 lines\. Use fallback agent\?/),
+    ).toBeInTheDocument();
+    expect(prettifierRunMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps passthrough output and skips fallback when large-content confirmation is canceled', async () => {
+    const user = userEvent.setup();
+    const largeMalformedInput = `${Array.from(
+      { length: 301 },
+      (_, index) => `line-${index.toString()}: value`,
+    ).join('\n')}\n{bad`;
+
+    act(() => {
+      useUiStore.setState({
+        paneMode: 'input',
+        inputText: largeMalformedInput,
+        ingestNotice: null,
+      });
+    });
+
+    await renderApp();
+    await user.click(screen.getByTestId('pane-segment-output'));
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('fallback-confirmation-modal')).not.toBeInTheDocument();
+    });
+    expect(prettifierRunMock).not.toHaveBeenCalled();
+    expect(screen.getByTestId('output-editor')).toHaveTextContent('line-0: value');
+    expect(screen.getByTestId('output-editor')).toHaveTextContent('{bad');
   });
 
   it('shows fallback wait screen while fallback request is running and hides output editor', async () => {
