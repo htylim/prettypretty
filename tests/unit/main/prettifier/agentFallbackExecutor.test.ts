@@ -12,6 +12,7 @@ type MockChildProcess = EventEmitter & {
   stdout: EventEmitter;
   stderr: EventEmitter;
   stdin: EventEmitter & { end: ReturnType<typeof vi.fn> };
+  pid?: number;
   kill: ReturnType<typeof vi.fn>;
 };
 
@@ -33,6 +34,7 @@ const createMockChildProcess = (): MockChildProcess => {
   child.stdout = new EventEmitter();
   child.stderr = new EventEmitter();
   child.stdin = Object.assign(new EventEmitter(), { end: vi.fn() });
+  child.pid = 1234;
   child.kill = vi.fn(() => {
     child.emit('close', null);
   });
@@ -52,6 +54,7 @@ describe('agentFallbackExecutor', () => {
   it('executes configured agent with stdin prompt delivery', async () => {
     const executor = createAgentFallbackExecutor({
       spawn: spawnMock as unknown as SpawnProcessLike,
+      platform: 'darwin',
     });
     const promise = executor.execute({
       agent: createAgent({ promptDelivery: 'stdin' }),
@@ -73,6 +76,7 @@ describe('agentFallbackExecutor', () => {
   it('executes configured agent with arg prompt delivery', async () => {
     const executor = createAgentFallbackExecutor({
       spawn: spawnMock as unknown as SpawnProcessLike,
+      platform: 'darwin',
     });
     const agent = createAgent({ promptDelivery: 'arg', argsTemplate: ['exec', '--model', 'x'] });
     const promise = executor.execute({
@@ -86,6 +90,7 @@ describe('agentFallbackExecutor', () => {
     await promise;
 
     expect(spawnMock).toHaveBeenCalledWith('codex', ['exec', '--model', 'x', 'rendered prompt'], {
+      detached: true,
       shell: false,
       stdio: 'pipe',
     });
@@ -95,6 +100,7 @@ describe('agentFallbackExecutor', () => {
   it('returns failed-not-installed on ENOENT', async () => {
     const executor = createAgentFallbackExecutor({
       spawn: spawnMock as unknown as SpawnProcessLike,
+      platform: 'darwin',
     });
     const promise = executor.execute({
       agent: createAgent(),
@@ -115,6 +121,7 @@ describe('agentFallbackExecutor', () => {
   it('returns failed-non-zero-exit when process exits with non-zero code', async () => {
     const executor = createAgentFallbackExecutor({
       spawn: spawnMock as unknown as SpawnProcessLike,
+      platform: 'darwin',
     });
     const promise = executor.execute({
       agent: createAgent(),
@@ -136,6 +143,7 @@ describe('agentFallbackExecutor', () => {
     vi.useFakeTimers();
     const executor = createAgentFallbackExecutor({
       spawn: spawnMock as unknown as SpawnProcessLike,
+      platform: 'darwin',
     });
     const promise = executor.execute({
       agent: createAgent({ timeoutMs: 10 }),
@@ -156,6 +164,7 @@ describe('agentFallbackExecutor', () => {
   it('returns failed-output-too-large when stdout exceeds configured max bytes', async () => {
     const executor = createAgentFallbackExecutor({
       spawn: spawnMock as unknown as SpawnProcessLike,
+      platform: 'darwin',
     });
     const promise = executor.execute({
       agent: createAgent({ maxOutputBytes: 4 }),
@@ -175,6 +184,7 @@ describe('agentFallbackExecutor', () => {
   it('returns failed-invalid-output for empty output', async () => {
     const executor = createAgentFallbackExecutor({
       spawn: spawnMock as unknown as SpawnProcessLike,
+      platform: 'darwin',
     });
     const promise = executor.execute({
       agent: createAgent(),
@@ -194,6 +204,7 @@ describe('agentFallbackExecutor', () => {
   it('unwraps markdown fenced output', async () => {
     const executor = createAgentFallbackExecutor({
       spawn: spawnMock as unknown as SpawnProcessLike,
+      platform: 'darwin',
     });
     const promise = executor.execute({
       agent: createAgent(),
@@ -213,6 +224,7 @@ describe('agentFallbackExecutor', () => {
   it('accepts unchanged non-empty output', async () => {
     const executor = createAgentFallbackExecutor({
       spawn: spawnMock as unknown as SpawnProcessLike,
+      platform: 'darwin',
     });
     const promise = executor.execute({
       agent: createAgent(),
@@ -232,6 +244,7 @@ describe('agentFallbackExecutor', () => {
   it('returns failed-spawn-error for non-ENOENT spawn errors', async () => {
     const executor = createAgentFallbackExecutor({
       spawn: spawnMock as unknown as SpawnProcessLike,
+      platform: 'darwin',
     });
     const promise = executor.execute({
       agent: createAgent(),
@@ -252,6 +265,7 @@ describe('agentFallbackExecutor', () => {
     const onProgressLine = vi.fn();
     const executor = createAgentFallbackExecutor({
       spawn: spawnMock as unknown as SpawnProcessLike,
+      platform: 'darwin',
     });
     const promise = executor.execute({
       agent: createAgent(),
@@ -270,5 +284,30 @@ describe('agentFallbackExecutor', () => {
     expect(onProgressLine).toHaveBeenCalledWith('step 2/3');
     expect(onProgressLine).toHaveBeenCalledWith('thinking...');
     expect(onProgressLine).toHaveBeenCalledWith('}');
+  });
+
+  it('registers and unregisters the spawned child with the process registry', async () => {
+    const unregister = vi.fn();
+    const processRegistry = {
+      track: vi.fn().mockReturnValue(unregister),
+    };
+    const executor = createAgentFallbackExecutor({
+      spawn: spawnMock as unknown as SpawnProcessLike,
+      platform: 'darwin',
+      processRegistry,
+    });
+    const promise = executor.execute({
+      agent: createAgent(),
+      prompt: 'rendered prompt',
+      inputText: '{"a":1}',
+    });
+
+    child.stdout.emit('data', '{"a":1}');
+    child.emit('close', 0);
+
+    await promise;
+
+    expect(processRegistry.track).toHaveBeenCalledWith(child);
+    expect(unregister).toHaveBeenCalledTimes(1);
   });
 });

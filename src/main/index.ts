@@ -10,9 +10,15 @@ import { SessionLogStore } from './logging/sessionLogStore';
 import { configureApplicationMenu } from './menu/applicationMenu';
 import { PreferencesService } from './preferences/preferencesService';
 import { PreferencesStore } from './preferences/preferencesStore';
+import { createAgentFallbackExecutor } from './prettifier/agentFallbackExecutor';
+import { createFallbackProcessRegistry } from './prettifier/fallbackProcessRegistry';
 import { createPrettifierService } from './prettifier/prettifierService';
 import { openOrFocusLogWindow } from './windows/logWindow';
 import { createMainWindow, isMainWindow } from './windows/mainWindow';
+
+let terminateFallbackProcesses:
+  | ((source: 'before-quit' | 'will-quit' | 'window-all-closed') => void)
+  | null = null;
 
 const bootstrap = async (): Promise<void> => {
   const runtimeFlags = parseRuntimeFlags();
@@ -38,7 +44,28 @@ const bootstrap = async (): Promise<void> => {
 
   const preferencesStore = new PreferencesStore(app.getPath('userData'));
   const preferencesService = new PreferencesService(preferencesStore);
-  const prettifierService = createPrettifierService({ preferencesService, logger });
+  const fallbackProcessRegistry = createFallbackProcessRegistry();
+  const fallbackExecutor = createAgentFallbackExecutor({
+    processRegistry: fallbackProcessRegistry,
+  });
+  const prettifierService = createPrettifierService({
+    preferencesService,
+    logger,
+    fallbackExecutor,
+  });
+  terminateFallbackProcesses = (
+    source: 'before-quit' | 'will-quit' | 'window-all-closed',
+  ): void => {
+    const terminatedProcessCount = fallbackProcessRegistry.terminateAll();
+    if (terminatedProcessCount === 0) {
+      return;
+    }
+
+    logger.info('app.shutdown.fallback-processes-terminated', {
+      source,
+      terminatedProcessCount,
+    });
+  };
   const resolveInitialThemeMode = async (): Promise<ThemeMode> => {
     const fallbackThemeMode: ThemeMode = 'light';
 
@@ -102,11 +129,18 @@ const bootstrap = async (): Promise<void> => {
     },
   });
   logger.info('app.bootstrap.ipc-registered');
+  app.on('before-quit', () => {
+    terminateFallbackProcesses?.('before-quit');
+  });
+  app.on('will-quit', () => {
+    terminateFallbackProcesses?.('will-quit');
+  });
   await openDocumentWindow('bootstrap');
 };
 
 app.whenReady().then(bootstrap);
 
 app.on('window-all-closed', () => {
+  terminateFallbackProcesses?.('window-all-closed');
   app.exit(0);
 });

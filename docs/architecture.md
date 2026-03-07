@@ -36,6 +36,7 @@
 8. Renderer calls preload APIs for open/save/copy/window/info/preferences/prettifier/telemetry.
 9. Main-process IPC handlers parent open/save dialogs to the invoking `BrowserWindow` so multi-window dialog ownership stays scoped correctly.
 10. App lifetime is tied to Electron's `window-all-closed` event: closing a non-last window only removes that window, and closing the final remaining window exits the app.
+11. Main-process shutdown paths (`before-quit`, `will-quit`, `window-all-closed`) terminate any active fallback agent children before exit so agent CLIs do not outlive the app.
 
 ## Preferences Data Flow
 
@@ -103,6 +104,7 @@
 - When `indentSize` changes while output pane shows already-prettified text, renderer reindents current output locally (leading-whitespace remap) instead of triggering a new prettifier/fallback run.
 - Main process streams best-effort fallback progress lines over `prettifier:progress` IPC; renderer binds updates to request id and renders only the latest line in the wait screen.
 - Main prettifier service resolves the fallback agent from either the persisted preference or a per-request override and executes via `child_process.spawn`.
+- Active fallback children are tracked in main and terminated on app shutdown; POSIX builds kill the spawned process group and Windows uses tree termination (`taskkill /T /F`) so child/grandchild agent processes do not survive app exit.
 - Fallback execution enforces timeout and output-size caps and classifies failures into typed statuses.
 - Any fallback failure degrades to passthrough output instead of throwing into renderer.
 - Empty open-file/drop content stays in input mode and shows an inline notice (`File has no content.`).

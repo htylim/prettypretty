@@ -24,6 +24,7 @@ const {
   setApplicationMenuMock,
   shellOpenPathMock,
   showErrorBoxMock,
+  terminateAllFallbackProcessesMock,
   writeTextMock,
 } = vi.hoisted(() => {
   return {
@@ -46,6 +47,7 @@ const {
     setApplicationMenuMock: vi.fn(),
     shellOpenPathMock: vi.fn(),
     showErrorBoxMock: vi.fn(),
+    terminateAllFallbackProcessesMock: vi.fn().mockReturnValue(0),
     writeTextMock: vi.fn(),
   };
 });
@@ -117,6 +119,17 @@ vi.mock('electron', () => {
 vi.mock('node:fs', () => {
   return {
     existsSync: existsSyncMock,
+  };
+});
+
+vi.mock('../../../src/main/prettifier/fallbackProcessRegistry', () => {
+  return {
+    createFallbackProcessRegistry: vi.fn(() => {
+      return {
+        track: vi.fn(),
+        terminateAll: terminateAllFallbackProcessesMock,
+      };
+    }),
   };
 });
 
@@ -207,6 +220,7 @@ describe('main process window lifecycle', () => {
     setApplicationMenuMock.mockReset();
     shellOpenPathMock.mockReset().mockResolvedValue('');
     showErrorBoxMock.mockReset();
+    terminateAllFallbackProcessesMock.mockReset().mockReturnValue(0);
     writeTextMock.mockReset();
   });
 
@@ -245,7 +259,18 @@ describe('main process window lifecycle', () => {
     const windowAllClosed = getAppEventHandler('window-all-closed');
     windowAllClosed();
 
+    expect(terminateAllFallbackProcessesMock).toHaveBeenCalledTimes(1);
+    expect(terminateAllFallbackProcessesMock).toHaveBeenCalledWith();
     expect(appExitMock).toHaveBeenCalledTimes(1);
     expect(appExitMock).toHaveBeenCalledWith(0);
+  });
+
+  it('terminates fallback children on before-quit and will-quit', async () => {
+    await loadMainEntry();
+
+    getAppEventHandler('before-quit')();
+    getAppEventHandler('will-quit')();
+
+    expect(terminateAllFallbackProcessesMock).toHaveBeenCalledTimes(2);
   });
 });

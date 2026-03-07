@@ -49,6 +49,7 @@ Without this, unsupported or malformed inputs cannot benefit from configured non
   - use `child_process.spawn` with `shell: false`,
   - executable = `agent.executable`,
   - args = `agent.argsTemplate`,
+  - on POSIX, spawn fallback agents in their own process group so shutdown can terminate the full process tree,
   - if `promptDelivery === 'stdin'`, write rendered prompt to stdin and close stdin,
   - if `promptDelivery === 'arg'`, append rendered prompt as the final argument.
 
@@ -56,6 +57,7 @@ Without this, unsupported or malformed inputs cannot benefit from configured non
 
 - Enforce `timeoutMs` with hard process termination on timeout.
 - Enforce `maxOutputBytes` while collecting stdout; terminate process when exceeded.
+- Track active fallback children in main and terminate them during app shutdown (`before-quit`, `will-quit`, `window-all-closed`) so no fallback agent process survives app exit.
 - Capture stdout/stderr as UTF-8 text for result classification.
 - Normalize execution outcomes into typed statuses, for example:
   - `applied`,
@@ -174,6 +176,7 @@ Reference note for implementation agents: any code snippets in specs are intent 
 - [ ] `stdin` and `arg` prompt delivery modes are both supported.
 - [ ] Missing/uninstalled agent (`ENOENT`) is handled gracefully with passthrough result.
 - [ ] Non-zero exit, timeout, oversized output, and invalid output are handled gracefully with passthrough result.
+- [ ] App shutdown terminates any active fallback process tree before the Electron main process exits.
 - [ ] Async response sequencing prevents stale fallback results from replacing newer output.
 - [ ] Prettifier executes only on output-triggered paths (not per input keystroke).
 - [ ] Empty open-file/drop content keeps input mode and shows inline notice.

@@ -1,6 +1,7 @@
 import { spawn as spawnProcess } from 'node:child_process';
 import type { AgentConfig } from '../../shared/preferences';
 import type { FallbackStatus } from '../../shared/prettifier';
+import type { FallbackProcessRegistry } from './fallbackProcessRegistry';
 
 type ExecutorStatus = Exclude<
   FallbackStatus,
@@ -25,9 +26,12 @@ export type AgentFallbackExecutionResult = {
 type ExecutorDependencies = {
   spawn?: SpawnProcessLike;
   now?: () => number;
+  platform?: NodeJS.Platform;
+  processRegistry?: Pick<FallbackProcessRegistry, 'track'>;
 };
 
 type SpawnedProcess = {
+  pid?: number;
   on(event: 'error', listener: (error: NodeJS.ErrnoException) => void): unknown;
   on(event: 'close', listener: (code: number | null) => void): unknown;
   stdout?: {
@@ -46,7 +50,7 @@ type SpawnedProcess = {
 export type SpawnProcessLike = (
   command: string,
   args: string[],
-  options: { shell: false; stdio: 'pipe' },
+  options: { detached: boolean; shell: false; stdio: 'pipe' },
 ) => SpawnedProcess;
 
 const extractMarkdownFencedContent = (outputText: string): string | null => {
@@ -93,6 +97,8 @@ export const createAgentFallbackExecutor = (
       return spawnProcess(command, args, options) as unknown as SpawnedProcess;
     });
   const now = dependencies.now ?? Date.now;
+  const platform = dependencies.platform ?? process.platform;
+  const processRegistry = dependencies.processRegistry;
 
   return {
     execute: async ({ agent, prompt, onProgressLine }) => {
@@ -119,6 +125,7 @@ export const createAgentFallbackExecutor = (
           }
 
           finished = true;
+          cleanupChildTracking();
           clearTimeout(timeoutHandle);
 
           resolve({
@@ -131,9 +138,16 @@ export const createAgentFallbackExecutor = (
         };
 
         const child = spawn(agent.executable, args, {
+          detached: platform !== 'win32',
           shell: false,
           stdio: 'pipe',
         });
+        let unregisterChild = processRegistry?.track(child);
+
+        const cleanupChildTracking = (): void => {
+          unregisterChild?.();
+          unregisterChild = undefined;
+        };
 
         const timeoutHandle = setTimeout(() => {
           timedOut = true;
@@ -141,6 +155,7 @@ export const createAgentFallbackExecutor = (
         }, agent.timeoutMs);
 
         child.on('error', (error) => {
+          cleanupChildTracking();
           const code = typeof error === 'object' && error && 'code' in error ? error.code : null;
 
           if (code === 'ENOENT') {
@@ -197,6 +212,7 @@ export const createAgentFallbackExecutor = (
 
         child.on('close', (code) => {
           lastExitCode = code;
+          cleanupChildTracking();
 
           if (timedOut) {
             finish('failed-timeout', null, lastExitCode);
