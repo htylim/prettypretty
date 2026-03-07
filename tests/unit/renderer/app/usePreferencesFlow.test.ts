@@ -106,7 +106,7 @@ const createWindowApi = (
       update,
       reset: vi.fn(),
     },
-    prettifier: { run: vi.fn(), onProgress: vi.fn() },
+    prettifier: { run: vi.fn(), cancel: vi.fn(), onProgress: vi.fn() },
     telemetry: { log: vi.fn() },
   };
 };

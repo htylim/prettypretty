@@ -37,6 +37,7 @@ const loadPreloadApi = async () => {
     };
     logs: { onLine: (listener: (line: string) => void) => () => void };
     prettifier: {
+      cancel: (request: { requestId: number }) => Promise<boolean>;
       onProgress: (listener: (event: { requestId: number; line: string }) => void) => () => void;
     };
   };
@@ -130,5 +131,15 @@ describe('preload bridge', () => {
     unsubscribe();
     expect(removeListenerMock).toHaveBeenCalledTimes(1);
     expect(removeListenerMock).toHaveBeenCalledWith(onMock.mock.calls[0]?.[0], wrappedListener);
+  });
+
+  it('invokes prettifier.cancel through ipcRenderer', async () => {
+    const api = await loadPreloadApi();
+    invokeMock.mockResolvedValueOnce(true);
+
+    const result = await api.prettifier.cancel({ requestId: 12 });
+
+    expect(invokeMock).toHaveBeenCalledWith('prettifier:cancel', { requestId: 12 });
+    expect(result).toBe(true);
   });
 });

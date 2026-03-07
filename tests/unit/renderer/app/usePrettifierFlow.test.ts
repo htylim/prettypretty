@@ -52,6 +52,7 @@ const createDeferred = <T>() => {
 
 type HarnessHandle = {
   ingestInputText: (nextText: string, source: IngestSource) => void;
+  cancelActiveFallback: () => Promise<void>;
   runPrettifier: (
     nextInputText: string,
     trigger: PrettifyTrigger,
@@ -113,6 +114,7 @@ const PrettifierHarness = forwardRef<HarnessHandle, HarnessProps>(
       ref,
       () => ({
         ingestInputText: flow.ingestInputText,
+        cancelActiveFallback: flow.cancelActiveFallback,
         runPrettifier: flow.runPrettifier,
         getPaneMode: () => paneMode,
         getInputText: () => inputText,
@@ -150,7 +152,7 @@ describe('usePrettifierFlow', () => {
       app: createAppApi(),
       logs: { getHistory: vi.fn(), onLine: vi.fn() },
       preferences: { getAll, update: vi.fn(), reset: vi.fn() },
-      prettifier: { run, onProgress },
+      prettifier: { run, cancel: vi.fn().mockResolvedValue(true), onProgress },
       telemetry: { log: vi.fn() },
     };
     const ref = { current: null as HarnessHandle | null };
@@ -174,6 +176,7 @@ describe('usePrettifierFlow', () => {
     let onProgressListener: ((event: { requestId: number; line: string }) => void) | null = null;
     const getAll = vi.fn().mockResolvedValue(createPreferences());
     const run = vi.fn().mockReturnValue(deferred.promise);
+    const cancel = vi.fn().mockResolvedValue(true);
     const onProgress = vi.fn().mockImplementation((listener) => {
       onProgressListener = listener;
       return () => {
@@ -188,7 +191,7 @@ describe('usePrettifierFlow', () => {
       app: createAppApi(),
       logs: { getHistory: vi.fn(), onLine: vi.fn() },
       preferences: { getAll, update: vi.fn(), reset: vi.fn() },
-      prettifier: { run, onProgress },
+      prettifier: { run, cancel, onProgress },
       telemetry: { log: vi.fn() },
     };
     const ref = { current: null as HarnessHandle | null };
@@ -222,6 +225,57 @@ describe('usePrettifierFlow', () => {
     expect(ref.current?.getOutputText()).toContain('"done": true');
   });
 
+  it('cancels the active fallback request and returns to input mode', async () => {
+    const deferred = createDeferred<PrettifyRunResponse>();
+    const getAll = vi.fn().mockResolvedValue(createPreferences());
+    const run = vi.fn().mockReturnValue(deferred.promise);
+    const cancel = vi.fn().mockResolvedValue(true);
+    const telemetry = vi.fn().mockResolvedValue(undefined);
+    const api: WindowApi = {
+      dialog: { openFile: vi.fn() },
+      file: { save: vi.fn() },
+      clipboard: { copy: vi.fn() },
+      app: createAppApi(),
+      logs: { getHistory: vi.fn(), onLine: vi.fn() },
+      preferences: { getAll, update: vi.fn(), reset: vi.fn() },
+      prettifier: {
+        run,
+        cancel,
+        onProgress: vi.fn().mockImplementation(() => vi.fn()),
+      },
+      telemetry: { log: vi.fn() },
+    };
+    const ref = { current: null as HarnessHandle | null };
+
+    render(createElement(PrettifierHarness, { api, logTelemetry: telemetry, ref }));
+
+    act(() => {
+      void ref.current?.runPrettifier('{bad', 'switch-output', {
+        switchToOutputOnComplete: false,
+      });
+    });
+
+    await waitFor(() => {
+      expect(ref.current?.getFallbackWaitState()).not.toBeNull();
+    });
+
+    const request = run.mock.calls[0]?.[0] as { requestId: number };
+    await act(async () => {
+      await ref.current?.cancelActiveFallback();
+    });
+
+    expect(cancel).toHaveBeenCalledWith({ requestId: request.requestId });
+    expect(ref.current?.getPaneMode()).toBe('input');
+    expect(ref.current?.getIsLlmRunning()).toBe(false);
+    expect(ref.current?.getFallbackWaitState()).toBeNull();
+
+    deferred.resolve(createPrettifierResponse({ fallbackStatus: 'failed-canceled' }));
+
+    await waitFor(() => {
+      expect(ref.current?.getPaneMode()).toBe('input');
+    });
+  });
+
   it('ignores stale fallback responses when a newer request is in flight', async () => {
     const first = createDeferred<PrettifyRunResponse>();
     const second = createDeferred<PrettifyRunResponse>();
@@ -236,7 +290,7 @@ describe('usePrettifierFlow', () => {
       app: createAppApi(),
       logs: { getHistory: vi.fn(), onLine: vi.fn() },
       preferences: { getAll, update: vi.fn(), reset: vi.fn() },
-      prettifier: { run, onProgress },
+      prettifier: { run, cancel: vi.fn().mockResolvedValue(true), onProgress },
       telemetry: { log: vi.fn() },
     };
     const ref = { current: null as HarnessHandle | null };
@@ -306,7 +360,7 @@ describe('usePrettifierFlow', () => {
         update: vi.fn(),
         reset: vi.fn(),
       },
-      prettifier: { run, onProgress },
+      prettifier: { run, cancel: vi.fn().mockResolvedValue(true), onProgress },
       telemetry: { log: vi.fn() },
     };
     const ref = { current: null as HarnessHandle | null };
@@ -352,7 +406,7 @@ describe('usePrettifierFlow', () => {
         update: vi.fn(),
         reset: vi.fn(),
       },
-      prettifier: { run, onProgress },
+      prettifier: { run, cancel: vi.fn().mockResolvedValue(true), onProgress },
       telemetry: { log: vi.fn() },
     };
     const ref = { current: null as HarnessHandle | null };
@@ -400,7 +454,7 @@ describe('usePrettifierFlow', () => {
         update: vi.fn(),
         reset: vi.fn(),
       },
-      prettifier: { run, onProgress },
+      prettifier: { run, cancel: vi.fn().mockResolvedValue(true), onProgress },
       telemetry: { log: vi.fn() },
     };
     const ref = { current: null as HarnessHandle | null };
@@ -444,7 +498,11 @@ describe('usePrettifierFlow', () => {
         update: vi.fn(),
         reset: vi.fn(),
       },
-      prettifier: { run, onProgress: vi.fn().mockImplementation(() => vi.fn()) },
+      prettifier: {
+        run,
+        cancel: vi.fn().mockResolvedValue(true),
+        onProgress: vi.fn().mockImplementation(() => vi.fn()),
+      },
       telemetry: { log: vi.fn() },
     };
     const ref = { current: null as HarnessHandle | null };
@@ -498,7 +556,11 @@ describe('usePrettifierFlow', () => {
         update: vi.fn(),
         reset: vi.fn(),
       },
-      prettifier: { run, onProgress: vi.fn().mockImplementation(() => vi.fn()) },
+      prettifier: {
+        run,
+        cancel: vi.fn().mockResolvedValue(true),
+        onProgress: vi.fn().mockImplementation(() => vi.fn()),
+      },
       telemetry: { log: vi.fn() },
     };
     const ref = { current: null as HarnessHandle | null };

@@ -57,6 +57,7 @@ describe('agentFallbackExecutor', () => {
       platform: 'darwin',
     });
     const promise = executor.execute({
+      requestId: 1,
       agent: createAgent({ promptDelivery: 'stdin' }),
       prompt: 'rendered prompt',
       inputText: '{"a":1}',
@@ -80,6 +81,7 @@ describe('agentFallbackExecutor', () => {
     });
     const agent = createAgent({ promptDelivery: 'arg', argsTemplate: ['exec', '--model', 'x'] });
     const promise = executor.execute({
+      requestId: 2,
       agent,
       prompt: 'rendered prompt',
       inputText: '{"a":1}',
@@ -103,6 +105,7 @@ describe('agentFallbackExecutor', () => {
       platform: 'darwin',
     });
     const promise = executor.execute({
+      requestId: 3,
       agent: createAgent(),
       prompt: 'rendered prompt',
       inputText: '{"a":1}',
@@ -124,6 +127,7 @@ describe('agentFallbackExecutor', () => {
       platform: 'darwin',
     });
     const promise = executor.execute({
+      requestId: 4,
       agent: createAgent(),
       prompt: 'rendered prompt',
       inputText: '{"a":1}',
@@ -146,6 +150,7 @@ describe('agentFallbackExecutor', () => {
       platform: 'darwin',
     });
     const promise = executor.execute({
+      requestId: 5,
       agent: createAgent({ timeoutMs: 10 }),
       prompt: 'rendered prompt',
       inputText: '{"a":1}',
@@ -167,6 +172,7 @@ describe('agentFallbackExecutor', () => {
       platform: 'darwin',
     });
     const promise = executor.execute({
+      requestId: 6,
       agent: createAgent({ maxOutputBytes: 4 }),
       prompt: 'rendered prompt',
       inputText: '{"a":1}',
@@ -187,6 +193,7 @@ describe('agentFallbackExecutor', () => {
       platform: 'darwin',
     });
     const promise = executor.execute({
+      requestId: 7,
       agent: createAgent(),
       prompt: 'rendered prompt',
       inputText: '{"a":1}',
@@ -207,6 +214,7 @@ describe('agentFallbackExecutor', () => {
       platform: 'darwin',
     });
     const promise = executor.execute({
+      requestId: 8,
       agent: createAgent(),
       prompt: 'rendered prompt',
       inputText: '{"a":1}',
@@ -227,6 +235,7 @@ describe('agentFallbackExecutor', () => {
       platform: 'darwin',
     });
     const promise = executor.execute({
+      requestId: 9,
       agent: createAgent(),
       prompt: 'rendered prompt',
       inputText: '{"a":1}',
@@ -247,6 +256,7 @@ describe('agentFallbackExecutor', () => {
       platform: 'darwin',
     });
     const promise = executor.execute({
+      requestId: 10,
       agent: createAgent(),
       prompt: 'rendered prompt',
       inputText: '{"a":1}',
@@ -268,6 +278,7 @@ describe('agentFallbackExecutor', () => {
       platform: 'darwin',
     });
     const promise = executor.execute({
+      requestId: 11,
       agent: createAgent(),
       prompt: 'rendered prompt',
       inputText: '{"a":1}',
@@ -290,6 +301,7 @@ describe('agentFallbackExecutor', () => {
     const unregister = vi.fn();
     const processRegistry = {
       track: vi.fn().mockReturnValue(unregister),
+      terminate: vi.fn().mockReturnValue(true),
     };
     const executor = createAgentFallbackExecutor({
       spawn: spawnMock as unknown as SpawnProcessLike,
@@ -297,6 +309,7 @@ describe('agentFallbackExecutor', () => {
       processRegistry,
     });
     const promise = executor.execute({
+      requestId: 12,
       agent: createAgent(),
       prompt: 'rendered prompt',
       inputText: '{"a":1}',
@@ -307,7 +320,48 @@ describe('agentFallbackExecutor', () => {
 
     await promise;
 
-    expect(processRegistry.track).toHaveBeenCalledWith(child);
+    expect(processRegistry.track).toHaveBeenCalledWith(12, child, expect.any(Function));
     expect(unregister).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns failed-canceled when the registry terminates the active request', async () => {
+    let onTerminate: (() => void) | undefined;
+    const processRegistry = {
+      track: vi
+        .fn()
+        .mockImplementation(
+          (_requestId: number, _child: MockChildProcess, callback?: () => void) => {
+            onTerminate = callback;
+            return vi.fn();
+          },
+        ),
+      terminate: vi.fn().mockImplementation((requestId: number) => {
+        if (requestId !== 13) {
+          return false;
+        }
+
+        onTerminate?.();
+        child.emit('close', null);
+        return true;
+      }),
+    };
+    const executor = createAgentFallbackExecutor({
+      spawn: spawnMock as unknown as SpawnProcessLike,
+      platform: 'darwin',
+      processRegistry,
+    });
+    const promise = executor.execute({
+      requestId: 13,
+      agent: createAgent(),
+      prompt: 'rendered prompt',
+      inputText: '{"a":1}',
+    });
+
+    expect(executor.cancel(13)).toBe(true);
+
+    await expect(promise).resolves.toMatchObject({
+      status: 'failed-canceled',
+      outputText: null,
+    });
   });
 });

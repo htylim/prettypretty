@@ -16,7 +16,8 @@ type ProcessRegistryDependencies = {
 };
 
 export type FallbackProcessRegistry = {
-  track: (child: KillableProcess) => () => void;
+  track: (requestId: number, child: KillableProcess, onTerminate?: () => void) => () => void;
+  terminate: (requestId: number) => boolean;
   terminateAll: () => number;
 };
 
@@ -39,6 +40,8 @@ export const createFallbackProcessRegistry = (
       return spawnProcess(command, args, options);
     });
   const activeChildren = new Set<KillableProcess>();
+  const activeChildrenByRequestId = new Map<number, KillableProcess>();
+  const terminateCallbacksByRequestId = new Map<number, () => void>();
 
   const terminateProcessTree = (child: KillableProcess): void => {
     if (typeof child.pid !== 'number' || child.pid <= 0) {
@@ -68,8 +71,12 @@ export const createFallbackProcessRegistry = (
   };
 
   return {
-    track: (child) => {
+    track: (requestId, child, onTerminate) => {
       activeChildren.add(child);
+      activeChildrenByRequestId.set(requestId, child);
+      if (onTerminate) {
+        terminateCallbacksByRequestId.set(requestId, onTerminate);
+      }
 
       let removed = false;
       return () => {
@@ -78,12 +85,36 @@ export const createFallbackProcessRegistry = (
         }
 
         removed = true;
+        if (activeChildrenByRequestId.get(requestId) === child) {
+          activeChildrenByRequestId.delete(requestId);
+        }
+        terminateCallbacksByRequestId.delete(requestId);
         activeChildren.delete(child);
       };
+    },
+    terminate: (requestId) => {
+      const child = activeChildrenByRequestId.get(requestId);
+      if (!child) {
+        return false;
+      }
+
+      activeChildrenByRequestId.delete(requestId);
+      terminateCallbacksByRequestId.get(requestId)?.();
+      terminateCallbacksByRequestId.delete(requestId);
+      activeChildren.delete(child);
+      terminateProcessTree(child);
+      return true;
     },
     terminateAll: () => {
       const children = [...activeChildren];
       activeChildren.clear();
+      activeChildrenByRequestId.clear();
+      const callbacks = [...terminateCallbacksByRequestId.values()];
+      terminateCallbacksByRequestId.clear();
+
+      for (const callback of callbacks) {
+        callback();
+      }
 
       for (const child of children) {
         terminateProcessTree(child);

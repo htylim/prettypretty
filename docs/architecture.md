@@ -18,7 +18,7 @@
 
 - `src/renderer/App.tsx` is a thin composition shell only.
 - `src/renderer/app/useAppController.ts` owns renderer orchestration and UI wiring.
-- `src/renderer/app/usePrettifierFlow.ts` owns prettifier execution flow, request-id race guards, and fallback wait/progress state.
+- `src/renderer/app/usePrettifierFlow.ts` owns prettifier execution flow, request-id race guards, fallback wait/progress state, and request-scoped fallback cancellation.
 - `src/renderer/app/usePreferencesFlow.ts` owns preferences hydration and optimistic persistence sequencing for theme/fallback agent.
 - `src/renderer/app/useKeyboardShortcuts.ts` owns keyboard shortcut bindings and mode gating.
 - `src/renderer/app/appDomain.ts` contains pure helper functions/constants shared by renderer controller hooks.
@@ -103,8 +103,9 @@
 - If local parsing fails/unsupported while no persisted fallback is selected, renderer can request a one-shot fallback agent choice and passes that agent id to main as a per-request override without mutating preferences.
 - When `indentSize` changes while output pane shows already-prettified text, renderer reindents current output locally (leading-whitespace remap) instead of triggering a new prettifier/fallback run.
 - Main process streams best-effort fallback progress lines over `prettifier:progress` IPC; renderer binds updates to request id and renders only the latest line in the wait screen.
+- Renderer can cancel the active fallback wait-screen request through `prettifier:cancel`; cancellation hides the wait screen immediately, returns to input mode, and ignores the late response from the killed run.
 - Main prettifier service resolves the fallback agent from either the persisted preference or a per-request override and executes via `child_process.spawn`.
-- Active fallback children are tracked in main and terminated on app shutdown; POSIX builds kill the spawned process group and Windows uses tree termination (`taskkill /T /F`) so child/grandchild agent processes do not survive app exit.
+- Active fallback children are tracked in main by request id and terminated on user cancel or app shutdown; POSIX builds kill the spawned process group and Windows uses tree termination (`taskkill /T /F`) so child/grandchild agent processes do not survive app exit.
 - Fallback execution enforces timeout and output-size caps and classifies failures into typed statuses.
 - Any fallback failure degrades to passthrough output instead of throwing into renderer.
 - Empty open-file/drop content stays in input mode and shows an inline notice (`File has no content.`).

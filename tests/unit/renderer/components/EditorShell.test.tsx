@@ -58,6 +58,7 @@ describe('EditorShell', () => {
         onIngestInput={vi.fn()}
         onDismissIngestNotice={vi.fn()}
         onOpenFile={onOpenFile}
+        onCancelFallbackWait={vi.fn()}
       />,
     );
 
@@ -90,6 +91,7 @@ describe('EditorShell', () => {
         onIngestInput={onIngestInput}
         onDismissIngestNotice={vi.fn()}
         onOpenFile={vi.fn().mockResolvedValue(undefined)}
+        onCancelFallbackWait={vi.fn()}
       />,
     );
 
@@ -121,6 +123,7 @@ describe('EditorShell', () => {
         onIngestInput={onIngestInput}
         onDismissIngestNotice={vi.fn()}
         onOpenFile={vi.fn().mockResolvedValue(undefined)}
+        onCancelFallbackWait={vi.fn()}
       />,
     );
 
@@ -155,6 +158,7 @@ describe('EditorShell', () => {
         onIngestInput={onIngestInput}
         onDismissIngestNotice={vi.fn()}
         onOpenFile={vi.fn().mockResolvedValue(undefined)}
+        onCancelFallbackWait={vi.fn()}
       />,
     );
 
@@ -186,6 +190,7 @@ describe('EditorShell', () => {
         onIngestInput={onIngestInput}
         onDismissIngestNotice={vi.fn()}
         onOpenFile={vi.fn().mockResolvedValue(undefined)}
+        onCancelFallbackWait={vi.fn()}
       />,
     );
 
@@ -217,6 +222,7 @@ describe('EditorShell', () => {
         onIngestInput={onIngestInput}
         onDismissIngestNotice={vi.fn()}
         onOpenFile={vi.fn().mockResolvedValue(undefined)}
+        onCancelFallbackWait={vi.fn()}
       />,
     );
 
@@ -248,6 +254,7 @@ describe('EditorShell', () => {
         onIngestInput={onIngestInput}
         onDismissIngestNotice={vi.fn()}
         onOpenFile={vi.fn().mockResolvedValue(undefined)}
+        onCancelFallbackWait={vi.fn()}
       />,
     );
 
@@ -284,6 +291,7 @@ describe('EditorShell', () => {
         onIngestInput={vi.fn()}
         onDismissIngestNotice={vi.fn()}
         onOpenFile={vi.fn().mockResolvedValue(undefined)}
+        onCancelFallbackWait={vi.fn()}
       />,
     );
 
@@ -309,6 +317,7 @@ describe('EditorShell', () => {
         onIngestInput={vi.fn()}
         onDismissIngestNotice={onDismissIngestNotice}
         onOpenFile={vi.fn().mockResolvedValue(undefined)}
+        onCancelFallbackWait={vi.fn()}
       />,
     );
 
@@ -318,6 +327,8 @@ describe('EditorShell', () => {
   });
 
   it('renders fallback wait screen when fallback is running', () => {
+    const onCancelFallbackWait = vi.fn();
+
     render(
       <EditorShell
         paneMode="output"
@@ -339,6 +350,7 @@ describe('EditorShell', () => {
         onIngestInput={vi.fn()}
         onDismissIngestNotice={vi.fn()}
         onOpenFile={vi.fn().mockResolvedValue(undefined)}
+        onCancelFallbackWait={onCancelFallbackWait}
       />,
     );
 
@@ -347,6 +359,8 @@ describe('EditorShell', () => {
       /Malformed JSON\s*Calling Codex/,
     );
     expect(screen.getByTestId('fallback-wait-line')).toHaveTextContent('Generating output...');
+    fireEvent.click(screen.getByTestId('fallback-wait-cancel'));
+    expect(onCancelFallbackWait).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId('output-editor')).not.toBeInTheDocument();
   });
 });

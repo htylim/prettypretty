@@ -28,9 +28,9 @@ describe('fallbackProcessRegistry', () => {
     });
     const activeChild = createChild(2001);
     const removedChild = createChild(2002);
-    const unregisterRemovedChild = registry.track(removedChild);
+    const unregisterRemovedChild = registry.track(2, removedChild);
 
-    registry.track(activeChild);
+    registry.track(1, activeChild);
     unregisterRemovedChild();
 
     expect(registry.terminateAll()).toBe(1);
@@ -48,7 +48,7 @@ describe('fallbackProcessRegistry', () => {
       }),
     });
 
-    registry.track(child);
+    registry.track(3, child);
     registry.terminateAll();
 
     expect(child.killMock).toHaveBeenCalledWith('SIGKILL');
@@ -61,7 +61,7 @@ describe('fallbackProcessRegistry', () => {
       spawn,
     });
 
-    registry.track(createChild(3001));
+    registry.track(4, createChild(3001));
     registry.terminateAll();
 
     expect(spawn).toHaveBeenCalledWith('taskkill', ['/pid', '3001', '/T', '/F'], {
@@ -78,9 +78,28 @@ describe('fallbackProcessRegistry', () => {
       killProcess: vi.fn(),
     });
 
-    registry.track(child);
+    registry.track(5, child);
     registry.terminateAll();
 
     expect(child.killMock).toHaveBeenCalledWith('SIGKILL');
+  });
+
+  it('kills only the active child for the provided request id', () => {
+    const killProcess = vi.fn();
+    const onTerminate = vi.fn();
+    const registry = createFallbackProcessRegistry({
+      platform: 'darwin',
+      killProcess,
+    });
+    const firstChild = createChild(4001);
+    const secondChild = createChild(4002);
+
+    registry.track(11, firstChild, onTerminate);
+    registry.track(12, secondChild);
+
+    expect(registry.terminate(12)).toBe(true);
+    expect(killProcess).toHaveBeenCalledWith(-4002, 'SIGKILL');
+    expect(killProcess).not.toHaveBeenCalledWith(-4001, 'SIGKILL');
+    expect(onTerminate).not.toHaveBeenCalled();
   });
 });

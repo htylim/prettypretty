@@ -25,6 +25,7 @@ export type PrettifierService = {
     request: PrettifyRunRequest,
     options?: PrettifierRunOptions,
   ) => Promise<PrettifyRunResponse>;
+  cancel: (requestId: number) => boolean;
 };
 
 const summarizeFallbackResult = (
@@ -168,6 +169,7 @@ export const createPrettifierService = ({
       let fallbackResult: AgentFallbackExecutionResult;
       try {
         const fallbackExecutionInput = {
+          requestId: request.requestId,
           agent: fallbackAgent,
           prompt,
           inputText: request.inputText,
@@ -226,6 +228,14 @@ export const createPrettifierService = ({
       });
 
       return response;
+    },
+    cancel: (requestId) => {
+      const didCancel = fallbackExecutor.cancel(requestId);
+      logger.info('prettifier.fallback.cancel.requested', {
+        requestId,
+        didCancel,
+      });
+      return didCancel;
     },
   };
 };

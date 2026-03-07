@@ -15,6 +15,7 @@ export type FallbackStatus =
   | 'applied'
   | 'skipped-no-fallback'
   | 'skipped-invalid-agent'
+  | 'failed-canceled'
   | 'failed-not-installed'
   | 'failed-timeout'
   | 'failed-non-zero-exit'
@@ -34,6 +35,10 @@ export type PrettifyRunRequest = {
   indentSize: IndentSize;
   trigger: PrettifyTrigger;
   fallbackAgentIdOverride?: string;
+};
+
+export type PrettifyCancelRequest = {
+  requestId: number;
 };
 
 export type PrettifyRunResponse = {

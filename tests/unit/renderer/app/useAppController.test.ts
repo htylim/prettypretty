@@ -66,6 +66,7 @@ describe('useAppController', () => {
       outputText: '{\n  "hello": true\n}',
       isLlmRunning: false,
       fallbackWaitState: null,
+      cancelActiveFallback: vi.fn().mockResolvedValue(undefined),
       runPrettifier: vi.fn(),
       ingestInputText: vi.fn(),
       resetPrettifierState: vi.fn(),
@@ -127,6 +128,7 @@ describe('useAppController', () => {
         },
         prettifier: {
           run: vi.fn(),
+          cancel: vi.fn(),
           onProgress: vi.fn(),
         },
         telemetry: {
@@ -299,6 +301,7 @@ describe('useAppController', () => {
         agentName: 'Codex',
         progressLine: 'working...',
       },
+      cancelActiveFallback: vi.fn().mockResolvedValue(undefined),
       runPrettifier: vi.fn(),
       ingestInputText: vi.fn(),
       resetPrettifierState: vi.fn(),

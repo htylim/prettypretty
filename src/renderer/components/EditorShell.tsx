@@ -33,6 +33,7 @@ type EditorShellProps = {
   onIngestInput: (value: string, source: 'open-file' | 'drop' | 'paste') => void;
   onDismissIngestNotice: () => void;
   onOpenFile: () => Promise<void>;
+  onCancelFallbackWait: () => void;
 };
 
 export const EditorShell = ({
@@ -50,6 +51,7 @@ export const EditorShell = ({
   onIngestInput,
   onDismissIngestNotice,
   onOpenFile,
+  onCancelFallbackWait,
 }: EditorShellProps) => {
   const hasContent = inputText.trim().length > 0;
   const fallbackWaitMessage = fallbackWaitState ? (
@@ -120,6 +122,14 @@ export const EditorShell = ({
           <p className="fallback-wait-line" data-testid="fallback-wait-line">
             {fallbackProgressLine}
           </p>
+          <button
+            className="btn fallback-wait-cancel"
+            data-testid="fallback-wait-cancel"
+            onClick={onCancelFallbackWait}
+            type="button"
+          >
+            CANCEL
+          </button>
         </div>
       ) : !hasContent ? (
         <div className="empty-state">

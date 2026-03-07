@@ -54,6 +54,7 @@ export const App = () => {
           onIngestInput={controller.onIngestInput}
           onDismissIngestNotice={controller.onDismissIngestNotice}
           onOpenFile={controller.onOpenFile}
+          onCancelFallbackWait={() => void controller.onCancelActiveFallback()}
         />
       </div>
 

@@ -66,6 +66,7 @@ const api: WindowApi = {
   },
   prettifier: {
     run: (request) => ipcRenderer.invoke(IPCChannels.prettifierRun, request),
+    cancel: (request) => ipcRenderer.invoke(IPCChannels.prettifierCancel, request),
     onProgress: (listener) => {
       const wrappedListener = (
         _event: Electron.IpcRendererEvent,

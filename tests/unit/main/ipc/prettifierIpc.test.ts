@@ -55,6 +55,7 @@ describe('registerIpcHandlers prettifier channels', () => {
   };
   const prettifierService = {
     run: vi.fn(),
+    cancel: vi.fn(),
   };
   const logStore = {
     getSnapshot: vi.fn().mockReturnValue(['{"event":"app.bootstrap.start"}']),
@@ -80,6 +81,7 @@ describe('registerIpcHandlers prettifier channels', () => {
       agentId: null,
       durationMs: 5,
     });
+    prettifierService.cancel.mockReset().mockReturnValue(true);
     logStore.getSnapshot.mockClear();
     logger.isVerboseEnabled.mockReset();
     logger.info.mockReset();
@@ -99,6 +101,7 @@ describe('registerIpcHandlers prettifier channels', () => {
     const channels = handleMock.mock.calls.map(([channel]) => channel);
 
     expect(channels).toContain(IPCChannels.prettifierRun);
+    expect(channels).toContain(IPCChannels.prettifierCancel);
     expect(channels).toContain(IPCChannels.telemetryLogEvent);
     expect(channels).toContain(IPCChannels.logsGetHistory);
     expect(channels).toContain(IPCChannels.appOpenWindow);
@@ -203,6 +206,24 @@ describe('registerIpcHandlers prettifier channels', () => {
       requestId: 9,
       line: 'thinking step',
     });
+  });
+
+  it('forwards valid prettifier cancel requests to service', async () => {
+    const cancelHandler = getRegisteredHandler(IPCChannels.prettifierCancel);
+
+    const result = await cancelHandler({}, { requestId: 14 });
+
+    expect(prettifierService.cancel).toHaveBeenCalledWith(14);
+    expect(result).toBe(true);
+  });
+
+  it('rejects invalid prettifier cancel payloads', async () => {
+    const cancelHandler = getRegisteredHandler(IPCChannels.prettifierCancel);
+
+    await expect(cancelHandler({}, { requestId: 0 })).rejects.toThrow(
+      'Invalid prettifier cancel payload',
+    );
+    expect(prettifierService.cancel).not.toHaveBeenCalled();
   });
 
   it('logs valid telemetry events', async () => {

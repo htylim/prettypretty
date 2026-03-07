@@ -127,6 +127,7 @@ vi.mock('../../../src/main/prettifier/fallbackProcessRegistry', () => {
     createFallbackProcessRegistry: vi.fn(() => {
       return {
         track: vi.fn(),
+        terminate: vi.fn(),
         terminateAll: terminateAllFallbackProcessesMock,
       };
     }),

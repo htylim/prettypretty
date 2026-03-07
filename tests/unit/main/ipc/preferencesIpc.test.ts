@@ -86,6 +86,7 @@ describe('registerIpcHandlers preferences channels', () => {
   };
   const prettifierService = {
     run: vi.fn(),
+    cancel: vi.fn(),
   };
   const logStore = {
     getSnapshot: vi.fn().mockReturnValue(['{"event":"app.bootstrap.start"}']),
@@ -104,6 +105,7 @@ describe('registerIpcHandlers preferences channels', () => {
     preferencesService.update.mockReset().mockResolvedValue(preferences);
     preferencesService.reset.mockReset().mockResolvedValue(defaults);
     prettifierService.run.mockReset();
+    prettifierService.cancel.mockReset();
     logStore.getSnapshot.mockClear();
     logger.isVerboseEnabled.mockReset();
     logger.info.mockReset();

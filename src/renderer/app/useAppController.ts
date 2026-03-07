@@ -44,6 +44,7 @@ export type UseAppControllerResult = {
   fallbackAgentId: string | null;
   fallbackAgentOptions: FallbackAgentOption[];
   hasContent: boolean;
+  onCancelActiveFallback: () => Promise<void>;
   onNew: () => void;
   onPaneModeChange: (mode: PaneMode) => void;
   onCollapseAll: () => void;
@@ -169,6 +170,7 @@ export const useAppController = ({
     outputText,
     isLlmRunning,
     fallbackWaitState,
+    cancelActiveFallback,
     runPrettifier,
     ingestInputText,
     resetPrettifierState,
@@ -418,6 +420,7 @@ export const useAppController = ({
     fallbackAgentId,
     fallbackAgentOptions,
     hasContent,
+    onCancelActiveFallback: cancelActiveFallback,
     onNew: openNewWindow,
     onPaneModeChange: handlePaneModeChange,
     onCollapseAll: collapseActiveEditor,

@@ -410,6 +410,12 @@ body {
   animation: fallback-fade-up 500ms ease-out 220ms both;
 }
 
+.fallback-wait-cancel {
+  margin-top: 28px;
+  border-color: var(--line);
+  animation: fallback-fade-up 500ms ease-out 320ms both;
+}
+
 .confirmation-modal-overlay {
   position: fixed;
   inset: 0;

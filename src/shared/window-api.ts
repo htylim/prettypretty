@@ -1,5 +1,6 @@
 import type { AppInfo, OpenFileResult, SaveFileResult } from './ipc-contracts';
 import type {
+  PrettifyCancelRequest,
   PrettifierProgressEvent,
   PrettifyRunRequest,
   PrettifyRunResponse,
@@ -35,6 +36,7 @@ export interface WindowApi {
   };
   prettifier: {
     run: (request: PrettifyRunRequest) => Promise<PrettifyRunResponse>;
+    cancel: (request: PrettifyCancelRequest) => Promise<boolean>;
     onProgress: (listener: (event: PrettifierProgressEvent) => void) => () => void;
   };
   telemetry: {

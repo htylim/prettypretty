@@ -1,4 +1,8 @@
-import type { PrettifyRunRequest, PrettifyTrigger } from '../../shared/prettifier';
+import type {
+  PrettifyCancelRequest,
+  PrettifyRunRequest,
+  PrettifyTrigger,
+} from '../../shared/prettifier';
 import { isIndentSize } from '../preferences/preferencesTypes';
 
 const PRETTIFY_TRIGGERS: Set<PrettifyTrigger> = new Set([
@@ -35,4 +39,12 @@ export const isPrettifyRunRequest = (value: unknown): value is PrettifyRunReques
     (value.fallbackAgentIdOverride === undefined ||
       typeof value.fallbackAgentIdOverride === 'string')
   );
+};
+
+export const isPrettifyCancelRequest = (value: unknown): value is PrettifyCancelRequest => {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  return isRequestId(value.requestId);
 };

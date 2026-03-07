@@ -13,6 +13,7 @@ const preferencesGetAllMock = vi.fn();
 const preferencesUpdateMock = vi.fn();
 const preferencesResetMock = vi.fn();
 const prettifierRunMock = vi.fn();
+const prettifierCancelMock = vi.fn();
 const prettifierOnProgressMock = vi.fn();
 const telemetryLogMock = vi.fn();
 const openWindowMock = vi.fn();
@@ -151,6 +152,7 @@ beforeEach(() => {
   preferencesUpdateMock.mockReset();
   preferencesResetMock.mockReset();
   prettifierRunMock.mockReset();
+  prettifierCancelMock.mockReset().mockResolvedValue(true);
   prettifierOnProgressMock.mockReset();
   telemetryLogMock.mockReset();
   openWindowMock.mockReset().mockResolvedValue(undefined);
@@ -214,6 +216,7 @@ beforeEach(() => {
       },
       prettifier: {
         run: prettifierRunMock,
+        cancel: prettifierCancelMock,
         onProgress: prettifierOnProgressMock,
       },
       telemetry: {
@@ -575,6 +578,40 @@ describe('App', () => {
 
     await waitFor(() => {
       expect(screen.queryByTestId('fallback-wait-screen')).not.toBeInTheDocument();
+    });
+  });
+
+  it('cancels the active fallback request from the wait screen', async () => {
+    const user = userEvent.setup();
+    const deferredRun = createDeferred<PrettifyRunResponse>();
+    prettifierRunMock.mockReturnValue(deferredRun.promise);
+
+    act(() => {
+      useUiStore.setState({
+        paneMode: 'input',
+        inputText: '{bad',
+        ingestNotice: null,
+      });
+    });
+
+    await renderApp();
+    await user.click(screen.getByTestId('pane-segment-output'));
+    expect(await screen.findByTestId('fallback-wait-screen')).toBeInTheDocument();
+
+    const request = prettifierRunMock.mock.calls[0]?.[0] as { requestId: number };
+    await user.click(screen.getByTestId('fallback-wait-cancel'));
+
+    expect(prettifierCancelMock).toHaveBeenCalledWith({ requestId: request.requestId });
+    await waitFor(() => {
+      expect(screen.queryByTestId('fallback-wait-screen')).not.toBeInTheDocument();
+    });
+    expect(screen.getByTestId('pane-segment-input')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('input-editor')).toHaveValue('{bad');
+
+    deferredRun.resolve(createPrettifierResponse({ fallbackStatus: 'failed-canceled' }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('input-editor')).toHaveValue('{bad');
     });
   });
 

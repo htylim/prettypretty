@@ -9,6 +9,7 @@ type ExecutorStatus = Exclude<
 >;
 
 export type AgentFallbackExecutionInput = {
+  requestId: number;
   agent: AgentConfig;
   prompt: string;
   inputText: string;
@@ -27,7 +28,7 @@ type ExecutorDependencies = {
   spawn?: SpawnProcessLike;
   now?: () => number;
   platform?: NodeJS.Platform;
-  processRegistry?: Pick<FallbackProcessRegistry, 'track'>;
+  processRegistry?: Pick<FallbackProcessRegistry, 'track' | 'terminate'>;
 };
 
 type SpawnedProcess = {
@@ -86,6 +87,7 @@ const extractLastProgressLine = (chunkText: string): string | null => {
 
 export type AgentFallbackExecutor = {
   execute: (input: AgentFallbackExecutionInput) => Promise<AgentFallbackExecutionResult>;
+  cancel: (requestId: number) => boolean;
 };
 
 export const createAgentFallbackExecutor = (
@@ -101,13 +103,14 @@ export const createAgentFallbackExecutor = (
   const processRegistry = dependencies.processRegistry;
 
   return {
-    execute: async ({ agent, prompt, onProgressLine }) => {
+    execute: async ({ requestId, agent, prompt, onProgressLine }) => {
       const startedAt = now();
       const args =
         agent.promptDelivery === 'arg' ? [...agent.argsTemplate, prompt] : [...agent.argsTemplate];
 
       return await new Promise<AgentFallbackExecutionResult>((resolve) => {
         let finished = false;
+        let canceled = false;
         let timedOut = false;
         let outputTooLarge = false;
         let stdoutLength = 0;
@@ -142,7 +145,9 @@ export const createAgentFallbackExecutor = (
           shell: false,
           stdio: 'pipe',
         });
-        let unregisterChild = processRegistry?.track(child);
+        let unregisterChild = processRegistry?.track(requestId, child, () => {
+          canceled = true;
+        });
 
         const cleanupChildTracking = (): void => {
           unregisterChild?.();
@@ -214,6 +219,11 @@ export const createAgentFallbackExecutor = (
           lastExitCode = code;
           cleanupChildTracking();
 
+          if (canceled) {
+            finish('failed-canceled', null, lastExitCode);
+            return;
+          }
+
           if (timedOut) {
             finish('failed-timeout', null, lastExitCode);
             return;
@@ -245,6 +255,9 @@ export const createAgentFallbackExecutor = (
           finish('applied', outputText, lastExitCode);
         });
       });
+    },
+    cancel: (requestId) => {
+      return processRegistry?.terminate(requestId) ?? false;
     },
   };
 };

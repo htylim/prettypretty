@@ -7,12 +7,12 @@ import type { SessionLogStore } from '../logging/sessionLogStore';
 import { isTelemetryEvent } from '../logging/telemetryTypes';
 import { isPreferencesPatch } from '../preferences/preferencesTypes';
 import type { PrettifierService } from '../prettifier/prettifierService';
-import { isPrettifyRunRequest } from '../prettifier/prettifierTypes';
+import { isPrettifyCancelRequest, isPrettifyRunRequest } from '../prettifier/prettifierTypes';
 import type { PreferencesService } from '../preferences/preferencesService';
 
 type IpcDependencies = {
   preferencesService: Pick<PreferencesService, 'getAll' | 'update' | 'reset'>;
-  prettifierService: Pick<PrettifierService, 'run'>;
+  prettifierService: Pick<PrettifierService, 'run' | 'cancel'>;
   logger: Logger;
   logStore: Pick<SessionLogStore, 'getSnapshot'>;
   onOpenWindow: () => Promise<void>;
@@ -181,6 +181,17 @@ export const registerIpcHandlers = ({
         });
       },
     });
+  });
+
+  ipcMain.handle(IPCChannels.prettifierCancel, async (_event, request: unknown) => {
+    if (!isPrettifyCancelRequest(request)) {
+      logger.warn('ipc.validation.error', {
+        channel: IPCChannels.prettifierCancel,
+      });
+      throw new Error('Invalid prettifier cancel payload');
+    }
+
+    return prettifierService.cancel(request.requestId);
   });
 
   ipcMain.handle(IPCChannels.telemetryLogEvent, async (_event, event: unknown) => {

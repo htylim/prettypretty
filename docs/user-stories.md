@@ -17,3 +17,4 @@
 4. As a user, malformed or unsupported structured text is kept unchanged instead of failing.
 5. As a user, AI fallback prettification can be used only when local parsing cannot prettify, including a one-shot agent choice when no default fallback is configured.
 6. As a user, I can set one indentation preference and have both prettified output and editor indentation reflect that same value.
+7. As a user, I can cancel an in-flight AI fallback call from the wait screen so the agent process stops and I can keep editing input immediately.

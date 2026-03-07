@@ -18,6 +18,7 @@ describe('prettifierService', () => {
     };
     const fallbackExecutor = {
       execute: vi.fn(),
+      cancel: vi.fn().mockReturnValue(false),
     };
     const logger = createLogger();
     const service = createPrettifierService({
@@ -47,6 +48,7 @@ describe('prettifierService', () => {
     };
     const fallbackExecutor = {
       execute: vi.fn(),
+      cancel: vi.fn().mockReturnValue(false),
     };
     const logger = createLogger();
     const service = createPrettifierService({
@@ -78,6 +80,7 @@ describe('prettifierService', () => {
     };
     const fallbackExecutor = {
       execute: vi.fn(),
+      cancel: vi.fn().mockReturnValue(false),
     };
     const logger = createLogger();
     const service = createPrettifierService({
@@ -109,6 +112,7 @@ describe('prettifierService', () => {
     };
     const fallbackExecutor = {
       execute: vi.fn(),
+      cancel: vi.fn().mockReturnValue(false),
     };
     const logger = createLogger();
     const service = createPrettifierService({
@@ -149,6 +153,7 @@ describe('prettifierService', () => {
         stderrLength: 0,
         durationMs: 25,
       }),
+      cancel: vi.fn().mockReturnValue(false),
     };
     const logger = createLogger();
     const service = createPrettifierService({
@@ -189,6 +194,7 @@ describe('prettifierService', () => {
         stderrLength: 0,
         durationMs: 25,
       }),
+      cancel: vi.fn().mockReturnValue(false),
     };
     const logger = createLogger();
     const service = createPrettifierService({
@@ -235,6 +241,7 @@ describe('prettifierService', () => {
             durationMs: 25,
           };
         }),
+      cancel: vi.fn().mockReturnValue(false),
     };
     const logger = createLogger();
     const service = createPrettifierService({
@@ -273,6 +280,7 @@ describe('prettifierService', () => {
         stderrLength: 0,
         durationMs: 30_000,
       }),
+      cancel: vi.fn().mockReturnValue(false),
     };
     const logger = createLogger();
     const service = createPrettifierService({
@@ -294,5 +302,20 @@ describe('prettifierService', () => {
       outputText: '{bad',
       agentId: 'codex',
     });
+  });
+
+  it('forwards request-scoped cancellation to the fallback executor', () => {
+    const fallbackExecutor = {
+      execute: vi.fn(),
+      cancel: vi.fn().mockReturnValue(true),
+    };
+    const service = createPrettifierService({
+      preferencesService: { getAll: vi.fn().mockResolvedValue(createDefaultPreferences()) },
+      logger: createLogger(),
+      fallbackExecutor,
+    });
+
+    expect(service.cancel(9)).toBe(true);
+    expect(fallbackExecutor.cancel).toHaveBeenCalledWith(9);
   });
 });
