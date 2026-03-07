@@ -1,2 +1,1 @@
 - CMD+N hacerlo multi-ventana asi puedo hacer cmd+n y abrir una nueva ventana y tener multiples snippets.
-- agregar como posible documento JSONS new-line delimited (existen? son los de UNLOAD de lakehero)

@@ -30,7 +30,11 @@ const loadPreloadApi = async () => {
   vi.resetModules();
   await import('../../../src/preload/index');
   const exposedApi = exposeInMainWorldMock.mock.calls[0]?.[1] as {
-    app: { initialThemeMode: string | null };
+    app: {
+      initialThemeMode: string | null;
+      openWindow: () => Promise<void>;
+      onResetCurrentWindow: (listener: () => void) => () => void;
+    };
     logs: { onLine: (listener: (line: string) => void) => () => void };
     prettifier: {
       onProgress: (listener: (event: { requestId: number; line: string }) => void) => () => void;
@@ -67,6 +71,29 @@ describe('preload bridge', () => {
     const api = await loadPreloadApi();
 
     expect(api.app.initialThemeMode).toBeNull();
+  });
+
+  it('invokes app.openWindow through ipcRenderer', async () => {
+    const api = await loadPreloadApi();
+
+    await api.app.openWindow();
+
+    expect(invokeMock).toHaveBeenCalledWith('app:open-window');
+  });
+
+  it('wires app.onResetCurrentWindow subscription and cleanup through ipcRenderer', async () => {
+    const api = await loadPreloadApi();
+    const resetListener = vi.fn();
+
+    const unsubscribe = api.app.onResetCurrentWindow(resetListener);
+    const wrappedListener = onMock.mock.calls[0]?.[1] as (() => void) | undefined;
+    wrappedListener?.();
+
+    expect(onMock).toHaveBeenCalledWith('app:reset-current-window', expect.any(Function));
+    expect(resetListener).toHaveBeenCalledTimes(1);
+
+    unsubscribe();
+    expect(removeListenerMock).toHaveBeenCalledWith('app:reset-current-window', wrappedListener);
   });
 
   it('wires logs.onLine subscription and cleanup through ipcRenderer', async () => {

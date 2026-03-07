@@ -224,10 +224,31 @@ export const useAppController = ({
     await api.clipboard.copy(outputText);
   }, [outputText]);
 
-  const handleNew = useCallback((): void => {
+  const resetCurrentWindow = useCallback((): void => {
+    if (fallbackConfirmationResolverRef.current) {
+      fallbackConfirmationResolverRef.current(false);
+      fallbackConfirmationResolverRef.current = null;
+    }
+    if (fallbackAgentSelectionResolverRef.current) {
+      fallbackAgentSelectionResolverRef.current(null);
+      fallbackAgentSelectionResolverRef.current = null;
+    }
+
+    setFallbackModalState(null);
     resetPrettifierState();
     reset();
   }, [reset, resetPrettifierState]);
+
+  const openNewWindow = useCallback((): void => {
+    const api = getWindowApi();
+    if (!api) {
+      return;
+    }
+
+    void api.app.openWindow().catch((error) => {
+      reportRendererError('Failed to open new window', error);
+    });
+  }, []);
 
   const persistIndentSize = useCallback(
     async (nextIndentSize: IndentSize): Promise<void> => {
@@ -358,11 +379,23 @@ export const useAppController = ({
     };
   }, []);
 
+  useEffect(() => {
+    const api = getWindowApi();
+    if (!api) {
+      return;
+    }
+
+    return api.app.onResetCurrentWindow(() => {
+      resetCurrentWindow();
+    });
+  }, [resetCurrentWindow]);
+
   useKeyboardShortcuts({
     isOutputMode,
     paneMode,
     hasContent,
-    handleNew,
+    openNewWindow,
+    resetCurrentWindow,
     handlePaneModeChange,
     saveOutput,
     copyOutput,
@@ -385,7 +418,7 @@ export const useAppController = ({
     fallbackAgentId,
     fallbackAgentOptions,
     hasContent,
-    onNew: handleNew,
+    onNew: openNewWindow,
     onPaneModeChange: handlePaneModeChange,
     onCollapseAll: collapseActiveEditor,
     onExpandAll: expandActiveEditor,

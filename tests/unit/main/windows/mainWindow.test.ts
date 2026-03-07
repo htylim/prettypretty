@@ -50,8 +50,9 @@ describe('createMainWindow', () => {
   });
 
   it('creates a secure window and loads file renderer entry by default', async () => {
-    const { createMainWindow } = await import('../../../../src/main/windows/mainWindow');
-    await createMainWindow('dark');
+    const { createMainWindow, isMainWindow } =
+      await import('../../../../src/main/windows/mainWindow');
+    const mainWindow = await createMainWindow('dark');
 
     const windowOptions = browserWindowConstructorMock.mock.calls[0]?.[0] as {
       backgroundColor: string;
@@ -76,6 +77,7 @@ describe('createMainWindow', () => {
     }
     expect(loadFileMock).toHaveBeenCalledTimes(1);
     expect(loadURLMock).not.toHaveBeenCalled();
+    expect(isMainWindow(mainWindow)).toBe(true);
   });
 
   it('loads ELECTRON_RENDERER_URL when provided', async () => {

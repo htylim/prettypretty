@@ -27,14 +27,15 @@
 ## Runtime Flow
 
 1. App starts in `src/main/index.ts`.
-2. Main process sets explicit app menu labels via `src/main/menu/applicationMenu.ts` using fixed app naming (`prettypretty`) to avoid macOS dev menu fallback label `Electron`, and exposes `Preferences...` in the macOS app menu to open `<userData>/preferences.json` in the OS default editor.
-3. Main process initializes `PreferencesStore` + `PreferencesService` using `app.getPath('userData')/preferences.json`.
-4. Main process resolves persisted preferences before window creation and passes `themeMode` into `BrowserWindow` (`backgroundColor` + `additionalArguments`) in `src/main/windows/mainWindow.ts`.
-5. Main window is created from `src/main/windows/mainWindow.ts` using the resolved initial theme for startup `backgroundColor`.
-6. Main window `close` event immediately calls `app.exit(0)` so app lifetime is tied to main window lifetime (including macOS `Cmd+W`).
-7. Preload script exposes `window.prettypretty`.
-8. Renderer calls preload APIs for open/save/copy/info/preferences/prettifier/telemetry.
-9. Main process handles IPC, prettifier orchestration, and other side effects.
+2. Main process initializes `PreferencesStore` + `PreferencesService` using `app.getPath('userData')/preferences.json`.
+3. Main process configures an explicit application menu via `src/main/menu/applicationMenu.ts` using fixed app naming (`prettypretty`) to avoid macOS dev menu fallback label `Electron`, exposes `Preferences...` in the macOS app menu, and routes `New Window` / `Reset Window` commands through main-process callbacks.
+4. Main process resolves persisted preferences each time a document window is created and passes `themeMode` into `BrowserWindow` (`backgroundColor` + `additionalArguments`) in `src/main/windows/mainWindow.ts`.
+5. Startup creates one document window; later document windows can be created from the File menu or renderer IPC without reusing renderer state from an existing window.
+6. Main process identifies document windows separately from the optional log window and can send focused-window reset events only to document renderers.
+7. Preload script exposes `window.prettypretty`, including window-creation and reset-subscription APIs.
+8. Renderer calls preload APIs for open/save/copy/window/info/preferences/prettifier/telemetry.
+9. Main-process IPC handlers parent open/save dialogs to the invoking `BrowserWindow` so multi-window dialog ownership stays scoped correctly.
+10. App lifetime is tied to Electron's `window-all-closed` event: closing a non-last window only removes that window, and closing the final remaining window exits the app.
 
 ## Preferences Data Flow
 
@@ -61,6 +62,7 @@
 - Renderer has no direct Node access.
 - IPC channels are explicit and typed.
 - Main-process IPC handlers validate payloads at the boundary (including primitive channels such as save/copy text) and reject invalid payloads with `ipc.validation.error` telemetry.
+- Renderer-side window commands (`app:open-window`) and main-to-renderer reset signals (`app:reset-current-window`) stay inside the preload bridge; renderer code still has no direct Electron access.
 
 ## Logging
 

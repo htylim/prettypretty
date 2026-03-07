@@ -130,6 +130,13 @@ const PrettifierHarness = forwardRef<HarnessHandle, HarnessProps>(
 
 PrettifierHarness.displayName = 'PrettifierHarness';
 
+const createAppApi = () => ({
+  getInfo: vi.fn(),
+  openWindow: vi.fn(),
+  onResetCurrentWindow: vi.fn().mockImplementation(() => vi.fn()),
+  initialThemeMode: null,
+});
+
 describe('usePrettifierFlow', () => {
   it('applies local prettifier result and switches to output on ingestion', async () => {
     const getAll = vi.fn().mockResolvedValue(createPreferences());
@@ -140,7 +147,7 @@ describe('usePrettifierFlow', () => {
       dialog: { openFile: vi.fn() },
       file: { save: vi.fn() },
       clipboard: { copy: vi.fn() },
-      app: { getInfo: vi.fn(), initialThemeMode: null },
+      app: createAppApi(),
       logs: { getHistory: vi.fn(), onLine: vi.fn() },
       preferences: { getAll, update: vi.fn(), reset: vi.fn() },
       prettifier: { run, onProgress },
@@ -178,7 +185,7 @@ describe('usePrettifierFlow', () => {
       dialog: { openFile: vi.fn() },
       file: { save: vi.fn() },
       clipboard: { copy: vi.fn() },
-      app: { getInfo: vi.fn(), initialThemeMode: null },
+      app: createAppApi(),
       logs: { getHistory: vi.fn(), onLine: vi.fn() },
       preferences: { getAll, update: vi.fn(), reset: vi.fn() },
       prettifier: { run, onProgress },
@@ -226,7 +233,7 @@ describe('usePrettifierFlow', () => {
       dialog: { openFile: vi.fn() },
       file: { save: vi.fn() },
       clipboard: { copy: vi.fn() },
-      app: { getInfo: vi.fn(), initialThemeMode: null },
+      app: createAppApi(),
       logs: { getHistory: vi.fn(), onLine: vi.fn() },
       preferences: { getAll, update: vi.fn(), reset: vi.fn() },
       prettifier: { run, onProgress },
@@ -292,7 +299,7 @@ describe('usePrettifierFlow', () => {
       dialog: { openFile: vi.fn() },
       file: { save: vi.fn() },
       clipboard: { copy: vi.fn() },
-      app: { getInfo: vi.fn(), initialThemeMode: null },
+      app: createAppApi(),
       logs: { getHistory: vi.fn(), onLine: vi.fn() },
       preferences: {
         getAll: vi.fn().mockResolvedValue(createPreferences()),
@@ -338,7 +345,7 @@ describe('usePrettifierFlow', () => {
       dialog: { openFile: vi.fn() },
       file: { save: vi.fn() },
       clipboard: { copy: vi.fn() },
-      app: { getInfo: vi.fn(), initialThemeMode: null },
+      app: createAppApi(),
       logs: { getHistory: vi.fn(), onLine: vi.fn() },
       preferences: {
         getAll: vi.fn().mockResolvedValue(createPreferences()),
@@ -386,7 +393,7 @@ describe('usePrettifierFlow', () => {
       dialog: { openFile: vi.fn() },
       file: { save: vi.fn() },
       clipboard: { copy: vi.fn() },
-      app: { getInfo: vi.fn(), initialThemeMode: null },
+      app: createAppApi(),
       logs: { getHistory: vi.fn(), onLine: vi.fn() },
       preferences: {
         getAll: vi.fn().mockResolvedValue(createPreferences()),
@@ -430,7 +437,7 @@ describe('usePrettifierFlow', () => {
       dialog: { openFile: vi.fn() },
       file: { save: vi.fn() },
       clipboard: { copy: vi.fn() },
-      app: { getInfo: vi.fn(), initialThemeMode: null },
+      app: createAppApi(),
       logs: { getHistory: vi.fn(), onLine: vi.fn() },
       preferences: {
         getAll: vi.fn().mockResolvedValue(createPreferences({ fallbackAgentId: null })),
@@ -484,7 +491,7 @@ describe('usePrettifierFlow', () => {
       dialog: { openFile: vi.fn() },
       file: { save: vi.fn() },
       clipboard: { copy: vi.fn() },
-      app: { getInfo: vi.fn(), initialThemeMode: null },
+      app: createAppApi(),
       logs: { getHistory: vi.fn(), onLine: vi.fn() },
       preferences: {
         getAll: vi.fn().mockResolvedValue(createPreferences({ fallbackAgentId: null })),

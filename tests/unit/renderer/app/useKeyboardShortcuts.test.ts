@@ -7,7 +7,8 @@ type HarnessProps = {
   isOutputMode: boolean;
   paneMode: 'input' | 'output';
   hasContent: boolean;
-  handleNew: () => void;
+  openNewWindow: () => void;
+  resetCurrentWindow: () => void;
   handlePaneModeChange: (nextMode: 'input' | 'output') => void;
   saveOutput: () => Promise<void>;
   copyOutput: () => Promise<void>;
@@ -23,7 +24,8 @@ const createDefaults = () => ({
   isOutputMode: false,
   paneMode: 'input' as const,
   hasContent: false,
-  handleNew: vi.fn(),
+  openNewWindow: vi.fn(),
+  resetCurrentWindow: vi.fn(),
   handlePaneModeChange: vi.fn(),
   saveOutput: vi.fn().mockResolvedValue(undefined),
   copyOutput: vi.fn().mockResolvedValue(undefined),
@@ -64,7 +66,7 @@ describe('useKeyboardShortcuts', () => {
     expect(defaults.handlePaneModeChange).toHaveBeenCalledWith('output');
   });
 
-  it('handles Cmd+N/Cmd+S/Cmd+F with mode and modifier guards', () => {
+  it('handles Cmd+N/Cmd+Shift+N/Cmd+S/Cmd+F with mode and modifier guards', () => {
     const defaults = createDefaults();
     render(
       createElement(KeyboardHarness, {
@@ -76,11 +78,13 @@ describe('useKeyboardShortcuts', () => {
     );
 
     fireEvent.keyDown(window, { key: 'n', metaKey: true });
+    fireEvent.keyDown(window, { key: 'n', metaKey: true, shiftKey: true });
     fireEvent.keyDown(window, { key: 's', metaKey: true });
     fireEvent.keyDown(window, { key: 'f', metaKey: true });
     fireEvent.keyDown(window, { key: 's', metaKey: true, ctrlKey: true });
 
-    expect(defaults.handleNew).toHaveBeenCalledTimes(1);
+    expect(defaults.openNewWindow).toHaveBeenCalledTimes(1);
+    expect(defaults.resetCurrentWindow).toHaveBeenCalledTimes(1);
     expect(defaults.saveOutput).toHaveBeenCalledTimes(1);
     expect(defaults.openFind).toHaveBeenCalledTimes(1);
   });

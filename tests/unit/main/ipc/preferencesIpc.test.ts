@@ -8,6 +8,8 @@ import { registerIpcHandlers } from '../../../../src/main/ipc';
 
 const {
   handleMock,
+  fromWebContentsMock,
+  parentWindow,
   readFileMock,
   writeFileMock,
   writeTextMock,
@@ -16,6 +18,8 @@ const {
 } = vi.hoisted(() => {
   return {
     handleMock: vi.fn(),
+    fromWebContentsMock: vi.fn(),
+    parentWindow: { id: 99 },
     readFileMock: vi.fn(),
     writeFileMock: vi.fn(),
     writeTextMock: vi.fn(),
@@ -26,6 +30,9 @@ const {
 
 vi.mock('electron', () => {
   return {
+    BrowserWindow: {
+      fromWebContents: fromWebContentsMock,
+    },
     app: {
       getName: vi.fn().mockReturnValue('prettypretty'),
       getVersion: vi.fn().mockReturnValue('0.1.0'),
@@ -83,6 +90,7 @@ describe('registerIpcHandlers preferences channels', () => {
   const logStore = {
     getSnapshot: vi.fn().mockReturnValue(['{"event":"app.bootstrap.start"}']),
   };
+  const onOpenWindow = vi.fn().mockResolvedValue(undefined);
   const logger = {
     isVerboseEnabled: vi.fn(),
     info: vi.fn(),
@@ -106,8 +114,9 @@ describe('registerIpcHandlers preferences channels', () => {
     writeFileMock.mockReset();
     showOpenDialogMock.mockReset();
     showSaveDialogMock.mockReset();
+    fromWebContentsMock.mockReset().mockReturnValue(parentWindow);
 
-    registerIpcHandlers({ preferencesService, prettifierService, logger, logStore });
+    registerIpcHandlers({ preferencesService, prettifierService, logger, logStore, onOpenWindow });
   });
 
   it('registers preferences handlers', () => {
@@ -149,6 +158,10 @@ describe('registerIpcHandlers preferences channels', () => {
     const result = await openFileHandler({});
 
     expect(showOpenDialogMock).toHaveBeenCalledTimes(1);
+    expect(showOpenDialogMock).toHaveBeenCalledWith(
+      parentWindow,
+      expect.objectContaining({ title: 'Open file' }),
+    );
     expect(readFileMock).toHaveBeenCalledWith('/tmp/sample.json', 'utf8');
     expect(result).toEqual({ path: '/tmp/sample.json', content: '{"a":1}' });
     expect(logger.info).toHaveBeenCalledWith('ingest.open-file', {
@@ -181,6 +194,10 @@ describe('registerIpcHandlers preferences channels', () => {
     const result = await fileSaveHandler({}, '{"saved":true}');
 
     expect(showSaveDialogMock).toHaveBeenCalledTimes(1);
+    expect(showSaveDialogMock).toHaveBeenCalledWith(
+      parentWindow,
+      expect.objectContaining({ title: 'Save prettified text' }),
+    );
     expect(writeFileMock).toHaveBeenCalledWith('/tmp/prettified.json', '{"saved":true}', 'utf8');
     expect(result).toEqual({ path: '/tmp/prettified.json' });
   });

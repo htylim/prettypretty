@@ -9,6 +9,7 @@ const appIconPath = join(process.cwd(), 'build/icon.png');
 const mainWindowIcon =
   process.platform === 'darwin' || !existsSync(appIconPath) ? undefined : appIconPath;
 const INITIAL_THEME_MODE_ARG_PREFIX = '--prettypretty-theme-mode=';
+const mainWindows = new WeakSet<BrowserWindow>();
 
 const getMainWindowBackgroundColor = (themeMode: ThemeMode): string => {
   return themeMode === 'dark' ? '#121316' : '#f5f1eb';
@@ -36,6 +37,7 @@ export const createMainWindow = async (initialThemeMode: ThemeMode): Promise<Bro
   }
 
   const win = new BrowserWindow(windowOptions);
+  mainWindows.add(win);
 
   if (process.env.ELECTRON_RENDERER_URL) {
     await win.loadURL(process.env.ELECTRON_RENDERER_URL);
@@ -44,4 +46,8 @@ export const createMainWindow = async (initialThemeMode: ThemeMode): Promise<Bro
   }
 
   return win;
+};
+
+export const isMainWindow = (window: BrowserWindow): boolean => {
+  return mainWindows.has(window);
 };

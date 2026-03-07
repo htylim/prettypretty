@@ -4,14 +4,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { registerIpcHandlers } from '../../../../src/main/ipc';
 import { IPCChannels } from '../../../../src/shared/ipc-contracts';
 
-const { handleMock } = vi.hoisted(() => {
+const { handleMock, parentWindow } = vi.hoisted(() => {
   return {
     handleMock: vi.fn(),
+    parentWindow: { id: 1 },
   };
 });
 
 vi.mock('electron', () => {
   return {
+    BrowserWindow: {
+      fromWebContents: vi.fn().mockReturnValue(parentWindow),
+    },
     app: {
       getName: vi.fn().mockReturnValue('prettypretty'),
       getVersion: vi.fn().mockReturnValue('0.1.0'),
@@ -55,6 +59,7 @@ describe('registerIpcHandlers prettifier channels', () => {
   const logStore = {
     getSnapshot: vi.fn().mockReturnValue(['{"event":"app.bootstrap.start"}']),
   };
+  const onOpenWindow = vi.fn().mockResolvedValue(undefined);
   const logger = {
     isVerboseEnabled: vi.fn(),
     info: vi.fn(),
@@ -86,6 +91,7 @@ describe('registerIpcHandlers prettifier channels', () => {
       prettifierService,
       logger,
       logStore,
+      onOpenWindow,
     });
   });
 
@@ -95,6 +101,15 @@ describe('registerIpcHandlers prettifier channels', () => {
     expect(channels).toContain(IPCChannels.prettifierRun);
     expect(channels).toContain(IPCChannels.telemetryLogEvent);
     expect(channels).toContain(IPCChannels.logsGetHistory);
+    expect(channels).toContain(IPCChannels.appOpenWindow);
+  });
+
+  it('opens a new window through the app IPC channel', async () => {
+    const openWindowHandler = getRegisteredHandler(IPCChannels.appOpenWindow);
+
+    await openWindowHandler({});
+
+    expect(onOpenWindow).toHaveBeenCalledTimes(1);
   });
 
   it('returns session log history', async () => {

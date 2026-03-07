@@ -84,7 +84,7 @@ test('supports ingest parity for drop and paste', async () => {
   await dispatchDrop(page, '{"via":"drop"}');
   await expect(page.getByTestId('output-editor')).toContainText('"via": "drop"');
 
-  await page.getByRole('button', { name: 'New' }).click();
+  await page.keyboard.press('Meta+Shift+N');
   await expect(page.getByTestId('empty-state-cta')).toBeVisible();
   await dispatchPaste(page, '{"via":"paste"}');
   await expect(page.getByTestId('output-editor')).toContainText('"via": "paste"');

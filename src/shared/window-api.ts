@@ -20,6 +20,8 @@ export interface WindowApi {
   };
   app: {
     getInfo: () => Promise<AppInfo>;
+    openWindow: () => Promise<void>;
+    onResetCurrentWindow: (listener: () => void) => () => void;
     initialThemeMode: ThemeMode | null;
   };
   logs: {

@@ -10,6 +10,14 @@ import { useAppController } from '../../../../src/renderer/app/useAppController'
 const usePrettifierFlowMock = vi.fn();
 const usePreferencesFlowMock = vi.fn();
 const useKeyboardShortcutsMock = vi.fn();
+const openWindowMock = vi.fn();
+const dialogOpenFileMock = vi.fn();
+const fileSaveMock = vi.fn();
+const clipboardCopyMock = vi.fn();
+const preferencesUpdateMock = vi.fn();
+const telemetryLogMock = vi.fn();
+let onResetCurrentWindowListener: (() => void) | null = null;
+let resetCurrentWindowUnsubscribeMock: ReturnType<typeof vi.fn>;
 
 vi.mock('../../../../src/renderer/app/usePrettifierFlow', () => ({
   usePrettifierFlow: (options: unknown) => usePrettifierFlowMock(options),
@@ -73,6 +81,58 @@ describe('useAppController', () => {
       fallbackWarningLineThreshold: 300,
       persistThemeMode: vi.fn().mockResolvedValue(undefined),
       persistFallbackAgentId: vi.fn().mockResolvedValue(undefined),
+    });
+    openWindowMock.mockReset().mockResolvedValue(undefined);
+    dialogOpenFileMock.mockReset().mockResolvedValue(null);
+    fileSaveMock.mockReset().mockResolvedValue(null);
+    clipboardCopyMock.mockReset().mockResolvedValue(undefined);
+    preferencesUpdateMock
+      .mockReset()
+      .mockImplementation(async (patch: { indentSize?: number }) => ({
+        indentSize: patch.indentSize ?? 2,
+      }));
+    telemetryLogMock.mockReset().mockResolvedValue(undefined);
+    resetCurrentWindowUnsubscribeMock = vi.fn();
+    onResetCurrentWindowListener = null;
+
+    Object.defineProperty(window, 'prettypretty', {
+      configurable: true,
+      value: {
+        dialog: {
+          openFile: dialogOpenFileMock,
+        },
+        file: {
+          save: fileSaveMock,
+        },
+        clipboard: {
+          copy: clipboardCopyMock,
+        },
+        app: {
+          getInfo: vi.fn(),
+          openWindow: openWindowMock,
+          onResetCurrentWindow: (listener: () => void) => {
+            onResetCurrentWindowListener = listener;
+            return resetCurrentWindowUnsubscribeMock;
+          },
+          initialThemeMode: null,
+        },
+        logs: {
+          getHistory: vi.fn(),
+          onLine: vi.fn(),
+        },
+        preferences: {
+          getAll: vi.fn(),
+          update: preferencesUpdateMock,
+          reset: vi.fn(),
+        },
+        prettifier: {
+          run: vi.fn(),
+          onProgress: vi.fn(),
+        },
+        telemetry: {
+          log: telemetryLogMock,
+        },
+      },
     });
 
     act(() => {
@@ -186,6 +246,49 @@ describe('useAppController', () => {
     expect(outputExpand).toHaveBeenCalledTimes(1);
   });
 
+  it('opens a new window via preload and resets only the current window on main-process signal', async () => {
+    const inputEditorRef: RefObject<InputEditorHandle | null> = {
+      current: {
+        collapseAll: vi.fn(),
+        expandAll: vi.fn(),
+      },
+    };
+    const outputEditorRef: RefObject<OutputEditorHandle | null> = {
+      current: {
+        collapseAll: vi.fn(),
+        expandAll: vi.fn(),
+        openFind: vi.fn(),
+      },
+    };
+    const ref = { current: null as HarnessHandle | null };
+
+    render(createElement(ControllerHarness, { inputEditorRef, outputEditorRef, ref }));
+
+    await act(async () => {
+      ref.current?.getController().onNew();
+      await Promise.resolve();
+    });
+
+    expect(openWindowMock).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      useUiStore.setState({
+        paneMode: 'output',
+        inputText: '{"stale":true}',
+        ingestNotice: 'stale',
+      });
+    });
+
+    act(() => {
+      onResetCurrentWindowListener?.();
+    });
+
+    expect(useUiStore.getState().paneMode).toBe('input');
+    expect(useUiStore.getState().inputText).toBe('');
+    expect(useUiStore.getState().ingestNotice).toBeNull();
+    expect(usePrettifierFlowMock.mock.results[0]?.value.resetPrettifierState).toHaveBeenCalled();
+  });
+
   it('blocks output mode switches while fallback execution is active', () => {
     usePrettifierFlowMock.mockReturnValueOnce({
       outputText: '',
@@ -263,11 +366,13 @@ describe('useAppController', () => {
       render(createElement(ControllerHarness, { inputEditorRef, outputEditorRef, ref }));
 
       await act(async () => {
+        ref.current?.getController().onNew();
         await ref.current?.getController().onSave();
         await ref.current?.getController().onCopy();
         await ref.current?.getController().onOpenFile();
       });
 
+      expect(openWindowMock).not.toHaveBeenCalled();
       expect(usePrettifierFlowMock.mock.results[0]?.value.ingestInputText).not.toHaveBeenCalled();
     } finally {
       Object.defineProperty(window, 'prettypretty', {

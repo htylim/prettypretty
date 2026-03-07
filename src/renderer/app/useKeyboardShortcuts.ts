@@ -5,7 +5,8 @@ type UseKeyboardShortcutsOptions = {
   isOutputMode: boolean;
   paneMode: PaneMode;
   hasContent: boolean;
-  handleNew: () => void;
+  openNewWindow: () => void;
+  resetCurrentWindow: () => void;
   handlePaneModeChange: (nextMode: PaneMode) => void;
   saveOutput: () => Promise<void>;
   copyOutput: () => Promise<void>;
@@ -16,7 +17,8 @@ export const useKeyboardShortcuts = ({
   isOutputMode,
   paneMode,
   hasContent,
-  handleNew,
+  openNewWindow,
+  resetCurrentWindow,
   handlePaneModeChange,
   saveOutput,
   copyOutput,
@@ -43,13 +45,19 @@ export const useKeyboardShortcuts = ({
         return;
       }
 
+      if (event.shiftKey && key === 'n') {
+        event.preventDefault();
+        resetCurrentWindow();
+        return;
+      }
+
       if (event.shiftKey) {
         return;
       }
 
       if (key === 'n') {
         event.preventDefault();
-        handleNew();
+        openNewWindow();
         return;
       }
 
@@ -97,12 +105,13 @@ export const useKeyboardShortcuts = ({
     };
   }, [
     copyOutput,
-    handleNew,
     handlePaneModeChange,
     hasContent,
     isOutputMode,
+    openNewWindow,
     openFind,
     paneMode,
+    resetCurrentWindow,
     saveOutput,
   ]);
 };

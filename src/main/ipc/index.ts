@@ -1,4 +1,4 @@
-import { app, clipboard, dialog, ipcMain } from 'electron';
+import { BrowserWindow, app, clipboard, dialog, ipcMain } from 'electron';
 import { readFile, writeFile } from 'node:fs/promises';
 import { extname } from 'node:path';
 import { IPCChannels } from '../../shared/ipc-contracts';
@@ -15,6 +15,7 @@ type IpcDependencies = {
   prettifierService: Pick<PrettifierService, 'run'>;
   logger: Logger;
   logStore: Pick<SessionLogStore, 'getSnapshot'>;
+  onOpenWindow: () => Promise<void>;
 };
 
 const isString = (value: unknown): value is string => {
@@ -26,22 +27,39 @@ export const registerIpcHandlers = ({
   prettifierService,
   logger,
   logStore,
+  onOpenWindow,
 }: IpcDependencies): void => {
-  ipcMain.handle(IPCChannels.dialogOpenFile, async () => {
-    const result = await dialog.showOpenDialog({
-      title: 'Open file',
-      properties: ['openFile'],
-      filters: [
-        {
-          name: 'Supported Text Files',
-          extensions: ['json', 'js', 'ts', 'py', 'txt', 'md', 'yaml', 'yml'],
-        },
-        {
-          name: 'All Files',
-          extensions: ['*'],
-        },
-      ],
-    });
+  ipcMain.handle(IPCChannels.dialogOpenFile, async (event) => {
+    const window = BrowserWindow.fromWebContents(event.sender);
+    const result = window
+      ? await dialog.showOpenDialog(window, {
+          title: 'Open file',
+          properties: ['openFile'],
+          filters: [
+            {
+              name: 'Supported Text Files',
+              extensions: ['json', 'js', 'ts', 'py', 'txt', 'md', 'yaml', 'yml'],
+            },
+            {
+              name: 'All Files',
+              extensions: ['*'],
+            },
+          ],
+        })
+      : await dialog.showOpenDialog({
+          title: 'Open file',
+          properties: ['openFile'],
+          filters: [
+            {
+              name: 'Supported Text Files',
+              extensions: ['json', 'js', 'ts', 'py', 'txt', 'md', 'yaml', 'yml'],
+            },
+            {
+              name: 'All Files',
+              extensions: ['*'],
+            },
+          ],
+        });
 
     if (result.canceled || result.filePaths.length === 0) {
       return null;
@@ -62,7 +80,7 @@ export const registerIpcHandlers = ({
     return { path, content };
   });
 
-  ipcMain.handle(IPCChannels.fileSave, async (_event, content: unknown) => {
+  ipcMain.handle(IPCChannels.fileSave, async (event, content: unknown) => {
     if (!isString(content)) {
       logger.warn('ipc.validation.error', {
         channel: IPCChannels.fileSave,
@@ -70,16 +88,28 @@ export const registerIpcHandlers = ({
       throw new Error('Invalid file save payload');
     }
 
-    const result = await dialog.showSaveDialog({
-      title: 'Save prettified text',
-      defaultPath: 'prettified.txt',
-      filters: [
-        {
-          name: 'Text Files',
-          extensions: ['txt', 'json', 'js', 'ts', 'py', 'md', 'yaml', 'yml'],
-        },
-      ],
-    });
+    const window = BrowserWindow.fromWebContents(event.sender);
+    const result = window
+      ? await dialog.showSaveDialog(window, {
+          title: 'Save prettified text',
+          defaultPath: 'prettified.txt',
+          filters: [
+            {
+              name: 'Text Files',
+              extensions: ['txt', 'json', 'js', 'ts', 'py', 'md', 'yaml', 'yml'],
+            },
+          ],
+        })
+      : await dialog.showSaveDialog({
+          title: 'Save prettified text',
+          defaultPath: 'prettified.txt',
+          filters: [
+            {
+              name: 'Text Files',
+              extensions: ['txt', 'json', 'js', 'ts', 'py', 'md', 'yaml', 'yml'],
+            },
+          ],
+        });
 
     if (result.canceled || !result.filePath) {
       return null;
@@ -106,6 +136,10 @@ export const registerIpcHandlers = ({
       name: app.getName(),
       version: app.getVersion(),
     };
+  });
+
+  ipcMain.handle(IPCChannels.appOpenWindow, async () => {
+    await onOpenWindow();
   });
 
   ipcMain.handle(IPCChannels.logsGetHistory, () => {

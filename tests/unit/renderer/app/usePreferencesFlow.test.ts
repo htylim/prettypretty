@@ -94,7 +94,12 @@ const createWindowApi = (
     dialog: { openFile: vi.fn() },
     file: { save: vi.fn() },
     clipboard: { copy: vi.fn() },
-    app: { getInfo: vi.fn(), initialThemeMode: null },
+    app: {
+      getInfo: vi.fn(),
+      openWindow: vi.fn(),
+      onResetCurrentWindow: vi.fn().mockImplementation(() => vi.fn()),
+      initialThemeMode: null,
+    },
     logs: { getHistory: vi.fn(), onLine: vi.fn() },
     preferences: {
       getAll,

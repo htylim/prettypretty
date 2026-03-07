@@ -1,6 +1,8 @@
 // @vitest-environment node
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { MenuItemConstructorOptions } from 'electron';
+import { IPCChannels } from '../../../src/shared/ipc-contracts';
 
 const {
   appEventHandlers,
@@ -10,10 +12,11 @@ const {
   appSetNameMock,
   appWhenReadyMock,
   browserWindowConstructorMock,
+  browserWindowGetFocusedWindowMock,
   browserWindowLoadFileMock,
   browserWindowLoadURLMock,
-  browserWindowOnceMock,
   buildFromTemplateMock,
+  focusedWindowSendMock,
   dialogShowOpenDialogMock,
   dialogShowSaveDialogMock,
   existsSyncMock,
@@ -31,10 +34,11 @@ const {
     appSetNameMock: vi.fn(),
     appWhenReadyMock: vi.fn(),
     browserWindowConstructorMock: vi.fn(),
+    browserWindowGetFocusedWindowMock: vi.fn(),
     browserWindowLoadFileMock: vi.fn(),
     browserWindowLoadURLMock: vi.fn(),
-    browserWindowOnceMock: vi.fn(),
     buildFromTemplateMock: vi.fn(),
+    focusedWindowSendMock: vi.fn(),
     dialogShowOpenDialogMock: vi.fn(),
     dialogShowSaveDialogMock: vi.fn(),
     existsSyncMock: vi.fn(),
@@ -46,8 +50,19 @@ const {
   };
 });
 
+const browserWindows: BrowserWindowMock[] = [];
+let focusedWindow: BrowserWindowMock | null = null;
+
 class BrowserWindowMock {
+  id: number;
+  webContents = {
+    send: focusedWindowSendMock,
+  };
+
   constructor(options: unknown) {
+    this.id = browserWindows.length + 1;
+    browserWindows.push(this);
+    focusedWindow = browserWindows.at(-1) ?? null;
     browserWindowConstructorMock(options);
   }
 
@@ -58,16 +73,14 @@ class BrowserWindowMock {
   async loadURL(...args: unknown[]): Promise<void> {
     await browserWindowLoadURLMock(...args);
   }
-
-  once(event: string, listener: (...args: unknown[]) => void): this {
-    browserWindowOnceMock(event, listener);
-    return this;
-  }
 }
 
 vi.mock('electron', () => {
   return {
-    BrowserWindow: BrowserWindowMock,
+    BrowserWindow: Object.assign(BrowserWindowMock, {
+      getFocusedWindow: browserWindowGetFocusedWindowMock,
+      fromWebContents: vi.fn(),
+    }),
     Menu: {
       buildFromTemplate: buildFromTemplateMock,
       setApplicationMenu: setApplicationMenuMock,
@@ -136,13 +149,27 @@ const getAppEventHandler = (event: string): ((...args: unknown[]) => void) => {
   return handler;
 };
 
-const getMainWindowClosedHandler = (): (() => void) => {
-  const closeCall = browserWindowOnceMock.mock.calls.find(([event]) => event === 'close');
-  if (!closeCall || typeof closeCall[1] !== 'function') {
-    throw new Error('Expected main window close handler');
+const getRegisteredHandler = (channel: string): ((...args: unknown[]) => unknown) => {
+  const call = ipcHandleMock.mock.calls.find(
+    ([registeredChannel]) => registeredChannel === channel,
+  );
+  if (!call || typeof call[1] !== 'function') {
+    throw new Error(`Expected handler for ${channel}`);
   }
 
-  return closeCall[1] as () => void;
+  return call[1] as (...args: unknown[]) => unknown;
+};
+
+const getMenuItem = (label: string): MenuItemConstructorOptions => {
+  const [template] = buildFromTemplateMock.mock.calls.at(-1) as [MenuItemConstructorOptions[]];
+  const fileMenu = template.find((item) => item.label === 'File');
+  const submenu = (fileMenu?.submenu ?? []) as MenuItemConstructorOptions[];
+  const item = submenu.find((entry) => entry.label === label);
+  if (!item) {
+    throw new Error(`Missing menu item ${label}`);
+  }
+
+  return item;
 };
 
 const loadMainEntry = async (): Promise<void> => {
@@ -155,6 +182,8 @@ describe('main process window lifecycle', () => {
   beforeEach(() => {
     vi.resetModules();
     appEventHandlers.clear();
+    browserWindows.length = 0;
+    focusedWindow = null;
 
     appGetPathMock.mockReset().mockReturnValue('/tmp/prettypretty-user-data');
     appOnMock
@@ -166,10 +195,11 @@ describe('main process window lifecycle', () => {
     appSetNameMock.mockReset();
     appWhenReadyMock.mockReset().mockResolvedValue(undefined);
     browserWindowConstructorMock.mockReset();
+    browserWindowGetFocusedWindowMock.mockReset().mockImplementation(() => focusedWindow);
     browserWindowLoadFileMock.mockReset().mockResolvedValue(undefined);
     browserWindowLoadURLMock.mockReset().mockResolvedValue(undefined);
-    browserWindowOnceMock.mockReset();
     buildFromTemplateMock.mockReset().mockReturnValue({});
+    focusedWindowSendMock.mockReset();
     dialogShowOpenDialogMock.mockReset().mockResolvedValue({ canceled: true, filePaths: [] });
     dialogShowSaveDialogMock.mockReset().mockResolvedValue({ canceled: true, filePath: null });
     existsSyncMock.mockReset().mockReturnValue(false);
@@ -180,7 +210,7 @@ describe('main process window lifecycle', () => {
     writeTextMock.mockReset();
   });
 
-  it('quits the app when the main window is closed and does not re-create it via activate', async () => {
+  it('creates one document window on startup and can open more via IPC and menu callbacks', async () => {
     await loadMainEntry();
 
     expect(browserWindowConstructorMock).toHaveBeenCalledTimes(1);
@@ -191,12 +221,22 @@ describe('main process window lifecycle', () => {
       '--prettypretty-theme-mode=light',
     );
     expect(appEventHandlers.has('activate')).toBe(false);
+    const openWindowHandler = getRegisteredHandler(IPCChannels.appOpenWindow);
 
-    const closedHandler = getMainWindowClosedHandler();
-    closedHandler();
+    await openWindowHandler({});
+    expect(browserWindowConstructorMock).toHaveBeenCalledTimes(2);
 
-    expect(appExitMock).toHaveBeenCalledTimes(1);
-    expect(appExitMock).toHaveBeenCalledWith(0);
+    getMenuItem('New Window').click?.(undefined as never, undefined, {} as never);
+    await flushMicrotasks();
+    expect(browserWindowConstructorMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('resets only the focused document window through the File menu callback', async () => {
+    await loadMainEntry();
+
+    getMenuItem('Reset Window').click?.(undefined as never, undefined, {} as never);
+
+    expect(focusedWindowSendMock).toHaveBeenCalledWith(IPCChannels.appResetCurrentWindow);
   });
 
   it('quits on window-all-closed without platform exceptions', async () => {

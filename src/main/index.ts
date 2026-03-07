@@ -1,6 +1,8 @@
-import { app } from 'electron';
+import { BrowserWindow, app } from 'electron';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
+import { IPCChannels } from '../shared/ipc-contracts';
+import type { ThemeMode } from '../shared/types';
 import { registerIpcHandlers } from './ipc';
 import { createLogger } from './logging/logger';
 import { parseRuntimeFlags } from './logging/runtimeFlags';
@@ -10,8 +12,7 @@ import { PreferencesService } from './preferences/preferencesService';
 import { PreferencesStore } from './preferences/preferencesStore';
 import { createPrettifierService } from './prettifier/prettifierService';
 import { openOrFocusLogWindow } from './windows/logWindow';
-import { createMainWindow } from './windows/mainWindow';
-import type { ThemeMode } from '../shared/types';
+import { createMainWindow, isMainWindow } from './windows/mainWindow';
 
 const bootstrap = async (): Promise<void> => {
   const runtimeFlags = parseRuntimeFlags();
@@ -27,15 +28,6 @@ const bootstrap = async (): Promise<void> => {
   });
 
   app.setName('prettypretty');
-  configureApplicationMenu({
-    onViewLog: () => {
-      void openOrFocusLogWindow(sessionLogStore).catch((error: unknown) => {
-        logger.error('app.log-window.open-failed', {
-          reason: error instanceof Error ? error.message : 'unknown',
-        });
-      });
-    },
-  });
 
   if (process.platform === 'darwin' && app.dock) {
     const dockIconPath = join(process.cwd(), 'build/icon.png');
@@ -47,30 +39,70 @@ const bootstrap = async (): Promise<void> => {
   const preferencesStore = new PreferencesStore(app.getPath('userData'));
   const preferencesService = new PreferencesService(preferencesStore);
   const prettifierService = createPrettifierService({ preferencesService, logger });
-  let initialThemeMode: ThemeMode = 'light';
+  const resolveInitialThemeMode = async (): Promise<ThemeMode> => {
+    const fallbackThemeMode: ThemeMode = 'light';
 
-  try {
-    const preferences = await preferencesService.getAll();
-    initialThemeMode = preferences.themeMode;
-  } catch (error) {
-    logger.error('app.preferences.initial-load-failed', {
-      reason: error instanceof Error ? error.message : 'unknown',
-      fallbackThemeMode: initialThemeMode,
+    try {
+      const preferences = await preferencesService.getAll();
+      return preferences.themeMode;
+    } catch (error) {
+      logger.error('app.preferences.initial-load-failed', {
+        reason: error instanceof Error ? error.message : 'unknown',
+        fallbackThemeMode,
+      });
+      return fallbackThemeMode;
+    }
+  };
+
+  const openDocumentWindow = async (source: 'bootstrap' | 'ipc' | 'menu'): Promise<void> => {
+    const initialThemeMode = await resolveInitialThemeMode();
+    await createMainWindow(initialThemeMode);
+    logger.info('app.window.created', {
+      source,
     });
-  }
+  };
 
-  registerIpcHandlers({ preferencesService, prettifierService, logger, logStore: sessionLogStore });
+  const resetFocusedDocumentWindow = (): void => {
+    const focusedWindow = BrowserWindow.getFocusedWindow();
+    if (!focusedWindow || !isMainWindow(focusedWindow)) {
+      return;
+    }
+
+    focusedWindow.webContents.send(IPCChannels.appResetCurrentWindow);
+    logger.info('app.window.reset-requested', {
+      source: 'menu',
+      windowId: focusedWindow.id,
+    });
+  };
+  configureApplicationMenu({
+    onNewWindow: () => {
+      void openDocumentWindow('menu').catch((error: unknown) => {
+        logger.error('app.window.open-failed', {
+          source: 'menu',
+          reason: error instanceof Error ? error.message : 'unknown',
+        });
+      });
+    },
+    onResetWindow: resetFocusedDocumentWindow,
+    onViewLog: () => {
+      void openOrFocusLogWindow(sessionLogStore).catch((error: unknown) => {
+        logger.error('app.log-window.open-failed', {
+          reason: error instanceof Error ? error.message : 'unknown',
+        });
+      });
+    },
+  });
+  registerIpcHandlers({
+    preferencesService,
+    prettifierService,
+    logger,
+    logStore: sessionLogStore,
+    onOpenWindow: async () => {
+      await openDocumentWindow('ipc');
+    },
+  });
   logger.info('app.bootstrap.ipc-registered');
-  const mainWindow = await createMainWindow(initialThemeMode);
-  mainWindow.once('close', () => {
-    logger.info('app.window.close-requested', {
-      source: 'main',
-    });
-    app.exit(0);
-  });
-  logger.info('app.window.created', {
-    source: 'bootstrap',
-  });
+  await openDocumentWindow('bootstrap');
 };
 
 app.whenReady().then(bootstrap);

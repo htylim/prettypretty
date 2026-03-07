@@ -28,7 +28,7 @@ const segmentButtonClass = 'seg';
 const activeSegmentClass = 'seg-active';
 const inactiveSegmentClass = 'seg-inactive';
 const tooltips = {
-  new: 'New (Cmd+N)',
+  new: 'New window (Cmd+N)',
   input: 'Switch to input (Cmd+I)',
   output: 'Switch to output (Cmd+O)',
   expand: 'Expand',

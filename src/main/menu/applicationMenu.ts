@@ -28,9 +28,39 @@ export const openPreferencesFile = async (): Promise<void> => {
 };
 type ApplicationMenuOptions = {
   onViewLog?: () => void;
+  onNewWindow?: () => void;
+  onResetWindow?: () => void;
 };
 
-const macTemplate = ({ onViewLog }: ApplicationMenuOptions): MenuItemConstructorOptions[] => [
+const createFileMenu = ({
+  onNewWindow,
+  onResetWindow,
+}: ApplicationMenuOptions): MenuItemConstructorOptions => ({
+  label: 'File',
+  submenu: [
+    {
+      label: 'New Window',
+      accelerator: 'CommandOrControl+N',
+      click: () => {
+        onNewWindow?.();
+      },
+    },
+    {
+      label: 'Reset Window',
+      accelerator: 'CommandOrControl+Shift+N',
+      click: () => {
+        onResetWindow?.();
+      },
+    },
+    { type: 'separator' },
+    { role: 'close' },
+  ],
+});
+
+const macTemplate = ({
+  onViewLog,
+  ...options
+}: ApplicationMenuOptions): MenuItemConstructorOptions[] => [
   {
     label: APP_NAME,
     submenu: [
@@ -60,15 +90,15 @@ const macTemplate = ({ onViewLog }: ApplicationMenuOptions): MenuItemConstructor
       { role: 'quit' },
     ],
   },
-  { role: 'fileMenu' },
+  createFileMenu(options),
   { role: 'editMenu' },
   { role: 'viewMenu' },
   { role: 'windowMenu' },
   { role: 'help' },
 ];
 
-const defaultTemplate = (): MenuItemConstructorOptions[] => [
-  { role: 'fileMenu' },
+const defaultTemplate = (options: ApplicationMenuOptions): MenuItemConstructorOptions[] => [
+  createFileMenu(options),
   { role: 'editMenu' },
   { role: 'viewMenu' },
   { role: 'windowMenu' },
@@ -77,6 +107,6 @@ const defaultTemplate = (): MenuItemConstructorOptions[] => [
 
 export const configureApplicationMenu = (options: ApplicationMenuOptions = {}): void => {
   app.setName(APP_NAME);
-  const template = process.platform === 'darwin' ? macTemplate(options) : defaultTemplate();
+  const template = process.platform === 'darwin' ? macTemplate(options) : defaultTemplate(options);
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 };

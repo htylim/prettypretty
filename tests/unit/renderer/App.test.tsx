@@ -15,6 +15,8 @@ const preferencesResetMock = vi.fn();
 const prettifierRunMock = vi.fn();
 const prettifierOnProgressMock = vi.fn();
 const telemetryLogMock = vi.fn();
+const openWindowMock = vi.fn();
+const appOnResetCurrentWindowMock = vi.fn();
 const outputCollapseAllMock = vi.fn();
 const outputExpandAllMock = vi.fn();
 const inputCollapseAllMock = vi.fn();
@@ -22,6 +24,7 @@ const inputExpandAllMock = vi.fn();
 const openFindMock = vi.fn();
 let onPrettifierProgressListener: ((event: { requestId: number; line: string }) => void) | null =
   null;
+let onResetCurrentWindowListener: (() => void) | null = null;
 
 const emitPrettifierProgress = (event: { requestId: number; line: string }): void => {
   onPrettifierProgressListener?.(event);
@@ -150,6 +153,11 @@ beforeEach(() => {
   prettifierRunMock.mockReset();
   prettifierOnProgressMock.mockReset();
   telemetryLogMock.mockReset();
+  openWindowMock.mockReset().mockResolvedValue(undefined);
+  appOnResetCurrentWindowMock.mockReset().mockImplementation((listener: () => void) => {
+    onResetCurrentWindowListener = listener;
+    return vi.fn();
+  });
   outputCollapseAllMock.mockReset();
   outputExpandAllMock.mockReset();
   inputCollapseAllMock.mockReset();
@@ -195,6 +203,8 @@ beforeEach(() => {
       clipboard: { copy: copyMock },
       app: {
         getInfo: vi.fn().mockResolvedValue({ name: 'prettypretty', version: '0.1.0' }),
+        openWindow: openWindowMock,
+        onResetCurrentWindow: appOnResetCurrentWindowMock,
         initialThemeMode: null,
       },
       preferences: {
@@ -222,6 +232,7 @@ beforeEach(() => {
     });
   });
   onPrettifierProgressListener = null;
+  onResetCurrentWindowListener = null;
 });
 
 describe('App', () => {
@@ -244,6 +255,15 @@ describe('App', () => {
 
     expect(await screen.findByTestId('output-editor')).toHaveTextContent('"a": 1');
     expect(prettifierRunMock).not.toHaveBeenCalled();
+  });
+
+  it('routes toolbar New to the app open-window bridge', async () => {
+    const user = userEvent.setup();
+
+    await renderApp();
+    await user.click(screen.getByRole('button', { name: 'New' }));
+
+    expect(openWindowMock).toHaveBeenCalledTimes(1);
   });
 
   it('uses drop ingestion path to switch to output and render local formatted content', async () => {
@@ -841,7 +861,7 @@ describe('App', () => {
     expect(outputExpandAllMock).toHaveBeenCalledTimes(1);
   });
 
-  it('supports command shortcuts for pane switching, save/copy, and reset', async () => {
+  it('supports command shortcuts for pane switching, save/copy, new window, and reset', async () => {
     act(() => {
       useUiStore.setState({
         paneMode: 'output',
@@ -867,7 +887,32 @@ describe('App', () => {
     expect(openFindMock).toHaveBeenCalledTimes(1);
 
     fireEvent.keyDown(window, { key: 'n', metaKey: true });
+    expect(openWindowMock).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('pane-segment-output')).toHaveAttribute('aria-pressed', 'true');
+
+    fireEvent.keyDown(window, { key: 'n', metaKey: true, shiftKey: true });
     expect(screen.getByTestId('pane-segment-input')).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByTestId('pane-segment-output')).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('resets the current window when the main process requests it', async () => {
+    act(() => {
+      useUiStore.setState({
+        paneMode: 'output',
+        inputText: '{"a":1}',
+        ingestNotice: 'stale',
+      });
+    });
+
+    await renderApp();
+
+    act(() => {
+      onResetCurrentWindowListener?.();
+    });
+
+    expect(screen.getByTestId('pane-segment-input')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('pane-segment-output')).toHaveAttribute('aria-pressed', 'false');
+    expect(useUiStore.getState().inputText).toBe('');
+    expect(useUiStore.getState().ingestNotice).toBeNull();
   });
 });

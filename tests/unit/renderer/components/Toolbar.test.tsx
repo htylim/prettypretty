@@ -120,7 +120,10 @@ describe('Toolbar', () => {
   it('shows tooltips with shortcut hints for primary controls', () => {
     render(<Toolbar {...createProps({ paneMode: 'output' })} />);
 
-    expect(screen.getByRole('button', { name: 'New' })).toHaveAttribute('title', 'New (Cmd+N)');
+    expect(screen.getByRole('button', { name: 'New' })).toHaveAttribute(
+      'title',
+      'New window (Cmd+N)',
+    );
     expect(screen.getByTestId('pane-segment-input')).toHaveAttribute(
       'title',
       'Switch to input (Cmd+I)',
@@ -134,6 +137,17 @@ describe('Toolbar', () => {
       'title',
       'Copy (Cmd+Shift+C)',
     );
+  });
+
+  it('routes the New button to the provided new-window handler', async () => {
+    const user = userEvent.setup();
+    const onNew = vi.fn();
+
+    render(<Toolbar {...createProps({ onNew })} />);
+
+    await user.click(screen.getByRole('button', { name: 'New' }));
+
+    expect(onNew).toHaveBeenCalledTimes(1);
   });
 
   it('does not render a toolbar search input', () => {

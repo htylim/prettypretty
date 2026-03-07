@@ -2,7 +2,8 @@
 
 ## Layout
 
-- Main editing experience is single-window.
+- Main editing experience supports multiple independent document windows.
+- Each document window starts in the same blank empty state and owns its own input/output session state.
 - Optional secondary log window can be opened from macOS app menu (`View Log`, `Cmd+L`).
 - Top toolbar.
 - One editor pane below toolbar.
@@ -22,7 +23,7 @@
 
 ## Toolbar Controls
 
-- `New`: reset input state.
+- `New`: open a new blank document window.
 - `Input/Output` mode control: segmented toggle visible at all times, with explicit active segment.
 - Pane/content sync rule: input pane visible means `Input` active, output pane visible means `Output` active.
 - Empty-content rule in input mode: `Input` stays active and `Output` is disabled until content exists.
@@ -33,7 +34,8 @@
 - `Expand`/`Collapse` are wired to unfold-all/fold-all actions on the currently active editor (input or output).
 - `Save` and `Copy`: always visible; disabled in input mode and enabled in output mode.
 - Keyboard shortcuts:
-  - `Cmd+N`: trigger `New`.
+  - `Cmd+N`: open a new blank document window.
+  - `Cmd+Shift+N`: reset only the current/focused document window to the initial empty state.
   - `Cmd+I`: switch to `Input`.
   - `Cmd+O`: switch to `Output` only when output mode is available (same enable/disable rule as `Output` segment).
   - `Cmd+S`: trigger `Save` only in output mode.
@@ -54,6 +56,11 @@
 - `prettypretty` app menu includes `View Log`.
 - `View Log` has keyboard shortcut `Cmd+L`.
 - Selecting `View Log` opens/focuses a dedicated log window.
+- `File` menu includes `New Window` (`Cmd+N`) and `Reset Window` (`Cmd+Shift+N`).
+- `Reset Window` applies only to the focused document window; it does not affect other open document windows.
+- Closing a non-last window closes only that window.
+- Closing the last remaining app window exits the app.
+- The log window counts as an app window for lifetime purposes; if it remains open after all document windows are closed, the app stays running until that final window closes.
 - Log window content is raw JSONL and includes:
   - startup/session history captured from app launch,
   - live appended lines while the log window remains open.

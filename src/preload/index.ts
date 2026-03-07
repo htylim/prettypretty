@@ -29,6 +29,20 @@ const api: WindowApi = {
   },
   app: {
     getInfo: () => ipcRenderer.invoke(IPCChannels.appGetInfo),
+    openWindow: async () => {
+      await ipcRenderer.invoke(IPCChannels.appOpenWindow);
+    },
+    onResetCurrentWindow: (listener) => {
+      const wrappedListener = () => {
+        listener();
+      };
+
+      ipcRenderer.on(IPCChannels.appResetCurrentWindow, wrappedListener);
+
+      return () => {
+        ipcRenderer.removeListener(IPCChannels.appResetCurrentWindow, wrappedListener);
+      };
+    },
     initialThemeMode: getInitialThemeMode(),
   },
   logs: {
