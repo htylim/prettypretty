@@ -271,7 +271,7 @@ describe('agentFallbackExecutor', () => {
     });
   });
 
-  it('emits last progress line from stdout and stderr chunks', async () => {
+  it('emits each visible progress line from stdout and stderr chunks', async () => {
     const onProgressLine = vi.fn();
     const executor = createAgentFallbackExecutor({
       spawn: spawnMock as unknown as SpawnProcessLike,
@@ -292,8 +292,11 @@ describe('agentFallbackExecutor', () => {
 
     await promise;
 
+    expect(onProgressLine).toHaveBeenCalledWith('step 1/3');
     expect(onProgressLine).toHaveBeenCalledWith('step 2/3');
     expect(onProgressLine).toHaveBeenCalledWith('thinking...');
+    expect(onProgressLine).toHaveBeenCalledWith('{');
+    expect(onProgressLine).toHaveBeenCalledWith('"a": 1');
     expect(onProgressLine).toHaveBeenCalledWith('}');
   });
 

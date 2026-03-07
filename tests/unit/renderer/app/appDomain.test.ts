@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import type { Preferences } from '../../../../src/shared/preferences';
 import {
   EMPTY_FILE_NOTICE,
+  MAX_FALLBACK_PROGRESS_LINES,
   UNKNOWN_FALLBACK_AGENT_NAME,
+  appendFallbackProgressLine,
   getConfiguredFallbackAgent,
   getConfiguredFallbackAgentFromSelection,
   getIngestEventName,
@@ -40,6 +42,22 @@ describe('appDomain', () => {
   it('exports shared constants', () => {
     expect(EMPTY_FILE_NOTICE).toBe('File has no content.');
     expect(UNKNOWN_FALLBACK_AGENT_NAME).toBe('fallback agent');
+    expect(MAX_FALLBACK_PROGRESS_LINES).toBe(5);
+  });
+
+  it('keeps only the last configured fallback progress lines', () => {
+    const progressLines = ['line 1', 'line 2', 'line 3', 'line 4', 'line 5'].reduce(
+      (currentLines, line) => appendFallbackProgressLine(currentLines, line),
+      [] as string[],
+    );
+
+    expect(appendFallbackProgressLine(progressLines, 'line 6')).toEqual([
+      'line 2',
+      'line 3',
+      'line 4',
+      'line 5',
+      'line 6',
+    ]);
   });
 
   it('builds deterministic output document ids', () => {

@@ -66,23 +66,21 @@ const extractMarkdownFencedContent = (outputText: string): string | null => {
 const ANSI_ESCAPE_PATTERN = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*[ -/]*[@-~]`, 'gu');
 const MAX_PROGRESS_LINE_LENGTH = 200;
 
-const extractLastProgressLine = (chunkText: string): string | null => {
+const truncateProgressLine = (line: string): string => {
+  if (line.length <= MAX_PROGRESS_LINE_LENGTH) {
+    return line;
+  }
+
+  return `${line.slice(0, MAX_PROGRESS_LINE_LENGTH - 3)}...`;
+};
+
+const extractProgressLines = (chunkText: string): string[] => {
   const stripped = chunkText.replace(ANSI_ESCAPE_PATTERN, '');
-  const candidates = stripped
+  return stripped
     .split(/[\r\n]+/u)
     .map((segment) => segment.trim())
-    .filter((segment) => segment.length > 0);
-
-  const lastCandidate = candidates.at(-1);
-  if (!lastCandidate) {
-    return null;
-  }
-
-  if (lastCandidate.length <= MAX_PROGRESS_LINE_LENGTH) {
-    return lastCandidate;
-  }
-
-  return `${lastCandidate.slice(0, MAX_PROGRESS_LINE_LENGTH - 3)}...`;
+    .filter((segment) => segment.length > 0)
+    .map(truncateProgressLine);
 };
 
 export type AgentFallbackExecutor = {
@@ -173,12 +171,14 @@ export const createAgentFallbackExecutor = (
 
         child.stdout?.on('data', (chunk: Buffer | string) => {
           const chunkText = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
-          const progressLine = extractLastProgressLine(chunkText);
-          if (progressLine && onProgressLine) {
-            try {
-              onProgressLine(progressLine);
-            } catch {
-              // Progress callbacks are best-effort and must not affect execution.
+          const progressLines = extractProgressLines(chunkText);
+          if (onProgressLine) {
+            for (const progressLine of progressLines) {
+              try {
+                onProgressLine(progressLine);
+              } catch {
+                // Progress callbacks are best-effort and must not affect execution.
+              }
             }
           }
 
@@ -196,12 +196,14 @@ export const createAgentFallbackExecutor = (
 
         child.stderr?.on('data', (chunk: Buffer | string) => {
           const chunkText = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
-          const progressLine = extractLastProgressLine(chunkText);
-          if (progressLine && onProgressLine) {
-            try {
-              onProgressLine(progressLine);
-            } catch {
-              // Progress callbacks are best-effort and must not affect execution.
+          const progressLines = extractProgressLines(chunkText);
+          if (onProgressLine) {
+            for (const progressLine of progressLines) {
+              try {
+                onProgressLine(progressLine);
+              } catch {
+                // Progress callbacks are best-effort and must not affect execution.
+              }
             }
           }
 

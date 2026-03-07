@@ -9,6 +9,7 @@ import { createPrettifierService } from '../prettifier/prettifierService';
 import { reindentText } from '../prettifier/reindentText';
 import {
   EMPTY_FILE_NOTICE,
+  appendFallbackProgressLine,
   type FallbackAgentOption,
   type FallbackWaitState,
   type IngestSource,
@@ -270,7 +271,7 @@ export const usePrettifierFlow = ({
         requestId,
         formatLabel: detectFallbackFormatLabel(nextInputText),
         agentName: effectiveFallbackAgent.agentName,
-        progressLine: null,
+        progressLines: [],
       });
       activeFallbackRequestIdRef.current = requestId;
       setIsLlmRunning(true);
@@ -494,7 +495,7 @@ export const usePrettifierFlow = ({
 
         return {
           ...currentState,
-          progressLine: event.line,
+          progressLines: appendFallbackProgressLine(currentState.progressLines, event.line),
         };
       });
     });

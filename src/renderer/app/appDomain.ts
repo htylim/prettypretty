@@ -8,7 +8,7 @@ export type FallbackWaitState = {
   requestId: number;
   formatLabel: string;
   agentName: string;
-  progressLine: string | null;
+  progressLines: string[];
 };
 
 export type FallbackAgentOption = {
@@ -19,6 +19,17 @@ export type FallbackAgentOption = {
 
 export const EMPTY_FILE_NOTICE = 'File has no content.';
 export const UNKNOWN_FALLBACK_AGENT_NAME = 'fallback agent';
+export const MAX_FALLBACK_PROGRESS_LINES = 5;
+
+export const appendFallbackProgressLine = (progressLines: string[], line: string): string[] => {
+  const nextProgressLines = [...progressLines, line];
+
+  if (nextProgressLines.length <= MAX_FALLBACK_PROGRESS_LINES) {
+    return nextProgressLines;
+  }
+
+  return nextProgressLines.slice(-MAX_FALLBACK_PROGRESS_LINES);
+};
 
 export const getOutputDocumentId = (value: string): string => {
   let hash = 2166136261;

@@ -188,6 +188,7 @@ describe('registerIpcHandlers prettifier channels', () => {
           onFallbackProgress?: (line: string) => void;
         },
       ) => {
+        options?.onFallbackProgress?.('thinking step 1');
         options?.onFallbackProgress?.('thinking step');
         return {
           status: 'applied-fallback',
@@ -202,6 +203,10 @@ describe('registerIpcHandlers prettifier channels', () => {
 
     await runHandler({ sender }, request);
 
+    expect(sender.send).toHaveBeenCalledWith(IPCChannels.prettifierProgress, {
+      requestId: 9,
+      line: 'thinking step 1',
+    });
     expect(sender.send).toHaveBeenCalledWith(IPCChannels.prettifierProgress, {
       requestId: 9,
       line: 'thinking step',

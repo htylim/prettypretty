@@ -171,7 +171,7 @@ describe('usePrettifierFlow', () => {
     expect(run).not.toHaveBeenCalled();
   });
 
-  it('shows fallback wait state and updates progress for active request', async () => {
+  it('shows fallback wait state and keeps the last five progress lines for the active request', async () => {
     const deferred = createDeferred<PrettifyRunResponse>();
     let onProgressListener: ((event: { requestId: number; line: string }) => void) | null = null;
     const getAll = vi.fn().mockResolvedValue(createPreferences());
@@ -211,10 +211,21 @@ describe('usePrettifierFlow', () => {
 
     const request = run.mock.calls[0]?.[0] as { requestId: number };
     act(() => {
-      onProgressListener?.({ requestId: request.requestId, line: 'Analyzing malformed object...' });
+      onProgressListener?.({ requestId: request.requestId, line: 'line 1' });
+      onProgressListener?.({ requestId: request.requestId, line: 'line 2' });
+      onProgressListener?.({ requestId: request.requestId, line: 'line 3' });
+      onProgressListener?.({ requestId: request.requestId, line: 'line 4' });
+      onProgressListener?.({ requestId: request.requestId, line: 'line 5' });
+      onProgressListener?.({ requestId: request.requestId, line: 'line 6' });
     });
 
-    expect(ref.current?.getFallbackWaitState()?.progressLine).toBe('Analyzing malformed object...');
+    expect(ref.current?.getFallbackWaitState()?.progressLines).toEqual([
+      'line 2',
+      'line 3',
+      'line 4',
+      'line 5',
+      'line 6',
+    ]);
 
     deferred.resolve(createPrettifierResponse({ outputText: '{\n  "done": true\n}' }));
 

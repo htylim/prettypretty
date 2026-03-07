@@ -615,7 +615,7 @@ describe('App', () => {
     });
   });
 
-  it('shows streamed fallback progress line for the active request only', async () => {
+  it('shows the last five streamed fallback progress lines for the active request only', async () => {
     const user = userEvent.setup();
     const deferredRun = createDeferred<PrettifyRunResponse>();
     prettifierRunMock.mockReturnValue(deferredRun.promise);
@@ -640,14 +640,16 @@ describe('App', () => {
     expect(screen.getByTestId('fallback-wait-line')).not.toHaveTextContent('stale run');
 
     act(() => {
-      emitPrettifierProgress({
-        requestId: request.requestId,
-        line: 'Analyzing malformed object...',
-      });
+      emitPrettifierProgress({ requestId: request.requestId, line: 'line 1' });
+      emitPrettifierProgress({ requestId: request.requestId, line: 'line 2' });
+      emitPrettifierProgress({ requestId: request.requestId, line: 'line 3' });
+      emitPrettifierProgress({ requestId: request.requestId, line: 'line 4' });
+      emitPrettifierProgress({ requestId: request.requestId, line: 'line 5' });
+      emitPrettifierProgress({ requestId: request.requestId, line: 'line 6' });
     });
-    expect(screen.getByTestId('fallback-wait-line')).toHaveTextContent(
-      'Analyzing malformed object...',
-    );
+    expect(screen.getByTestId('fallback-wait-line')).not.toHaveTextContent('line 1');
+    expect(screen.getByTestId('fallback-wait-line')).toHaveTextContent('line 2');
+    expect(screen.getByTestId('fallback-wait-line')).toHaveTextContent('line 6');
 
     deferredRun.resolve(createPrettifierResponse({ outputText: '{\n  "done": true\n}' }));
     await waitFor(() => {

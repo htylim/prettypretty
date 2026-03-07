@@ -299,7 +299,7 @@ describe('useAppController', () => {
         requestId: 1,
         formatLabel: 'JSON',
         agentName: 'Codex',
-        progressLine: 'working...',
+        progressLines: ['working...'],
       },
       cancelActiveFallback: vi.fn().mockResolvedValue(undefined),
       runPrettifier: vi.fn(),

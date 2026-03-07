@@ -43,6 +43,7 @@ Do not add routine status updates, implementation history, or one-time decisions
 - Do not reject fallback output solely because it is wrapped in markdown fences; unwrap fenced blocks and evaluate inner content so otherwise-valid agent responses are not dropped.
 - Do not switch to output editor before malformed-input fallback completes; keep editors hidden behind a dedicated waiting state so users never see raw malformed passthrough during in-flight fallback.
 - Do not stream fallback progress into renderer without request-id correlation; stale async lines from prior runs can overwrite the active wait-state if events are not gated by run id.
+- Do not collapse streamed fallback progress to a single visible line; keep a bounded rolling buffer in renderer state so users can see recent execution context without unbounded log growth.
 - Do not run prettifier/fallback on every input keystroke; trigger prettification only on explicit output-mode requests or cost and latency spike while typing.
 - Do not rerun prettifier/fallback when only indentation preference changes and output is already prettified; remap leading whitespace locally to avoid unnecessary agent calls and latency.
 - Do not include raw input/output/prompt bodies in verbose logs; log only bounded metadata (lengths, statuses, durations, ids) to keep diagnostics safe and readable.

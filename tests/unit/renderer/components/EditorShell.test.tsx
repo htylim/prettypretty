@@ -342,7 +342,7 @@ describe('EditorShell', () => {
           requestId: 1,
           formatLabel: 'JSON',
           agentName: 'Codex',
-          progressLine: 'Generating output...',
+          progressLines: ['Generating output...', 'Formatting response...'],
         }}
         inputEditorRef={createInputEditorRef()}
         outputEditorRef={createOutputEditorRef()}
@@ -359,6 +359,7 @@ describe('EditorShell', () => {
       /Malformed JSON\s*Calling Codex/,
     );
     expect(screen.getByTestId('fallback-wait-line')).toHaveTextContent('Generating output...');
+    expect(screen.getByTestId('fallback-wait-line')).toHaveTextContent('Formatting response...');
     fireEvent.click(screen.getByTestId('fallback-wait-cancel'));
     expect(onCancelFallbackWait).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId('output-editor')).not.toBeInTheDocument();
