@@ -41,6 +41,36 @@ describe('prettifierService', () => {
     expect(fallbackExecutor.execute).not.toHaveBeenCalled();
   });
 
+  it('treats newline-delimited JSON as a local format', async () => {
+    const preferencesService = {
+      getAll: vi.fn().mockResolvedValue(createDefaultPreferences()),
+    };
+    const fallbackExecutor = {
+      execute: vi.fn(),
+    };
+    const logger = createLogger();
+    const service = createPrettifierService({
+      preferencesService,
+      logger,
+      fallbackExecutor,
+    });
+
+    const response = await service.run({
+      requestId: 1,
+      inputText: '{"a":1}\n{"b":2}',
+      indentSize: 2,
+      trigger: 'switch-output',
+    });
+
+    expect(response).toMatchObject({
+      status: 'applied-local',
+      fallbackStatus: 'not-attempted',
+      localDetection: 'ndjson',
+      outputText: '{\n  "a": 1\n}\n{\n  "b": 2\n}',
+    });
+    expect(fallbackExecutor.execute).not.toHaveBeenCalled();
+  });
+
   it('returns passthrough-no-fallback when local parsing fails and fallback is not configured', async () => {
     const preferences = createDefaultPreferences();
     const preferencesService = {

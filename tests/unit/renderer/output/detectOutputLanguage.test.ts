@@ -10,6 +10,10 @@ describe('detectOutputLanguage', () => {
     expect(detectOutputLanguage('{"a":1,}')).toBe('json');
   });
 
+  it('detects newline-delimited json as json', () => {
+    expect(detectOutputLanguage('{"a":1}\n{"b":2}')).toBe('json');
+  });
+
   it('detects typescript', () => {
     const input = 'interface Item { id: string }\nconst value: Item = { id: "1" };';
     expect(detectOutputLanguage(input)).toBe('typescript');

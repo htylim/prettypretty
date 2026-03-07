@@ -1,6 +1,6 @@
 # prettypretty
 
-`prettypretty` is a desktop Electron app for prettifying structured text input (JSON, JavaScript objects, Python-like dictionaries, and related formats).
+`prettypretty` is a desktop Electron app for prettifying structured text input (JSON, newline-delimited JSON, JavaScript objects, Python-like dictionaries, and related formats).
 
 This repository currently contains **Step 1: project setup and minimal shell**.
 

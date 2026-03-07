@@ -6,7 +6,7 @@ type StructuredValue = Record<string, unknown> | unknown[];
 
 type LocalPrettifyAppliedResult = {
   kind: 'applied';
-  detection: Extract<LocalDetection, 'json' | 'json5' | 'python-like'>;
+  detection: Extract<LocalDetection, 'json' | 'ndjson' | 'json5' | 'python-like'>;
   outputText: string;
 };
 
@@ -178,14 +178,36 @@ export const isJsonSerializableValue = (value: unknown): boolean => {
 };
 
 type ParseStrategy = {
-  detection: Extract<LocalDetection, 'json' | 'json5' | 'python-like'>;
+  detection: Extract<LocalDetection, 'json' | 'ndjson' | 'json5' | 'python-like'>;
   parse: (input: string) => unknown;
+};
+
+const parseNdjson = (input: string): unknown[] => {
+  const lines = input.split(/\r?\n/u);
+  const nonEmptyLines = lines.filter((line) => line.trim().length > 0);
+
+  if (nonEmptyLines.length < 2) {
+    throw new Error('ndjson-requires-multiple-records');
+  }
+
+  return lines.flatMap((line) => {
+    const trimmedLine = line.trim();
+    if (!trimmedLine) {
+      return [];
+    }
+
+    return [JSON.parse(trimmedLine) as unknown];
+  });
 };
 
 const PARSE_STRATEGIES: ParseStrategy[] = [
   {
     detection: 'json',
     parse: (input) => JSON.parse(input) as unknown,
+  },
+  {
+    detection: 'ndjson',
+    parse: parseNdjson,
   },
   {
     detection: 'json5',
@@ -233,7 +255,12 @@ export const runLocalPrettifier = (
       return {
         kind: 'applied',
         detection: strategy.detection,
-        outputText: JSON.stringify(parsed, null, indentSize),
+        outputText:
+          strategy.detection === 'ndjson'
+            ? (parsed as unknown[])
+                .map((record) => JSON.stringify(record, null, indentSize))
+                .join('\n')
+            : JSON.stringify(parsed, null, indentSize),
       };
     } catch {
       continue;

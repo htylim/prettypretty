@@ -51,6 +51,7 @@ Do not add routine status updates, implementation history, or one-time decisions
 - Do not default renderer theme state to light and wait for async preferences hydration; seed theme synchronously from main/preload before first render or dark-mode users see startup flicker.
 - Do not let renderer orchestration accumulate inside `App.tsx`; keep `App` as composition-only and move effectful flows into focused controller hooks (`useAppController`, `usePrettifierFlow`, `usePreferencesFlow`, `useKeyboardShortcuts`) with pure helpers in `appDomain`.
 - Do not maintain separate local-prettifier parsing implementations in renderer and main; keep one shared parser core (`src/shared/localPrettifier.ts`) and reuse it across processes to prevent behavior drift.
+- Do not classify multi-record NDJSON as malformed just because whole-document `JSON.parse` fails; attempt strict per-line JSON parsing before falling back.
 - Do not issue an extra renderer `preferences.getAll()` call before fallback execution; use hydrated renderer fallback selection state to decide wait-screen behavior and let main own final fallback execution decisions.
 - Do not auto-run fallback agents on very large malformed inputs without explicit user confirmation; gate oversized fallback requests with a persisted line-threshold check to avoid accidental costly/slow agent runs.
 - Do not scatter ad-hoc `console.error` calls across renderer flows; route renderer failures through one shared reporter utility (`reportRendererError`) for consistent handling and easier evolution.

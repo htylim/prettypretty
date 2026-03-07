@@ -8,7 +8,7 @@ For malformed or unsupported input, return the original text unchanged.
 
 ## Problem / Context
 
-Current formatting is JSON-only and inlined in renderer `App.tsx`, which blocks clean extension to JavaScript/TypeScript object-literal text and Python dict-like text.
+Current formatting is JSON-only and inlined in renderer `App.tsx`, which blocks clean extension to newline-delimited JSON, JavaScript/TypeScript object-literal text, and Python dict-like text.
 This also leaves no explicit seam for the future LLM fallback path.
 
 ## Deliverables
@@ -41,8 +41,9 @@ This also leaves no explicit seam for the future LLM fallback path.
 - Use parser chain in this order:
 
 1. Strict JSON parse (`JSON.parse`).
-2. JSON5 parse for JS/TS object-literal style input (single quotes, comments, trailing commas, unquoted keys).
-3. Python-literal normalization + JSON5 parse for dict/list representations.
+2. Newline-delimited JSON parse (strict JSON parse per non-empty line).
+3. JSON5 parse for JS/TS object-literal style input (single quotes, comments, trailing commas, unquoted keys).
+4. Python-literal normalization + JSON5 parse for dict/list representations.
 
 - Do not use `eval`, `new Function`, `vm`, or any dynamic code execution.
 - Do not add heavy formatting ecosystems (for example full Prettier parser packs) in this scope.
@@ -78,6 +79,7 @@ This also leaves no explicit seam for the future LLM fallback path.
 
 - Add unit tests for service behavior:
   - valid JSON prettifies with injected indentation (`2` and `4` cases),
+  - valid newline-delimited JSON prettifies record-by-record,
   - valid JSON5/JS object-literal prettifies,
   - valid Python dict-like payload prettifies,
   - malformed JSON/JSON5/Python-like text returns original unchanged,
@@ -110,7 +112,7 @@ Reference note for implementation agents: any code snippets in specs are intent 
 
 - [ ] App prettification path uses `PrettifierService` (no inline JSON formatting logic in `App.tsx`).
 - [ ] `PrettifierService` input/output contract is `string -> string`.
-- [ ] Parser chain supports well-formed JSON, JS object-literal style input, and Python dict-like input in scope.
+- [ ] Parser chain supports well-formed JSON, newline-delimited JSON, JS object-literal style input, and Python dict-like input in scope.
 - [ ] Malformed/unsupported input is returned unchanged.
 - [ ] No dynamic code execution is used for parsing.
 - [ ] Persisted `indentSize` preference is the single source for prettify indentation and Monaco indentation.
@@ -154,6 +156,7 @@ Reference note for implementation agents: any code snippets in specs are intent 
 - Resolved: avoid heavy formatter libraries in this phase; prefer minimal parser dependency (`json5`) plus small normalization utilities.
 - Resolved: code identifiers use `PrettifierService` naming.
 - Resolved: top-level scalar inputs (for example `42`, `'x'`) remain passthrough and are not normalized in this phase.
+- Resolved: newline-delimited JSON is treated as supported local input by parsing each non-empty line as strict JSON and formatting records sequentially.
 - Resolved: indentation source of truth is persisted `PreferencesService.indentSize`, not a renderer constant.
 - Resolved: supported indentation sizes in this phase are integers `1..8`.
 - Resolved: indentation remains non-user-configurable in UI during this phase.

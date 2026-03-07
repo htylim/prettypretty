@@ -34,6 +34,14 @@ describe('PrettifierService', () => {
     expect(result).toBe('{\n  "a": true,\n  "b": null,\n  "nested": {\n    "ok": false\n  }\n}');
   });
 
+  it('prettifies newline-delimited JSON records', () => {
+    const prettifier = createPrettifierService(2);
+
+    const result = prettifier.prettify('{"a":1}\n{"b":[1,2]}');
+
+    expect(result).toBe('{\n  "a": 1\n}\n{\n  "b": [\n    1,\n    2\n  ]\n}');
+  });
+
   it('keeps token words inside string literals untouched during python normalization', () => {
     const prettifier = createPrettifierService(2);
 

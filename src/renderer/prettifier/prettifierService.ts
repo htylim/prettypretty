@@ -5,7 +5,7 @@ import { runLocalPrettifier } from '../../shared/localPrettifier';
 export type PrettifyDetailedResult =
   | {
       kind: 'applied';
-      localDetection: Extract<LocalDetection, 'json' | 'json5' | 'python-like'>;
+      localDetection: Extract<LocalDetection, 'json' | 'ndjson' | 'json5' | 'python-like'>;
       outputText: string;
     }
   | {

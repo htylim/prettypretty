@@ -90,6 +90,7 @@
 - Prettifier runs only on output-triggered paths and never on every input keystroke.
 - Renderer applies local parser chain first:
   - strict JSON parse,
+  - newline-delimited JSON parse (strict JSON per non-empty line),
   - JSON5 parse for JS/TS object-literal style input,
   - Python-literal normalization + JSON5 parse.
 - Local parser implementation is shared across processes in `src/shared/localPrettifier.ts` and reused by both renderer and main-process prettifier flows.

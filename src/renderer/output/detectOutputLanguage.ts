@@ -22,6 +22,24 @@ const looksLikeJsonByParse = (trimmedText: string): boolean => {
   }
 };
 
+const looksLikeNdjson = (trimmedText: string): boolean => {
+  const lines = trimmedText.split(/\r?\n/u).filter((line) => line.trim().length > 0);
+
+  if (lines.length < 2) {
+    return false;
+  }
+
+  try {
+    for (const line of lines) {
+      JSON.parse(line) as unknown;
+    }
+
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 const hasJsonStructuralHints = (trimmedText: string): boolean => {
   const hasQuotes = /"/.test(trimmedText);
   const hasColon = /:/.test(trimmedText);
@@ -67,7 +85,11 @@ export const detectOutputLanguage = (text: string): OutputLanguageId => {
   }
 
   // Precedence is explicit so ambiguity is easy to change later.
-  if (looksLikeJsonByParse(trimmedText) || looksLikeJsonHeuristic(trimmedText)) {
+  if (
+    looksLikeJsonByParse(trimmedText) ||
+    looksLikeNdjson(trimmedText) ||
+    looksLikeJsonHeuristic(trimmedText)
+  ) {
     return 'json';
   }
 

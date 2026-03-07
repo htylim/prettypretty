@@ -2,7 +2,13 @@ import type { IndentSize } from './preferences';
 
 export type PrettifyTrigger = 'ingest-open-file' | 'ingest-drop' | 'ingest-paste' | 'switch-output';
 
-export type LocalDetection = 'json' | 'json5' | 'python-like' | 'unsupported' | 'malformed';
+export type LocalDetection =
+  | 'json'
+  | 'ndjson'
+  | 'json5'
+  | 'python-like'
+  | 'unsupported'
+  | 'malformed';
 
 export type FallbackStatus =
   | 'not-attempted'

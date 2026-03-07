@@ -71,7 +71,7 @@
   - non-empty input: run prettifier first; switch to output only after processing completes.
   - empty open/drop: remain input with inline notice.
   - empty paste: remain input without file-empty notice.
-- Local parser chain order: strict JSON -> JSON5 (JS/TS object-literal style) -> Python-literal normalization + JSON5.
+- Local parser chain order: strict JSON -> newline-delimited JSON (strict JSON per non-empty line) -> JSON5 (JS/TS object-literal style) -> Python-literal normalization + JSON5.
 - Malformed/unsupported local inputs trigger fallback agent execution via main-process IPC when configured.
 - If no fallback agent is configured but at least one enabled agent exists, malformed/unsupported local inputs open a modal that offers `No` (default) or a split fallback button: the primary action shows the currently selected agent and runs it, while the chevron side swaps the selected agent for that one-shot fallback run.
 - If no fallback agent is configured and the one-shot modal is dismissed or canceled, output remains passthrough unchanged.
