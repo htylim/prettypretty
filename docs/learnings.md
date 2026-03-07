@@ -16,6 +16,7 @@ Do not add routine status updates, implementation history, or one-time decisions
 - Do not style Monaco text metrics via external CSS selectors (for example `.view-lines`); set typography metrics in Monaco options or cursor/selection alignment can drift.
 - Do not let prettifier indentation and Monaco indentation settings come from different sources; both must read the same persisted preference value.
 - Do not mutate output text to implement search highlighting; use Monaco-native find/decorations so copy/save output remains accurate.
+- Do not treat bubbled paste events from Monaco find/replace widgets as shell-level ingest; allow widget-local paste or search can overwrite the active document.
 - Do not key output fold/view state to transient UI state; persist/restore by deterministic document identity.
 - Do not maintain separate Monaco option sets for input/output that can drift; use one shared base and derive editable/read-only variants.
 - Do not enable fold actions when there is no content; fold controls should be content-aware and no-op states should stay disabled.

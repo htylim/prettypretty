@@ -1,1 +1,4 @@
-- [x] Add fallback large-content confirmation before agent execution: show `Content is <number> lines. Use fallback agent?` when malformed/unsupported input exceeds persisted threshold (`fallbackWarningLineThreshold`, default `300`).
+- el CMD+V me esta tomando aún cuando el crsor esta en el find entonces no me deja buscar.
+- CMD+N hacerlo multi-ventana asi puedo hacer cmd+n y abrir una nueva ventana y tener multiples snippets.
+- hacer que si elijo no-fallback y no logra formatear el documento que me pregunte ahí mismo si lo fallbackea y dar las opciones (y tal vez con un checkbox para cambiar la pref)
+- agregar como posible documento JSONS new-line delimited (existen? son los de UNLOAD de lakehero)

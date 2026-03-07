@@ -78,6 +78,7 @@
 - Output mode line numbers are always visible in current scope.
 - Output mode minimap is enabled for document-level navigation.
 - Output mode search uses Monaco native find widget (triggered by `Cmd+F` in output mode).
+- Paste inside Monaco find/replace inputs stays local to that widget and must not trigger app-level ingest/prettify flow.
 - Output mode fold/view state persists for the current document identity during the app session.
 - Output-mode prettify indentation and Monaco tab/guide indentation are sourced from the same persisted preference value (`indentSize`) so they stay synchronized.
 - If output mode currently displays already-prettified text, changing `indentSize` reindents the visible output locally by line-leading whitespace remap (no new prettifier/fallback request).

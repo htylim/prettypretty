@@ -229,6 +229,44 @@ describe('EditorShell', () => {
     expect(onIngestInput).toHaveBeenCalledWith('', 'paste');
   });
 
+  it('ignores paste events from Monaco find widget inputs', () => {
+    const onIngestInput = vi.fn();
+
+    render(
+      <EditorShell
+        paneMode="output"
+        themeMode="light"
+        indentSize={2}
+        inputText="alpha"
+        outputText="alpha"
+        outputDocumentId="doc-find-widget"
+        ingestNotice={null}
+        fallbackWaitState={null}
+        inputEditorRef={createInputEditorRef()}
+        outputEditorRef={createOutputEditorRef()}
+        onEditInputChange={vi.fn()}
+        onIngestInput={onIngestInput}
+        onDismissIngestNotice={vi.fn()}
+        onOpenFile={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+
+    const shell = screen.getByTestId('editor-shell');
+    const findWidget = document.createElement('div');
+    findWidget.className = 'find-widget';
+    const findInput = document.createElement('textarea');
+    findWidget.appendChild(findInput);
+    shell.appendChild(findWidget);
+
+    fireEvent.paste(findInput, {
+      clipboardData: {
+        getData: () => 'query',
+      },
+    });
+
+    expect(onIngestInput).not.toHaveBeenCalled();
+  });
+
   it('renders read-only output in output mode', () => {
     render(
       <EditorShell

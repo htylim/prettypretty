@@ -321,6 +321,34 @@ describe('App', () => {
     expect(prettifierRunMock).not.toHaveBeenCalled();
   });
 
+  it('does not ingest paste events coming from the Monaco find widget', async () => {
+    act(() => {
+      useUiStore.setState({
+        paneMode: 'output',
+        inputText: '{"before":1}',
+        ingestNotice: null,
+      });
+    });
+
+    await renderApp();
+
+    const shell = screen.getByTestId('editor-shell');
+    const findWidget = document.createElement('div');
+    findWidget.className = 'find-widget';
+    const findInput = document.createElement('input');
+    findWidget.appendChild(findInput);
+    shell.appendChild(findWidget);
+
+    fireEvent.paste(findInput, {
+      clipboardData: {
+        getData: () => '{"after":2}',
+      },
+    });
+
+    expect(useUiStore.getState().inputText).toBe('{"before":1}');
+    expect(prettifierRunMock).not.toHaveBeenCalled();
+  });
+
   it('typing in input editor updates text without forcing output mode', async () => {
     act(() => {
       useUiStore.setState({

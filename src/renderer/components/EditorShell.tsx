@@ -4,6 +4,15 @@ import type { PaneMode, ThemeMode } from '../../shared/types';
 import { InputEditor, type InputEditorHandle } from './InputEditor';
 import { OutputEditor, type OutputEditorHandle } from './OutputEditor';
 
+const isMonacoFindWidgetTarget = (target: EventTarget | null): boolean => {
+  if (!(target instanceof Node)) {
+    return false;
+  }
+
+  const targetElement = target instanceof Element ? target : target.parentElement;
+  return targetElement?.closest('.find-widget') !== null;
+};
+
 type EditorShellProps = {
   paneMode: PaneMode;
   themeMode: ThemeMode;
@@ -65,6 +74,10 @@ export const EditorShell = ({
   };
 
   const handlePaste: ClipboardEventHandler<HTMLDivElement> = (event) => {
+    if (isMonacoFindWidgetTarget(event.target)) {
+      return;
+    }
+
     const pastedText = event.clipboardData.getData('text');
     onIngestInput(pastedText, 'paste');
   };
