@@ -31,6 +31,8 @@ export const isPrettifyRunRequest = (value: unknown): value is PrettifyRunReques
     isRequestId(value.requestId) &&
     typeof value.inputText === 'string' &&
     isIndentSize(value.indentSize) &&
-    isPrettifyTrigger(value.trigger)
+    isPrettifyTrigger(value.trigger) &&
+    (value.fallbackAgentIdOverride === undefined ||
+      typeof value.fallbackAgentIdOverride === 'string')
   );
 };

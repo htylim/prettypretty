@@ -21,6 +21,15 @@ type UseAppControllerOptions = {
   outputEditorRef: RefObject<OutputEditorHandle | null>;
 };
 
+export type FallbackModalState =
+  | {
+      kind: 'large-content';
+      lineCount: number;
+    }
+  | {
+      kind: 'agent-selection';
+    };
+
 export type UseAppControllerResult = {
   paneMode: PaneMode;
   themeMode: ThemeMode;
@@ -31,7 +40,7 @@ export type UseAppControllerResult = {
   outputDocumentId: string;
   fallbackWaitState: FallbackWaitState | null;
   fallbackWarningLineThreshold: number;
-  fallbackConfirmationLineCount: number | null;
+  fallbackModalState: FallbackModalState | null;
   fallbackAgentId: string | null;
   fallbackAgentOptions: FallbackAgentOption[];
   hasContent: boolean;
@@ -48,8 +57,9 @@ export type UseAppControllerResult = {
   onIngestInput: (value: string, source: IngestSource) => void;
   onDismissIngestNotice: () => void;
   onOpenFile: () => Promise<void>;
-  onConfirmFallback: () => void;
   onCancelFallback: () => void;
+  onConfirmFallback: () => void;
+  onSelectFallbackAgent: (agentId: string) => void;
 };
 
 const getWindowApi = (): WindowApi | null => {
@@ -63,6 +73,7 @@ export const useAppController = ({
 }: UseAppControllerOptions): UseAppControllerResult => {
   const latestIndentSizeRequestIdRef = useRef(0);
   const fallbackConfirmationResolverRef = useRef<((accepted: boolean) => void) | null>(null);
+  const fallbackAgentSelectionResolverRef = useRef<((agentId: string | null) => void) | null>(null);
   const paneMode = useUiStore((state) => state.paneMode);
   const themeMode = useUiStore((state) => state.themeMode);
   const indentSize = useUiStore((state) => state.indentSize);
@@ -74,9 +85,7 @@ export const useAppController = ({
   const setIndentSize = useUiStore((state) => state.setIndentSize);
   const setInputText = useUiStore((state) => state.setInputText);
   const setIngestNotice = useUiStore((state) => state.setIngestNotice);
-  const [fallbackConfirmationLineCount, setFallbackConfirmationLineCount] = useState<number | null>(
-    null,
-  );
+  const [fallbackModalState, setFallbackModalState] = useState<FallbackModalState | null>(null);
 
   const logTelemetry = useCallback(
     async (name: TelemetryEventName, meta: TelemetryMeta): Promise<void> => {
@@ -109,21 +118,51 @@ export const useAppController = ({
 
   const requestFallbackConfirmation = useCallback((lineCount: number): Promise<boolean> => {
     return new Promise<boolean>((resolve) => {
-      const previousResolver = fallbackConfirmationResolverRef.current;
-      if (previousResolver) {
-        previousResolver(false);
+      if (fallbackConfirmationResolverRef.current) {
+        fallbackConfirmationResolverRef.current(false);
+      }
+      if (fallbackAgentSelectionResolverRef.current) {
+        fallbackAgentSelectionResolverRef.current(null);
       }
 
       fallbackConfirmationResolverRef.current = resolve;
-      setFallbackConfirmationLineCount(lineCount);
+      fallbackAgentSelectionResolverRef.current = null;
+      setFallbackModalState({
+        kind: 'large-content',
+        lineCount,
+      });
     });
   }, []);
 
   const settleFallbackConfirmation = useCallback((accepted: boolean): void => {
     const resolver = fallbackConfirmationResolverRef.current;
     fallbackConfirmationResolverRef.current = null;
-    setFallbackConfirmationLineCount(null);
+    setFallbackModalState(null);
     resolver?.(accepted);
+  }, []);
+
+  const requestFallbackAgentSelection = useCallback((): Promise<string | null> => {
+    return new Promise<string | null>((resolve) => {
+      if (fallbackConfirmationResolverRef.current) {
+        fallbackConfirmationResolverRef.current(false);
+      }
+      if (fallbackAgentSelectionResolverRef.current) {
+        fallbackAgentSelectionResolverRef.current(null);
+      }
+
+      fallbackConfirmationResolverRef.current = null;
+      fallbackAgentSelectionResolverRef.current = resolve;
+      setFallbackModalState({
+        kind: 'agent-selection',
+      });
+    });
+  }, []);
+
+  const settleFallbackAgentSelection = useCallback((agentId: string | null): void => {
+    const resolver = fallbackAgentSelectionResolverRef.current;
+    fallbackAgentSelectionResolverRef.current = null;
+    setFallbackModalState(null);
+    resolver?.(agentId);
   }, []);
 
   const {
@@ -147,6 +186,7 @@ export const useAppController = ({
     fallbackAgentOptions,
     getWindowApi,
     requestFallbackConfirmation,
+    requestFallbackAgentSelection,
     logTelemetry,
   });
 
@@ -311,6 +351,10 @@ export const useAppController = ({
         fallbackConfirmationResolverRef.current(false);
         fallbackConfirmationResolverRef.current = null;
       }
+      if (fallbackAgentSelectionResolverRef.current) {
+        fallbackAgentSelectionResolverRef.current(null);
+        fallbackAgentSelectionResolverRef.current = null;
+      }
     };
   }, []);
 
@@ -337,7 +381,7 @@ export const useAppController = ({
     outputDocumentId,
     fallbackWaitState,
     fallbackWarningLineThreshold,
-    fallbackConfirmationLineCount,
+    fallbackModalState,
     fallbackAgentId,
     fallbackAgentOptions,
     hasContent,
@@ -354,7 +398,15 @@ export const useAppController = ({
     onIngestInput: ingestInputText,
     onDismissIngestNotice: () => setIngestNotice(null),
     onOpenFile: openFile,
+    onCancelFallback: () => {
+      if (fallbackModalState?.kind === 'agent-selection') {
+        settleFallbackAgentSelection(null);
+        return;
+      }
+
+      settleFallbackConfirmation(false);
+    },
     onConfirmFallback: () => settleFallbackConfirmation(true),
-    onCancelFallback: () => settleFallbackConfirmation(false),
+    onSelectFallbackAgent: (agentId: string) => settleFallbackAgentSelection(agentId),
   };
 };

@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { useAppController } from './app/useAppController';
 import { ConfirmationModal } from './components/ConfirmationModal';
 import { EditorShell } from './components/EditorShell';
+import { FallbackAgentComboButton } from './components/FallbackAgentComboButton';
 import type { InputEditorHandle } from './components/InputEditor';
 import type { OutputEditorHandle } from './components/OutputEditor';
 import { Toolbar } from './components/Toolbar';
@@ -10,6 +11,11 @@ export const App = () => {
   const inputEditorRef = useRef<InputEditorHandle>(null);
   const outputEditorRef = useRef<OutputEditorHandle>(null);
   const controller = useAppController({ inputEditorRef, outputEditorRef });
+  const enabledFallbackAgentOptions = controller.fallbackAgentOptions.filter(
+    (option) => option.enabled,
+  );
+  const isLargeContentFallbackModal = controller.fallbackModalState?.kind === 'large-content';
+  const isFallbackAgentSelectionModal = controller.fallbackModalState?.kind === 'agent-selection';
 
   return (
     <main className="app-root">
@@ -52,13 +58,30 @@ export const App = () => {
       </div>
 
       <ConfirmationModal
+        actions={
+          isFallbackAgentSelectionModal ? (
+            <>
+              <button autoFocus className="btn" onClick={controller.onCancelFallback} type="button">
+                No
+              </button>
+              <FallbackAgentComboButton
+                fallbackAgentOptions={enabledFallbackAgentOptions}
+                onSelect={controller.onSelectFallbackAgent}
+              />
+            </>
+          ) : undefined
+        }
         cancelLabel="Cancel"
         confirmLabel="Use fallback agent"
-        isOpen={controller.fallbackConfirmationLineCount !== null}
-        message={`Content exceeds ${controller.fallbackWarningLineThreshold} lines. Use fallback agent?`}
+        isOpen={controller.fallbackModalState !== null}
+        message={
+          isLargeContentFallbackModal
+            ? `Content exceeds ${controller.fallbackWarningLineThreshold} lines. Use fallback agent?`
+            : "Couldn't prettify this text locally. Call a fallback agent for this run?"
+        }
         onCancel={controller.onCancelFallback}
-        onConfirm={controller.onConfirmFallback}
-        title="Large content"
+        onConfirm={isLargeContentFallbackModal ? controller.onConfirmFallback : undefined}
+        title={isLargeContentFallbackModal ? 'Large content' : 'Call fallback agent'}
       />
     </main>
   );

@@ -96,9 +96,10 @@
 - If local parsing succeeds, renderer uses local output immediately.
 - If local parsing fails/unsupported, renderer calls main-process `prettifier:run` IPC and shows a dedicated wait screen (hiding editors) while fallback is running.
 - Before calling main-process fallback for malformed/unsupported input, renderer checks `fallbackWarningLineThreshold`; when input line count exceeds the threshold, it requires explicit modal confirmation.
+- If local parsing fails/unsupported while no persisted fallback is selected, renderer can request a one-shot fallback agent choice and passes that agent id to main as a per-request override without mutating preferences.
 - When `indentSize` changes while output pane shows already-prettified text, renderer reindents current output locally (leading-whitespace remap) instead of triggering a new prettifier/fallback run.
 - Main process streams best-effort fallback progress lines over `prettifier:progress` IPC; renderer binds updates to request id and renders only the latest line in the wait screen.
-- Main prettifier service resolves configured fallback agent from preferences and executes via `child_process.spawn`.
+- Main prettifier service resolves the fallback agent from either the persisted preference or a per-request override and executes via `child_process.spawn`.
 - Fallback execution enforces timeout and output-size caps and classifies failures into typed statuses.
 - Any fallback failure degrades to passthrough output instead of throwing into renderer.
 - Empty open-file/drop content stays in input mode and shows an inline notice (`File has no content.`).

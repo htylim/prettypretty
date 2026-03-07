@@ -61,4 +61,44 @@ describe('ConfirmationModal', () => {
     await user.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
+
+  it('closes through cancel when escape is pressed', async () => {
+    const user = userEvent.setup();
+    const onCancel = vi.fn();
+
+    render(
+      <ConfirmationModal
+        cancelLabel="No"
+        isOpen={true}
+        message="Couldn't prettify this text locally."
+        onCancel={onCancel}
+        title="Call fallback agent"
+        actions={<button type="button">Yes</button>}
+      />,
+    );
+
+    await user.keyboard('{Escape}');
+
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders custom actions when provided', () => {
+    render(
+      <ConfirmationModal
+        isOpen={true}
+        message="Couldn't prettify this text locally."
+        onCancel={vi.fn()}
+        title="Call fallback agent"
+        actions={
+          <>
+            <button type="button">No</button>
+            <button type="button">Yes</button>
+          </>
+        }
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'No' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Yes' })).toBeInTheDocument();
+  });
 });

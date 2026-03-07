@@ -45,6 +45,7 @@ type UsePrettifierFlowOptions = {
   fallbackAgentOptions: FallbackAgentOption[];
   getWindowApi: () => WindowApi | null;
   requestFallbackConfirmation: (lineCount: number) => Promise<boolean>;
+  requestFallbackAgentSelection: () => Promise<string | null>;
   logTelemetry: (name: TelemetryEventName, meta: TelemetryMeta) => Promise<void>;
 };
 
@@ -99,6 +100,7 @@ export const usePrettifierFlow = ({
   fallbackAgentOptions,
   getWindowApi,
   requestFallbackConfirmation,
+  requestFallbackAgentSelection,
   logTelemetry,
 }: UsePrettifierFlowOptions): UsePrettifierFlowResult => {
   const latestPrettifyRequestIdRef = useRef(0);
@@ -163,14 +165,49 @@ export const usePrettifierFlow = ({
         return;
       }
 
-      const fallbackAgent = getConfiguredFallbackAgentFromSelection(
+      const configuredFallbackAgent = getConfiguredFallbackAgentFromSelection(
         fallbackAgentId,
         fallbackAgentOptions,
       );
+      const hasEnabledFallbackAgentOption = fallbackAgentOptions.some((option) => option.enabled);
+      let effectiveFallbackAgentId = fallbackAgentId;
+      let effectiveFallbackAgent = configuredFallbackAgent;
+
+      if (!configuredFallbackAgent.shouldWaitForFallback && hasEnabledFallbackAgentOption) {
+        effectiveFallbackAgentId = await requestFallbackAgentSelection();
+        if (requestId !== latestPrettifyRequestIdRef.current) {
+          return;
+        }
+
+        if (!effectiveFallbackAgentId) {
+          setOutputText(nextInputText);
+          lastPrettifiedInputRef.current = nextInputText;
+          outputFormattingRef.current = createEmptyFormattingState();
+          if (options.switchToOutputOnComplete) {
+            setPaneMode('output');
+          }
+          return;
+        }
+
+        effectiveFallbackAgent = getConfiguredFallbackAgentFromSelection(
+          effectiveFallbackAgentId,
+          fallbackAgentOptions,
+        );
+      }
+
+      if (!effectiveFallbackAgent.shouldWaitForFallback) {
+        setOutputText(nextInputText);
+        lastPrettifiedInputRef.current = nextInputText;
+        outputFormattingRef.current = createEmptyFormattingState();
+        if (options.switchToOutputOnComplete) {
+          setPaneMode('output');
+        }
+        return;
+      }
 
       const lineCount = getLineCount(nextInputText);
       const shouldPromptForFallbackConfirmation =
-        fallbackAgent.shouldWaitForFallback && lineCount > fallbackWarningLineThreshold;
+        effectiveFallbackAgent.shouldWaitForFallback && lineCount > fallbackWarningLineThreshold;
 
       if (shouldPromptForFallbackConfirmation) {
         const shouldUseFallbackAgent = await requestFallbackConfirmation(lineCount);
@@ -189,15 +226,13 @@ export const usePrettifierFlow = ({
         }
       }
 
-      if (fallbackAgent.shouldWaitForFallback) {
-        setFallbackWaitState({
-          requestId,
-          formatLabel: detectFallbackFormatLabel(nextInputText),
-          agentName: fallbackAgent.agentName,
-          progressLine: null,
-        });
-        setIsLlmRunning(true);
-      }
+      setFallbackWaitState({
+        requestId,
+        formatLabel: detectFallbackFormatLabel(nextInputText),
+        agentName: effectiveFallbackAgent.agentName,
+        progressLine: null,
+      });
+      setIsLlmRunning(true);
 
       try {
         const response = await api.prettifier.run({
@@ -205,6 +240,9 @@ export const usePrettifierFlow = ({
           inputText: nextInputText,
           indentSize,
           trigger,
+          ...(effectiveFallbackAgentId && effectiveFallbackAgentId !== fallbackAgentId
+            ? { fallbackAgentIdOverride: effectiveFallbackAgentId }
+            : {}),
         });
 
         if (requestId !== latestPrettifyRequestIdRef.current) {
@@ -248,6 +286,7 @@ export const usePrettifierFlow = ({
       logTelemetry,
       prettifierService,
       requestFallbackConfirmation,
+      requestFallbackAgentSelection,
       setPaneMode,
     ],
   );

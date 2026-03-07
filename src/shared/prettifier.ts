@@ -27,6 +27,7 @@ export type PrettifyRunRequest = {
   inputText: string;
   indentSize: IndentSize;
   trigger: PrettifyTrigger;
+  fallbackAgentIdOverride?: string;
 };
 
 export type PrettifyRunResponse = {

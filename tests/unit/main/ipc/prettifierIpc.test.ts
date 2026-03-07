@@ -138,6 +138,18 @@ describe('registerIpcHandlers prettifier channels', () => {
     await expect(
       runHandler({ sender: { send: vi.fn() } }, { trigger: 'switch-output' }),
     ).rejects.toThrow('Invalid prettifier request payload');
+    await expect(
+      runHandler(
+        { sender: { send: vi.fn() } },
+        {
+          requestId: 1,
+          inputText: '{bad',
+          indentSize: 2,
+          trigger: 'switch-output',
+          fallbackAgentIdOverride: 42,
+        },
+      ),
+    ).rejects.toThrow('Invalid prettifier request payload');
     expect(prettifierService.run).not.toHaveBeenCalled();
   });
 

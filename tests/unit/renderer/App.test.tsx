@@ -446,6 +446,88 @@ describe('App', () => {
     expect(screen.getByTestId('output-editor')).toHaveTextContent('{bad');
   });
 
+  it('asks for a fallback agent when prettify fails and no fallback is configured', async () => {
+    const user = userEvent.setup();
+    preferencesGetAllMock.mockResolvedValue(createPreferences({ fallbackAgentId: null }));
+
+    act(() => {
+      useUiStore.setState({
+        paneMode: 'input',
+        inputText: '{bad',
+        ingestNotice: null,
+      });
+    });
+
+    await renderApp();
+    await user.click(screen.getByTestId('pane-segment-output'));
+
+    expect(screen.getByTestId('fallback-confirmation-modal')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Couldn't prettify this text locally\. Call a fallback agent for this run\?/,
+      ),
+    ).toBeInTheDocument();
+    expect(prettifierRunMock).not.toHaveBeenCalled();
+  });
+
+  it('closes the no-fallback modal as No when escape is pressed', async () => {
+    const user = userEvent.setup();
+    preferencesGetAllMock.mockResolvedValue(createPreferences({ fallbackAgentId: null }));
+
+    act(() => {
+      useUiStore.setState({
+        paneMode: 'input',
+        inputText: '{bad',
+        ingestNotice: null,
+      });
+    });
+
+    await renderApp();
+    await user.click(screen.getByTestId('pane-segment-output'));
+    await user.keyboard('{Escape}');
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('fallback-confirmation-modal')).not.toBeInTheDocument();
+    });
+    expect(prettifierRunMock).not.toHaveBeenCalled();
+    expect(screen.getByTestId('output-editor')).toHaveTextContent('{bad');
+  });
+
+  it('runs a one-shot fallback agent selected from the no-fallback modal', async () => {
+    const user = userEvent.setup();
+    preferencesGetAllMock.mockResolvedValue(createPreferences({ fallbackAgentId: null }));
+    prettifierRunMock.mockResolvedValue(
+      createPrettifierResponse({
+        outputText: '{\n  "agent": "amp"\n}',
+        agentId: 'amp',
+      }),
+    );
+
+    act(() => {
+      useUiStore.setState({
+        paneMode: 'input',
+        inputText: '{bad',
+        ingestNotice: null,
+      });
+    });
+
+    await renderApp();
+    await user.click(screen.getByTestId('pane-segment-output'));
+    await user.click(screen.getByTestId('fallback-agent-combo-toggle'));
+    await user.click(screen.getByTestId('fallback-agent-combo-option-amp'));
+    await user.click(screen.getByTestId('fallback-agent-combo-button'));
+
+    await waitFor(() => {
+      expect(prettifierRunMock).toHaveBeenCalledTimes(1);
+    });
+    expect(prettifierRunMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fallbackAgentIdOverride: 'amp',
+      }),
+    );
+    expect(await screen.findByTestId('output-editor')).toHaveTextContent('"agent": "amp"');
+  });
+
   it('shows fallback wait screen while fallback request is running and hides output editor', async () => {
     const user = userEvent.setup();
     const deferredRun = createDeferred<PrettifyRunResponse>();

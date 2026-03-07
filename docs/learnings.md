@@ -57,3 +57,4 @@ Do not add routine status updates, implementation history, or one-time decisions
 - Do not trust IPC primitive payload types implicitly; validate string channels (for example save/copy text) at the main-process boundary and reject invalid payloads consistently.
 - Do not rely on external globally-installed AI CLIs for fallback e2e coverage; configure a deterministic test-only fallback agent via preferences (for example `node -e ...`) so wait/progress/completion paths are stable in CI and local runs.
 - Do not let e2e tests leak preference mutations across runs; reset persisted preferences at test boundaries to keep app-launch defaults deterministic and avoid cross-test pollution.
+- Do not persist a temporary fallback choice just to support a one-off malformed-input retry; pass an explicit per-request fallback agent override through renderer IPC so the modal-selected agent applies only to that run.

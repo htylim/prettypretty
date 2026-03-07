@@ -109,6 +109,7 @@ describe('useAppController', () => {
     expect(controller?.outputDocumentId).toMatch(/^output-/u);
     expect(controller?.fallbackAgentId).toBe('codex');
     expect(controller?.fallbackWarningLineThreshold).toBe(300);
+    expect(controller?.fallbackModalState).toBeNull();
     expect(controller?.fallbackAgentOptions).toEqual([
       { id: 'codex', name: 'Codex', enabled: true },
     ]);

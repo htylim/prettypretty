@@ -98,7 +98,10 @@ export const createPrettifierService = ({
       }
 
       const preferences = await preferencesService.getAll();
-      if (!preferences.fallbackAgentId) {
+      const resolvedFallbackAgentId =
+        request.fallbackAgentIdOverride ?? preferences.fallbackAgentId ?? null;
+
+      if (!resolvedFallbackAgentId) {
         const response: PrettifyRunResponse = {
           status: 'passthrough-no-fallback',
           outputText: request.inputText,
@@ -123,7 +126,7 @@ export const createPrettifierService = ({
       }
 
       const fallbackAgent = preferences.agents.find(
-        (agent) => agent.id === preferences.fallbackAgentId,
+        (agent) => agent.id === resolvedFallbackAgentId,
       );
       if (!fallbackAgent || !fallbackAgent.enabled) {
         const response: PrettifyRunResponse = {
@@ -131,13 +134,13 @@ export const createPrettifierService = ({
           outputText: request.inputText,
           localDetection: localResult.detection,
           fallbackStatus: 'skipped-invalid-agent',
-          agentId: preferences.fallbackAgentId,
+          agentId: resolvedFallbackAgentId,
           durationMs: now() - startedAt,
         };
 
         logger.info('prettifier.fallback.decision', {
           fallbackStatus: response.fallbackStatus,
-          fallbackAgentId: preferences.fallbackAgentId,
+          fallbackAgentId: resolvedFallbackAgentId,
         });
         logger.info('prettifier.run.completed', {
           status: response.status,

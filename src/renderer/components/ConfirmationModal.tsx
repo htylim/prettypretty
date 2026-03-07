@@ -1,22 +1,44 @@
+import { useEffect } from 'react';
+import type { ReactNode } from 'react';
+
 type ConfirmationModalProps = {
   isOpen: boolean;
   title: string;
-  confirmLabel: string;
-  cancelLabel: string;
   message: string;
-  onConfirm: () => void;
   onCancel: () => void;
+  confirmLabel?: string | undefined;
+  cancelLabel?: string | undefined;
+  onConfirm?: (() => void) | undefined;
+  actions?: ReactNode | undefined;
 };
 
 export const ConfirmationModal = ({
   isOpen,
   title,
+  message,
+  onCancel,
   confirmLabel,
   cancelLabel,
-  message,
   onConfirm,
-  onCancel,
+  actions,
 }: ConfirmationModalProps) => {
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onCancel();
+      }
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [isOpen, onCancel]);
+
   if (!isOpen) {
     return null;
   }
@@ -31,14 +53,18 @@ export const ConfirmationModal = ({
       <div className="confirmation-modal">
         <h2 className="confirmation-modal-title">{title}</h2>
         <p className="confirmation-modal-message">{message}</p>
-        <div className="confirmation-modal-actions">
-          <button className="btn" onClick={onCancel} type="button">
-            {cancelLabel}
-          </button>
-          <button className="btn confirmation-modal-confirm" onClick={onConfirm} type="button">
-            {confirmLabel}
-          </button>
-        </div>
+        {actions ? (
+          <div className="confirmation-modal-actions">{actions}</div>
+        ) : (
+          <div className="confirmation-modal-actions">
+            <button className="btn" onClick={onCancel} type="button">
+              {cancelLabel}
+            </button>
+            <button className="btn btn-primary" onClick={onConfirm} type="button">
+              {confirmLabel}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

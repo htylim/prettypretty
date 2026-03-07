@@ -72,7 +72,10 @@ type HarnessProps = {
     meta: Record<string, string | number | boolean | null>,
   ) => Promise<void>;
   requestFallbackConfirmation?: (lineCount: number) => Promise<boolean>;
+  requestFallbackAgentSelection?: () => Promise<string | null>;
   fallbackWarningLineThreshold?: number;
+  fallbackAgentId?: string | null;
+  fallbackAgentOptions?: { id: string; name: string; enabled: boolean }[];
 };
 
 const PrettifierHarness = forwardRef<HarnessHandle, HarnessProps>(
@@ -81,7 +84,10 @@ const PrettifierHarness = forwardRef<HarnessHandle, HarnessProps>(
       api,
       logTelemetry,
       requestFallbackConfirmation = async () => true,
+      requestFallbackAgentSelection = async () => null,
       fallbackWarningLineThreshold = 300,
+      fallbackAgentId = 'codex',
+      fallbackAgentOptions = [{ id: 'codex', name: 'Codex', enabled: true }],
     },
     ref,
   ) => {
@@ -95,10 +101,11 @@ const PrettifierHarness = forwardRef<HarnessHandle, HarnessProps>(
       setPaneMode,
       setInputText,
       setIngestNotice,
-      fallbackAgentId: 'codex',
-      fallbackAgentOptions: [{ id: 'codex', name: 'Codex', enabled: true }],
+      fallbackAgentId,
+      fallbackAgentOptions,
       getWindowApi,
       requestFallbackConfirmation,
+      requestFallbackAgentSelection,
       logTelemetry,
     });
 
@@ -412,5 +419,105 @@ describe('usePrettifierFlow', () => {
       expect(run).toHaveBeenCalledTimes(1);
     });
     expect(confirmation).not.toHaveBeenCalled();
+  });
+
+  it('asks for a one-shot fallback agent when no persisted fallback is configured', async () => {
+    const selectFallbackAgent = vi.fn().mockResolvedValue('amp');
+    const deferred = createDeferred<PrettifyRunResponse>();
+    const run = vi.fn().mockReturnValue(deferred.promise);
+    const telemetry = vi.fn().mockResolvedValue(undefined);
+    const api: WindowApi = {
+      dialog: { openFile: vi.fn() },
+      file: { save: vi.fn() },
+      clipboard: { copy: vi.fn() },
+      app: { getInfo: vi.fn(), initialThemeMode: null },
+      logs: { getHistory: vi.fn(), onLine: vi.fn() },
+      preferences: {
+        getAll: vi.fn().mockResolvedValue(createPreferences({ fallbackAgentId: null })),
+        update: vi.fn(),
+        reset: vi.fn(),
+      },
+      prettifier: { run, onProgress: vi.fn().mockImplementation(() => vi.fn()) },
+      telemetry: { log: vi.fn() },
+    };
+    const ref = { current: null as HarnessHandle | null };
+
+    render(
+      createElement(PrettifierHarness, {
+        api,
+        logTelemetry: telemetry,
+        fallbackAgentId: null,
+        fallbackAgentOptions: [{ id: 'amp', name: 'Amp', enabled: true }],
+        requestFallbackAgentSelection: selectFallbackAgent,
+        ref,
+      }),
+    );
+
+    act(() => {
+      void ref.current?.runPrettifier('{bad', 'switch-output', {
+        switchToOutputOnComplete: false,
+      });
+    });
+
+    await waitFor(() => {
+      expect(selectFallbackAgent).toHaveBeenCalledTimes(1);
+    });
+    expect(run).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fallbackAgentIdOverride: 'amp',
+      }),
+    );
+    expect(ref.current?.getFallbackWaitState()?.agentName).toBe('Amp');
+
+    deferred.resolve(createPrettifierResponse({ agentId: 'amp' }));
+
+    await waitFor(() => {
+      expect(ref.current?.getFallbackWaitState()).toBeNull();
+    });
+  });
+
+  it('keeps passthrough output when one-shot fallback selection is declined', async () => {
+    const selectFallbackAgent = vi.fn().mockResolvedValue(null);
+    const run = vi.fn().mockResolvedValue(createPrettifierResponse());
+    const telemetry = vi.fn().mockResolvedValue(undefined);
+    const api: WindowApi = {
+      dialog: { openFile: vi.fn() },
+      file: { save: vi.fn() },
+      clipboard: { copy: vi.fn() },
+      app: { getInfo: vi.fn(), initialThemeMode: null },
+      logs: { getHistory: vi.fn(), onLine: vi.fn() },
+      preferences: {
+        getAll: vi.fn().mockResolvedValue(createPreferences({ fallbackAgentId: null })),
+        update: vi.fn(),
+        reset: vi.fn(),
+      },
+      prettifier: { run, onProgress: vi.fn().mockImplementation(() => vi.fn()) },
+      telemetry: { log: vi.fn() },
+    };
+    const ref = { current: null as HarnessHandle | null };
+
+    render(
+      createElement(PrettifierHarness, {
+        api,
+        logTelemetry: telemetry,
+        fallbackAgentId: null,
+        fallbackAgentOptions: [{ id: 'amp', name: 'Amp', enabled: true }],
+        requestFallbackAgentSelection: selectFallbackAgent,
+        ref,
+      }),
+    );
+
+    act(() => {
+      void ref.current?.runPrettifier('{bad', 'switch-output', {
+        switchToOutputOnComplete: true,
+      });
+    });
+
+    await waitFor(() => {
+      expect(selectFallbackAgent).toHaveBeenCalledTimes(1);
+    });
+    expect(run).not.toHaveBeenCalled();
+    expect(ref.current?.getOutputText()).toBe('{bad');
+    expect(ref.current?.getPaneMode()).toBe('output');
   });
 });

@@ -143,6 +143,47 @@ describe('prettifierService', () => {
     expect(fallbackExecutor.execute).toHaveBeenCalledTimes(1);
   });
 
+  it('uses a one-shot fallback override when provided', async () => {
+    const preferences = createDefaultPreferences();
+    const preferencesService = {
+      getAll: vi.fn().mockResolvedValue({
+        ...preferences,
+        fallbackAgentId: null,
+      }),
+    };
+    const fallbackExecutor = {
+      execute: vi.fn().mockResolvedValue({
+        status: 'applied',
+        outputText: '{\n  "agent": "amp"\n}',
+        exitCode: 0,
+        stderrLength: 0,
+        durationMs: 25,
+      }),
+    };
+    const logger = createLogger();
+    const service = createPrettifierService({
+      preferencesService,
+      logger,
+      fallbackExecutor,
+    });
+
+    const response = await service.run({
+      requestId: 1,
+      inputText: '{bad',
+      indentSize: 2,
+      trigger: 'switch-output',
+      fallbackAgentIdOverride: 'amp',
+    });
+
+    expect(response).toMatchObject({
+      status: 'applied-fallback',
+      fallbackStatus: 'applied',
+      outputText: '{\n  "agent": "amp"\n}',
+      agentId: 'amp',
+    });
+    expect(fallbackExecutor.execute).toHaveBeenCalledTimes(1);
+  });
+
   it('forwards fallback progress callback to executor', async () => {
     const preferences = createDefaultPreferences();
     const preferencesService = {

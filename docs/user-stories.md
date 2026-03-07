@@ -15,5 +15,5 @@
 2. As a user, I can use syntax highlighting and folding in output mode.
 3. As a user, I can collapse/expand nested structures globally.
 4. As a user, malformed or unsupported structured text is kept unchanged instead of failing.
-5. As a user, AI fallback prettification can be used only when local parsing cannot prettify (future scope).
+5. As a user, AI fallback prettification can be used only when local parsing cannot prettify, including a one-shot agent choice when no default fallback is configured.
 6. As a user, I can set one indentation preference and have both prettified output and editor indentation reflect that same value.
