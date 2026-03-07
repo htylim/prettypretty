@@ -93,7 +93,7 @@
 - Monaco editors must keep visible:
   - line-number gutter,
   - document minimap,
-  - fold controls on gutter hover,
+  - fold controls in gutter at all times,
   - indentation guides + bracket-pair guides.
 - Bracket pair colorization must define at least six depth colors before repeating.
 - Search in output mode should use Monaco's native find widget (no custom decoration class for search matches).

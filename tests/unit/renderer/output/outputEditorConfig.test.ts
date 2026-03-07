@@ -19,7 +19,7 @@ describe('outputEditorConfig', () => {
     expect(options.readOnly).toBe(true);
     expect(options.minimap?.enabled).toBe(true);
     expect(options.folding).toBe(true);
-    expect(options.showFoldingControls).toBe('mouseover');
+    expect(options.showFoldingControls).toBe('always');
     expect(options.wordWrap).toBe('off');
     expect(options.renderValidationDecorations).toBe('off');
     expect(options.lineNumbers).toBe('on');
@@ -41,6 +41,7 @@ describe('outputEditorConfig', () => {
     expect(inputOptions.lineNumbers).toBe(outputOptions.lineNumbers);
     expect(inputOptions.minimap).toEqual(outputOptions.minimap);
     expect(inputOptions.folding).toBe(outputOptions.folding);
+    expect(inputOptions.showFoldingControls).toBe(outputOptions.showFoldingControls);
     expect(inputOptions.wordWrap).toBe(outputOptions.wordWrap);
     expect(inputOptions.tabSize).toBe(3);
     expect(inputOptions.insertSpaces).toBe(true);

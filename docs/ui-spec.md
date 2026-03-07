@@ -78,6 +78,7 @@
 - Manual typing behavior: updates input text without forcing output mode.
 - Output mode language detection is heuristic and parser-independent, with malformed JSON-like content preferring JSON highlighting.
 - Output mode line numbers are always visible in current scope.
+- Monaco fold controls remain visible in the gutter at all times.
 - Output mode minimap is enabled for document-level navigation.
 - Output mode search uses Monaco native find widget (triggered by `Cmd+F` in output mode).
 - Paste inside Monaco find/replace inputs stays local to that widget and must not trigger app-level ingest/prettify flow.

@@ -51,7 +51,7 @@ This makes long structured outputs harder to scan and navigate.
 ### Gutter and folding behavior
 
 - Line numbers are always shown in left gutter in current scope.
-- Fold controls visible in gutter on hover only (match requested behavior).
+- Fold controls remain visible in the gutter at all times.
 - Wire toolbar `Expand` / `Collapse` actions to Monaco unfold-all and fold-all actions in output mode.
 - Maintain current rule: those actions stay disabled in input mode.
 - Persist fold state for the current loaded document while the app session is active and the document identity has not changed.
@@ -96,7 +96,7 @@ Reference note for implementation agents: any code snippets in specs are intent 
 - [ ] Syntax highlighting is active for supported formats and does not crash on malformed input.
 - [ ] Malformed JSON-like text still receives JSON-style tokenization heuristically.
 - [ ] Left gutter displays line numbers by default.
-- [ ] Fold controls appear on gutter hover and can collapse/expand nested blocks.
+- [ ] Fold controls stay visible in the gutter and can collapse/expand nested blocks.
 - [ ] `Expand` toolbar action unfolds all output blocks; `Collapse` folds all output blocks.
 - [ ] Colored vertical nesting guides are visible and depth-based in both light and dark themes.
 - [ ] App light/dark toggle updates Monaco theme in output mode.

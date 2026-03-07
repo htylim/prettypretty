@@ -14,7 +14,7 @@ const getSharedEditorOptions = (
   lineNumbers: getLineNumbersOption(),
   glyphMargin: true,
   folding: true,
-  showFoldingControls: 'mouseover',
+  showFoldingControls: 'always',
   guides: {
     indentation: true,
     bracketPairs: true,
