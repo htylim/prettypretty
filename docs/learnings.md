@@ -36,6 +36,7 @@ Do not add routine status updates, implementation history, or one-time decisions
 - Do not tie app lifetime to the first-created document window when the product supports multiple windows; let Electron close individual windows normally and exit only from `window-all-closed`.
 - Do not open file/save dialogs without scoping them to the invoking `BrowserWindow`; unparented dialogs become ambiguous once multiple document windows are open.
 - Do not execute fallback LLM commands from renderer code or without hard timeout/output caps; keep process execution in main with typed status outcomes so failures degrade to passthrough instead of UI hangs.
+- Do not pass raw fallback prompt content through child process argv; use stdin-only transport for user text so local process inspection cannot expose prompts.
 - Do not spawn fallback agents without explicit app-shutdown cleanup and process-tree termination; killing only the direct child or relying on parent exit can leave agent subprocesses running after the app closes.
 - Do not clear a fallback wait screen without canceling the underlying request-scoped child process; superseded or user-canceled runs must terminate in main or background agent CLIs will keep consuming time and tokens after the UI stops waiting.
 - Do not rely on inherited GUI `PATH` when spawning fallback CLIs from Electron; resolve known absolute install paths (for example app bundle, `~/.local/bin`, Homebrew paths) before defaulting to bare command names.
@@ -61,6 +62,11 @@ Do not add routine status updates, implementation history, or one-time decisions
 - Do not auto-run fallback agents on very large malformed inputs without explicit user confirmation; gate oversized fallback requests with a persisted line-threshold check to avoid accidental costly/slow agent runs.
 - Do not scatter ad-hoc `console.error` calls across renderer flows; route renderer failures through one shared reporter utility (`reportRendererError`) for consistent handling and easier evolution.
 - Do not trust IPC primitive payload types implicitly; validate string channels (for example save/copy text) at the main-process boundary and reject invalid payloads consistently.
+- Do not read arbitrary dropped/opened files into renderer state without size and text-type guardrails; keep file ingestion bounded and main-owned or large/binary payloads can freeze the app.
+- Do not treat shell-level paste as a global ingest gesture once a document exists; paste-as-ingest belongs only to the explicit empty-state entry path.
 - Do not rely on external globally-installed AI CLIs for fallback e2e coverage; configure a deterministic test-only fallback agent via preferences (for example `node -e ...`) so wait/progress/completion paths are stable in CI and local runs.
 - Do not let e2e tests leak preference mutations across runs; reset persisted preferences at test boundaries to keep app-launch defaults deterministic and avoid cross-test pollution.
 - Do not persist a temporary fallback choice just to support a one-off malformed-input retry; pass an explicit per-request fallback agent override through renderer IPC so the modal-selected agent applies only to that run.
+- Do not let late startup preference hydration overwrite newer user actions; initial async preference loads need stale-response guards just like optimistic writes do.
+- Do not implement renderer keyboard shortcuts or modifier-based Monaco gestures with macOS-only `metaKey` checks when the app targets Windows/Linux too; centralize a platform-aware primary modifier helper.
+- Do not let a renderer log viewer append forever after reading a bounded main-session log; keep renderer retention capped too or long sessions become memory leaks.
