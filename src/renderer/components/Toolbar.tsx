@@ -27,6 +27,7 @@ const segmentedContainerClass = 'segmented';
 const segmentButtonClass = 'seg';
 const activeSegmentClass = 'seg-active';
 const inactiveSegmentClass = 'seg-inactive';
+
 const tooltips = {
   new: 'New window (Cmd+N)',
   input: 'Switch to input (Cmd+I)',
@@ -38,6 +39,11 @@ const tooltips = {
   lightTheme: 'Switch to light theme',
   darkTheme: 'Switch to dark theme',
 } as const;
+
+// Segment buttons share one visual contract across pane/theme toggles.
+const getSegmentClassName = (isActive: boolean): string => {
+  return `${segmentButtonClass} ${isActive ? activeSegmentClass : inactiveSegmentClass}`;
+};
 
 export const Toolbar = ({
   paneMode,
@@ -71,7 +77,7 @@ export const Toolbar = ({
         <div className={segmentedContainerClass} data-testid="input-output-toggle" role="group">
           <button
             aria-pressed={paneMode === 'input'}
-            className={`${segmentButtonClass} ${paneMode === 'input' ? activeSegmentClass : inactiveSegmentClass}`}
+            className={getSegmentClassName(paneMode === 'input')}
             data-testid="pane-segment-input"
             onClick={() => {
               if (paneMode !== 'input') {
@@ -85,7 +91,7 @@ export const Toolbar = ({
           </button>
           <button
             aria-pressed={paneMode === 'output'}
-            className={`${segmentButtonClass} ${paneMode === 'output' ? activeSegmentClass : inactiveSegmentClass}`}
+            className={getSegmentClassName(paneMode === 'output')}
             data-testid="pane-segment-output"
             disabled={isOutputSegmentDisabled}
             onClick={() => {
@@ -156,7 +162,7 @@ export const Toolbar = ({
         <div className={segmentedContainerClass} data-testid="theme-toggle" role="group">
           <button
             aria-pressed={themeMode === 'light'}
-            className={`${segmentButtonClass} ${themeMode === 'light' ? activeSegmentClass : inactiveSegmentClass}`}
+            className={getSegmentClassName(themeMode === 'light')}
             data-testid="theme-segment-light"
             onClick={() => {
               if (themeMode !== 'light') {
@@ -170,7 +176,7 @@ export const Toolbar = ({
           </button>
           <button
             aria-pressed={themeMode === 'dark'}
-            className={`${segmentButtonClass} ${themeMode === 'dark' ? activeSegmentClass : inactiveSegmentClass}`}
+            className={getSegmentClassName(themeMode === 'dark')}
             data-testid="theme-segment-dark"
             onClick={() => {
               if (themeMode !== 'dark') {

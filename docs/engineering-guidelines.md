@@ -22,6 +22,8 @@
 - Use ESLint + Prettier.
 - Keep functions small and explicit.
 - Avoid implicit shared mutable state.
+- Extract repeated state transitions and async request-sequencing into named helpers before adding more branches.
+- Add concise docstrings/comments only where behavior, ownership, or async invariants are non-obvious.
 
 ## Commit Policy
 

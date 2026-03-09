@@ -21,6 +21,27 @@ export const EMPTY_FILE_NOTICE = 'File has no content.';
 export const UNKNOWN_FALLBACK_AGENT_NAME = 'fallback agent';
 export const MAX_FALLBACK_PROGRESS_LINES = 5;
 
+const INGEST_TRIGGER_BY_SOURCE: Record<IngestSource, PrettifyTrigger> = {
+  'open-file': 'ingest-open-file',
+  drop: 'ingest-drop',
+  paste: 'ingest-paste',
+};
+
+const INGEST_EVENT_NAME_BY_SOURCE: Record<IngestSource, TelemetryEventName> = {
+  'open-file': 'renderer.ingest.open-file',
+  drop: 'renderer.ingest.drop',
+  paste: 'renderer.ingest.paste',
+};
+
+const NO_FALLBACK_AGENT = {
+  shouldWaitForFallback: false,
+  agentName: UNKNOWN_FALLBACK_AGENT_NAME,
+} as const;
+
+/**
+ * Keep only the most recent progress lines so the wait screen remains readable
+ * and renderer memory use stays bounded during long-running fallback sessions.
+ */
 export const appendFallbackProgressLine = (progressLines: string[], line: string): string[] => {
   const nextProgressLines = [...progressLines, line];
 
@@ -31,6 +52,10 @@ export const appendFallbackProgressLine = (progressLines: string[], line: string
   return nextProgressLines.slice(-MAX_FALLBACK_PROGRESS_LINES);
 };
 
+/**
+ * Produce a deterministic id from the output content so Monaco view state can be
+ * restored per logical document instead of per transient pane switch.
+ */
 export const getOutputDocumentId = (value: string): string => {
   let hash = 2166136261;
 
@@ -46,30 +71,22 @@ export const isFileIngestSource = (source: IngestSource): boolean => {
   return source === 'open-file' || source === 'drop';
 };
 
+/**
+ * Maps renderer ingest sources to the shared trigger values consumed by
+ * prettifier telemetry and main-process execution.
+ */
 export const getIngestTrigger = (source: IngestSource): PrettifyTrigger => {
-  if (source === 'open-file') {
-    return 'ingest-open-file';
-  }
-
-  if (source === 'drop') {
-    return 'ingest-drop';
-  }
-
-  return 'ingest-paste';
+  return INGEST_TRIGGER_BY_SOURCE[source];
 };
 
 export const getIngestEventName = (source: IngestSource): TelemetryEventName => {
-  if (source === 'open-file') {
-    return 'renderer.ingest.open-file';
-  }
-
-  if (source === 'drop') {
-    return 'renderer.ingest.drop';
-  }
-
-  return 'renderer.ingest.paste';
+  return INGEST_EVENT_NAME_BY_SOURCE[source];
 };
 
+/**
+ * Resolves the persisted fallback selection into a wait-screen decision. The
+ * renderer treats missing or disabled agents as "no fallback" rather than guessing.
+ */
 export const getConfiguredFallbackAgent = (
   preferences: Preferences,
 ): { shouldWaitForFallback: boolean; agentName: string } => {
@@ -84,10 +101,7 @@ export const getConfiguredFallbackAgentFromSelection = (
   fallbackAgentOptions: FallbackAgentOption[],
 ): { shouldWaitForFallback: boolean; agentName: string } => {
   if (!fallbackAgentId) {
-    return {
-      shouldWaitForFallback: false,
-      agentName: UNKNOWN_FALLBACK_AGENT_NAME,
-    };
+    return NO_FALLBACK_AGENT;
   }
 
   const fallbackAgent = fallbackAgentOptions.find(
@@ -95,10 +109,7 @@ export const getConfiguredFallbackAgentFromSelection = (
   );
 
   if (!fallbackAgent) {
-    return {
-      shouldWaitForFallback: false,
-      agentName: UNKNOWN_FALLBACK_AGENT_NAME,
-    };
+    return NO_FALLBACK_AGENT;
   }
 
   return {
@@ -107,6 +118,10 @@ export const getConfiguredFallbackAgentFromSelection = (
   };
 };
 
+/**
+ * Renderer dropdown options intentionally flatten the persisted agent model down
+ * to the fields needed for selection and wait-state copy.
+ */
 export const toFallbackAgentOptions = (preferences: Preferences): FallbackAgentOption[] => {
   return preferences.agents.map((agent) => ({
     id: agent.id,

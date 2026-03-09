@@ -1,4 +1,6 @@
+import type { FileFilter, OpenDialogOptions, SaveDialogOptions } from 'electron';
 import { BrowserWindow, app, clipboard, dialog, ipcMain } from 'electron';
+import type { WebContents } from 'electron';
 import { readFile, writeFile } from 'node:fs/promises';
 import { extname } from 'node:path';
 import { IPCChannels } from '../../shared/ipc-contracts';
@@ -22,6 +24,75 @@ const isString = (value: unknown): value is string => {
   return typeof value === 'string';
 };
 
+const TEXT_FILE_FILTERS: FileFilter[] = [
+  {
+    name: 'Supported Text Files',
+    extensions: ['json', 'js', 'ts', 'py', 'txt', 'md', 'yaml', 'yml'],
+  },
+  {
+    name: 'All Files',
+    extensions: ['*'],
+  },
+];
+
+const SAVE_FILE_FILTERS: FileFilter[] = [
+  {
+    name: 'Text Files',
+    extensions: ['txt', 'json', 'js', 'ts', 'py', 'md', 'yaml', 'yml'],
+  },
+];
+
+// Dialogs should stay parented to the invoking window when multiple document
+// windows are open; Electron falls back to app-level dialogs when no window exists.
+const getSenderWindow = (sender: WebContents): BrowserWindow | null => {
+  return BrowserWindow.fromWebContents(sender);
+};
+
+const showOpenTextFileDialog = async (window: BrowserWindow | null) => {
+  const options: OpenDialogOptions = {
+    title: 'Open file',
+    properties: ['openFile'],
+    filters: TEXT_FILE_FILTERS,
+  };
+
+  return window ? dialog.showOpenDialog(window, options) : dialog.showOpenDialog(options);
+};
+
+const showSaveTextFileDialog = async (window: BrowserWindow | null) => {
+  const options: SaveDialogOptions = {
+    title: 'Save prettified text',
+    defaultPath: 'prettified.txt',
+    filters: SAVE_FILE_FILTERS,
+  };
+
+  return window ? dialog.showSaveDialog(window, options) : dialog.showSaveDialog(options);
+};
+
+const throwInvalidPayload = (logger: Logger, channel: string, message: string): never => {
+  logger.warn('ipc.validation.error', {
+    channel,
+  });
+  throw new Error(message);
+};
+
+// Every renderer-originated payload is validated at the IPC boundary so the main
+// process never operates on unchecked `unknown` input.
+const expectPayload = <T>(
+  value: unknown,
+  guard: (candidate: unknown) => candidate is T,
+  options: {
+    logger: Logger;
+    channel: string;
+    message: string;
+  },
+): T => {
+  if (!guard(value)) {
+    throwInvalidPayload(options.logger, options.channel, options.message);
+  }
+
+  return value as T;
+};
+
 export const registerIpcHandlers = ({
   preferencesService,
   prettifierService,
@@ -29,37 +100,10 @@ export const registerIpcHandlers = ({
   logStore,
   onOpenWindow,
 }: IpcDependencies): void => {
+  // Register once at startup. Each handler keeps platform APIs and filesystem
+  // access in main while renderer code talks through typed contracts.
   ipcMain.handle(IPCChannels.dialogOpenFile, async (event) => {
-    const window = BrowserWindow.fromWebContents(event.sender);
-    const result = window
-      ? await dialog.showOpenDialog(window, {
-          title: 'Open file',
-          properties: ['openFile'],
-          filters: [
-            {
-              name: 'Supported Text Files',
-              extensions: ['json', 'js', 'ts', 'py', 'txt', 'md', 'yaml', 'yml'],
-            },
-            {
-              name: 'All Files',
-              extensions: ['*'],
-            },
-          ],
-        })
-      : await dialog.showOpenDialog({
-          title: 'Open file',
-          properties: ['openFile'],
-          filters: [
-            {
-              name: 'Supported Text Files',
-              extensions: ['json', 'js', 'ts', 'py', 'txt', 'md', 'yaml', 'yml'],
-            },
-            {
-              name: 'All Files',
-              extensions: ['*'],
-            },
-          ],
-        });
+    const result = await showOpenTextFileDialog(getSenderWindow(event.sender));
 
     if (result.canceled || result.filePaths.length === 0) {
       return null;
@@ -81,54 +125,30 @@ export const registerIpcHandlers = ({
   });
 
   ipcMain.handle(IPCChannels.fileSave, async (event, content: unknown) => {
-    if (!isString(content)) {
-      logger.warn('ipc.validation.error', {
-        channel: IPCChannels.fileSave,
-      });
-      throw new Error('Invalid file save payload');
-    }
-
-    const window = BrowserWindow.fromWebContents(event.sender);
-    const result = window
-      ? await dialog.showSaveDialog(window, {
-          title: 'Save prettified text',
-          defaultPath: 'prettified.txt',
-          filters: [
-            {
-              name: 'Text Files',
-              extensions: ['txt', 'json', 'js', 'ts', 'py', 'md', 'yaml', 'yml'],
-            },
-          ],
-        })
-      : await dialog.showSaveDialog({
-          title: 'Save prettified text',
-          defaultPath: 'prettified.txt',
-          filters: [
-            {
-              name: 'Text Files',
-              extensions: ['txt', 'json', 'js', 'ts', 'py', 'md', 'yaml', 'yml'],
-            },
-          ],
-        });
+    const safeContent = expectPayload(content, isString, {
+      logger,
+      channel: IPCChannels.fileSave,
+      message: 'Invalid file save payload',
+    });
+    const result = await showSaveTextFileDialog(getSenderWindow(event.sender));
 
     if (result.canceled || !result.filePath) {
       return null;
     }
 
-    await writeFile(result.filePath, content, 'utf8');
+    await writeFile(result.filePath, safeContent, 'utf8');
 
     return { path: result.filePath };
   });
 
-  ipcMain.handle(IPCChannels.clipboardCopy, (_event, content: string) => {
-    if (!isString(content)) {
-      logger.warn('ipc.validation.error', {
-        channel: IPCChannels.clipboardCopy,
-      });
-      throw new Error('Invalid clipboard payload');
-    }
+  ipcMain.handle(IPCChannels.clipboardCopy, (_event, content: unknown) => {
+    const safeContent = expectPayload(content, isString, {
+      logger,
+      channel: IPCChannels.clipboardCopy,
+      message: 'Invalid clipboard payload',
+    });
 
-    clipboard.writeText(content);
+    clipboard.writeText(safeContent);
   });
 
   ipcMain.handle(IPCChannels.appGetInfo, () => {
@@ -147,36 +167,34 @@ export const registerIpcHandlers = ({
   });
 
   ipcMain.handle(IPCChannels.preferencesGetAll, async () => {
-    return await preferencesService.getAll();
+    return preferencesService.getAll();
   });
 
   ipcMain.handle(IPCChannels.preferencesUpdate, async (_event, patch: unknown) => {
-    if (!isPreferencesPatch(patch)) {
-      logger.warn('ipc.validation.error', {
-        channel: IPCChannels.preferencesUpdate,
-      });
-      throw new Error('Invalid preferences patch payload');
-    }
+    const safePatch = expectPayload(patch, isPreferencesPatch, {
+      logger,
+      channel: IPCChannels.preferencesUpdate,
+      message: 'Invalid preferences patch payload',
+    });
 
-    return await preferencesService.update(patch);
+    return preferencesService.update(safePatch);
   });
 
   ipcMain.handle(IPCChannels.preferencesReset, async () => {
-    return await preferencesService.reset();
+    return preferencesService.reset();
   });
 
   ipcMain.handle(IPCChannels.prettifierRun, async (event, request: unknown) => {
-    if (!isPrettifyRunRequest(request)) {
-      logger.warn('ipc.validation.error', {
-        channel: IPCChannels.prettifierRun,
-      });
-      throw new Error('Invalid prettifier request payload');
-    }
+    const safeRequest = expectPayload(request, isPrettifyRunRequest, {
+      logger,
+      channel: IPCChannels.prettifierRun,
+      message: 'Invalid prettifier request payload',
+    });
 
-    return await prettifierService.run(request, {
+    return prettifierService.run(safeRequest, {
       onFallbackProgress: (line) => {
         event.sender.send(IPCChannels.prettifierProgress, {
-          requestId: request.requestId,
+          requestId: safeRequest.requestId,
           line,
         });
       },
@@ -184,24 +202,22 @@ export const registerIpcHandlers = ({
   });
 
   ipcMain.handle(IPCChannels.prettifierCancel, async (_event, request: unknown) => {
-    if (!isPrettifyCancelRequest(request)) {
-      logger.warn('ipc.validation.error', {
-        channel: IPCChannels.prettifierCancel,
-      });
-      throw new Error('Invalid prettifier cancel payload');
-    }
+    const safeRequest = expectPayload(request, isPrettifyCancelRequest, {
+      logger,
+      channel: IPCChannels.prettifierCancel,
+      message: 'Invalid prettifier cancel payload',
+    });
 
-    return prettifierService.cancel(request.requestId);
+    return prettifierService.cancel(safeRequest.requestId);
   });
 
   ipcMain.handle(IPCChannels.telemetryLogEvent, async (_event, event: unknown) => {
-    if (!isTelemetryEvent(event)) {
-      logger.warn('ipc.validation.error', {
-        channel: IPCChannels.telemetryLogEvent,
-      });
-      throw new Error('Invalid telemetry event payload');
-    }
+    const safeEvent = expectPayload(event, isTelemetryEvent, {
+      logger,
+      channel: IPCChannels.telemetryLogEvent,
+      message: 'Invalid telemetry event payload',
+    });
 
-    logger.info(event.name, event.meta);
+    logger.info(safeEvent.name, safeEvent.meta);
   });
 };

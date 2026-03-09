@@ -19,6 +19,11 @@ export type PrettifierService = {
   prettifyDetailed: (rawText: string) => PrettifyDetailedResult;
 };
 
+/**
+ * Renderer-local prettifier used for immediate feedback before IPC fallback
+ * orchestration kicks in. It intentionally mirrors the shared parser contract
+ * but keeps a renderer-friendly result shape.
+ */
 export const createPrettifierService = (indentSize: IndentSize): PrettifierService => {
   const prettifyDetailed = (rawText: string): PrettifyDetailedResult => {
     const localResult = runLocalPrettifier(rawText, indentSize);

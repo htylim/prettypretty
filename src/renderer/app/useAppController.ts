@@ -68,6 +68,11 @@ const getWindowApi = (): WindowApi | null => {
   return candidate ?? null;
 };
 
+/**
+ * Top-level renderer controller. It wires together persisted preferences, UI
+ * store state, prettifier orchestration, modal prompts, and window-level actions
+ * so `App` can stay composition-only.
+ */
 export const useAppController = ({
   inputEditorRef,
   outputEditorRef,
@@ -117,23 +122,35 @@ export const useAppController = ({
     getWindowApi,
   });
 
-  const requestFallbackConfirmation = useCallback((lineCount: number): Promise<boolean> => {
-    return new Promise<boolean>((resolve) => {
-      if (fallbackConfirmationResolverRef.current) {
-        fallbackConfirmationResolverRef.current(false);
-      }
-      if (fallbackAgentSelectionResolverRef.current) {
-        fallbackAgentSelectionResolverRef.current(null);
-      }
+  // Only one fallback prompt may be unresolved at a time. New prompts cancel the
+  // old resolver first so stale modals cannot settle a newer request.
+  const cancelPendingFallbackPrompts = useCallback((): void => {
+    if (fallbackConfirmationResolverRef.current) {
+      fallbackConfirmationResolverRef.current(false);
+      fallbackConfirmationResolverRef.current = null;
+    }
 
-      fallbackConfirmationResolverRef.current = resolve;
+    if (fallbackAgentSelectionResolverRef.current) {
+      fallbackAgentSelectionResolverRef.current(null);
       fallbackAgentSelectionResolverRef.current = null;
-      setFallbackModalState({
-        kind: 'large-content',
-        lineCount,
-      });
-    });
+    }
+
+    setFallbackModalState(null);
   }, []);
+
+  const requestFallbackConfirmation = useCallback(
+    (lineCount: number): Promise<boolean> => {
+      return new Promise<boolean>((resolve) => {
+        cancelPendingFallbackPrompts();
+        fallbackConfirmationResolverRef.current = resolve;
+        setFallbackModalState({
+          kind: 'large-content',
+          lineCount,
+        });
+      });
+    },
+    [cancelPendingFallbackPrompts],
+  );
 
   const settleFallbackConfirmation = useCallback((accepted: boolean): void => {
     const resolver = fallbackConfirmationResolverRef.current;
@@ -144,20 +161,13 @@ export const useAppController = ({
 
   const requestFallbackAgentSelection = useCallback((): Promise<string | null> => {
     return new Promise<string | null>((resolve) => {
-      if (fallbackConfirmationResolverRef.current) {
-        fallbackConfirmationResolverRef.current(false);
-      }
-      if (fallbackAgentSelectionResolverRef.current) {
-        fallbackAgentSelectionResolverRef.current(null);
-      }
-
-      fallbackConfirmationResolverRef.current = null;
+      cancelPendingFallbackPrompts();
       fallbackAgentSelectionResolverRef.current = resolve;
       setFallbackModalState({
         kind: 'agent-selection',
       });
     });
-  }, []);
+  }, [cancelPendingFallbackPrompts]);
 
   const settleFallbackAgentSelection = useCallback((agentId: string | null): void => {
     const resolver = fallbackAgentSelectionResolverRef.current;
@@ -227,19 +237,10 @@ export const useAppController = ({
   }, [outputText]);
 
   const resetCurrentWindow = useCallback((): void => {
-    if (fallbackConfirmationResolverRef.current) {
-      fallbackConfirmationResolverRef.current(false);
-      fallbackConfirmationResolverRef.current = null;
-    }
-    if (fallbackAgentSelectionResolverRef.current) {
-      fallbackAgentSelectionResolverRef.current(null);
-      fallbackAgentSelectionResolverRef.current = null;
-    }
-
-    setFallbackModalState(null);
+    cancelPendingFallbackPrompts();
     resetPrettifierState();
     reset();
-  }, [reset, resetPrettifierState]);
+  }, [cancelPendingFallbackPrompts, reset, resetPrettifierState]);
 
   const openNewWindow = useCallback((): void => {
     const api = getWindowApi();
@@ -278,6 +279,8 @@ export const useAppController = ({
       try {
         const updatedPreferences = await api.preferences.update({ indentSize: nextIndentSize });
 
+        // Persisted indent size may differ if main normalizes/clamps values, so
+        // the output editor realigns to the actual saved preference.
         if (requestId === latestIndentSizeRequestIdRef.current) {
           setIndentSize(updatedPreferences.indentSize);
           if (reindentSnapshot) {
@@ -370,16 +373,9 @@ export const useAppController = ({
 
   useEffect(() => {
     return () => {
-      if (fallbackConfirmationResolverRef.current) {
-        fallbackConfirmationResolverRef.current(false);
-        fallbackConfirmationResolverRef.current = null;
-      }
-      if (fallbackAgentSelectionResolverRef.current) {
-        fallbackAgentSelectionResolverRef.current(null);
-        fallbackAgentSelectionResolverRef.current = null;
-      }
+      cancelPendingFallbackPrompts();
     };
-  }, []);
+  }, [cancelPendingFallbackPrompts]);
 
   useEffect(() => {
     const api = getWindowApi();
@@ -387,6 +383,8 @@ export const useAppController = ({
       return;
     }
 
+    // Main menu actions target the focused window, so each renderer instance owns
+    // resetting only its own local/UI state.
     return api.app.onResetCurrentWindow(() => {
       resetCurrentWindow();
     });

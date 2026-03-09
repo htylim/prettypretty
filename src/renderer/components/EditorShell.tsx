@@ -1,9 +1,12 @@
 import type { ClipboardEventHandler, DragEventHandler, RefObject } from 'react';
 import type { IndentSize } from '../../shared/preferences';
 import type { PaneMode, ThemeMode } from '../../shared/types';
+import type { FallbackWaitState, IngestSource } from '../app/appDomain';
 import { InputEditor, type InputEditorHandle } from './InputEditor';
 import { OutputEditor, type OutputEditorHandle } from './OutputEditor';
 
+// Empty-state paste shares the shell container with Monaco. Ignore paste events
+// coming from Monaco's find widget so search input keeps working normally.
 const isMonacoFindWidgetTarget = (target: EventTarget | null): boolean => {
   if (!(target instanceof Node)) {
     return false;
@@ -21,16 +24,11 @@ type EditorShellProps = {
   outputText: string;
   outputDocumentId: string;
   ingestNotice: string | null;
-  fallbackWaitState: {
-    requestId: number;
-    formatLabel: string;
-    agentName: string;
-    progressLines: string[];
-  } | null;
+  fallbackWaitState: FallbackWaitState | null;
   inputEditorRef: RefObject<InputEditorHandle | null>;
   outputEditorRef: RefObject<OutputEditorHandle | null>;
   onEditInputChange: (value: string) => void;
-  onIngestInput: (value: string, source: 'open-file' | 'drop' | 'paste') => void;
+  onIngestInput: (value: string, source: IngestSource) => void;
   onDismissIngestNotice: () => void;
   onOpenFile: () => Promise<void>;
   onCancelFallbackWait: () => void;
@@ -83,6 +81,8 @@ export const EditorShell = ({
       return;
     }
 
+    // Shell-level paste is only meaningful for ingest; once content exists, the
+    // input editor itself handles normal text editing and Monaco receives the event.
     const pastedText = event.clipboardData.getData('text');
     onIngestInput(pastedText, 'paste');
   };

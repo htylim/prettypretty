@@ -92,6 +92,11 @@ const getLineCount = (value: string): number => {
   return value.split(/\r\n|\r|\n/u).length;
 };
 
+/**
+ * Owns renderer-side prettifier state: local formatting, fallback wait/cancel
+ * orchestration, ingest-driven runs, and lightweight output reindentation when
+ * only indentation preferences change.
+ */
 export const usePrettifierFlow = ({
   indentSize,
   fallbackWarningLineThreshold,
@@ -114,6 +119,11 @@ export const usePrettifierFlow = ({
   const [fallbackWaitState, setFallbackWaitState] = useState<FallbackWaitState | null>(null);
 
   const prettifierService = useMemo(() => createPrettifierService(indentSize), [indentSize]);
+  // Every async branch checks the current request id before mutating state so
+  // superseded runs cannot overwrite newer output or wait-state.
+  const isLatestRequest = useCallback((requestId: number): boolean => {
+    return requestId === latestPrettifyRequestIdRef.current;
+  }, []);
 
   const cancelFallbackRequest = useCallback(
     async (requestId: number): Promise<void> => {
@@ -131,21 +141,96 @@ export const usePrettifierFlow = ({
     [getWindowApi],
   );
 
-  const cancelActiveFallback = useCallback(async (): Promise<void> => {
+  const clearOutputFormatting = useCallback((): void => {
+    outputFormattingRef.current = createEmptyFormattingState();
+  }, []);
+
+  // Clearing a run invalidates all pending responses by advancing the shared request id.
+  const clearRunState = useCallback(
+    (nextOutputText: string): void => {
+      latestPrettifyRequestIdRef.current += 1;
+      lastPrettifiedInputRef.current = null;
+      setIsLlmRunning(false);
+      setFallbackWaitState(null);
+      setOutputText(nextOutputText);
+      clearOutputFormatting();
+    },
+    [clearOutputFormatting],
+  );
+
+  const takeActiveFallbackRequestId = useCallback((): number | null => {
     const activeRequestId = activeFallbackRequestIdRef.current;
-    if (activeRequestId === null) {
+    activeFallbackRequestIdRef.current = null;
+
+    return activeRequestId;
+  }, []);
+
+  const showOutputIfRequested = useCallback(
+    (shouldSwitchToOutput: boolean): void => {
+      if (shouldSwitchToOutput) {
+        setPaneMode('output');
+      }
+    },
+    [setPaneMode],
+  );
+
+  const applyPassthroughOutput = useCallback(
+    (nextInputText: string, options: PrettifierRunOptions): void => {
+      setOutputText(nextInputText);
+      lastPrettifiedInputRef.current = nextInputText;
+      clearOutputFormatting();
+      showOutputIfRequested(options.switchToOutputOnComplete);
+    },
+    [clearOutputFormatting, showOutputIfRequested],
+  );
+
+  const applyPrettifiedOutput = useCallback(
+    (inputText: string, prettifiedText: string, options: PrettifierRunOptions): void => {
+      setOutputText(prettifiedText);
+      lastPrettifiedInputRef.current = inputText;
+      outputFormattingRef.current = {
+        isPrettified: true,
+        indentSize,
+      };
+      showOutputIfRequested(options.switchToOutputOnComplete);
+    },
+    [indentSize, showOutputIfRequested],
+  );
+
+  const resetToInputState = useCallback(
+    (notice?: string | null): void => {
+      const activeRequestId = takeActiveFallbackRequestId();
+      if (activeRequestId !== null) {
+        void cancelFallbackRequest(activeRequestId);
+      }
+
+      clearRunState('');
+      setPaneMode('input');
+      if (notice !== undefined) {
+        setIngestNotice(notice);
+      }
+    },
+    [
+      cancelFallbackRequest,
+      clearRunState,
+      setIngestNotice,
+      setPaneMode,
+      takeActiveFallbackRequestId,
+    ],
+  );
+
+  const cancelActiveFallback = useCallback(async (): Promise<void> => {
+    if (activeFallbackRequestIdRef.current === null) {
       return;
     }
 
-    activeFallbackRequestIdRef.current = null;
-    latestPrettifyRequestIdRef.current += 1;
-    lastPrettifiedInputRef.current = null;
-    setIsLlmRunning(false);
-    setFallbackWaitState(null);
+    const activeRequestId = takeActiveFallbackRequestId();
+    clearRunState('');
     setPaneMode('input');
-    outputFormattingRef.current = createEmptyFormattingState();
-    await cancelFallbackRequest(activeRequestId);
-  }, [cancelFallbackRequest, setPaneMode]);
+    if (activeRequestId !== null) {
+      await cancelFallbackRequest(activeRequestId);
+    }
+  }, [cancelFallbackRequest, clearRunState, setPaneMode, takeActiveFallbackRequestId]);
 
   const runPrettifier = useCallback(
     async (
@@ -153,10 +238,13 @@ export const usePrettifierFlow = ({
       trigger: PrettifyTrigger,
       options: PrettifierRunOptions,
     ): Promise<void> => {
-      const previousRequestId = activeFallbackRequestIdRef.current;
-      if (previousRequestId !== null) {
-        activeFallbackRequestIdRef.current = null;
-        void cancelFallbackRequest(previousRequestId);
+      // Starting a new run always cancels any in-flight fallback first so progress
+      // events and completion results stay correlated to one active request.
+      if (activeFallbackRequestIdRef.current !== null) {
+        const previousRequestId = takeActiveFallbackRequestId();
+        if (previousRequestId !== null) {
+          void cancelFallbackRequest(previousRequestId);
+        }
       }
 
       const requestId = latestPrettifyRequestIdRef.current + 1;
@@ -164,7 +252,7 @@ export const usePrettifierFlow = ({
       setIsLlmRunning(false);
       setFallbackWaitState(null);
       setOutputText(nextInputText);
-      outputFormattingRef.current = createEmptyFormattingState();
+      clearOutputFormatting();
 
       const localResult = prettifierService.prettifyDetailed(nextInputText);
       void logTelemetry('renderer.prettifier.local.result', {
@@ -175,34 +263,21 @@ export const usePrettifierFlow = ({
       });
 
       if (localResult.kind === 'applied') {
-        if (requestId !== latestPrettifyRequestIdRef.current) {
+        if (!isLatestRequest(requestId)) {
           return;
         }
 
-        setOutputText(localResult.outputText);
-        lastPrettifiedInputRef.current = nextInputText;
-        outputFormattingRef.current = {
-          isPrettified: true,
-          indentSize,
-        };
-        if (options.switchToOutputOnComplete) {
-          setPaneMode('output');
-        }
+        applyPrettifiedOutput(nextInputText, localResult.outputText, options);
         return;
       }
 
       const api = getWindowApi();
       if (!api) {
-        if (requestId !== latestPrettifyRequestIdRef.current) {
+        if (!isLatestRequest(requestId)) {
           return;
         }
 
-        setOutputText(nextInputText);
-        lastPrettifiedInputRef.current = nextInputText;
-        outputFormattingRef.current = createEmptyFormattingState();
-        if (options.switchToOutputOnComplete) {
-          setPaneMode('output');
-        }
+        applyPassthroughOutput(nextInputText, options);
         return;
       }
 
@@ -216,17 +291,12 @@ export const usePrettifierFlow = ({
 
       if (!configuredFallbackAgent.shouldWaitForFallback && hasEnabledFallbackAgentOption) {
         effectiveFallbackAgentId = await requestFallbackAgentSelection();
-        if (requestId !== latestPrettifyRequestIdRef.current) {
+        if (!isLatestRequest(requestId)) {
           return;
         }
 
         if (!effectiveFallbackAgentId) {
-          setOutputText(nextInputText);
-          lastPrettifiedInputRef.current = nextInputText;
-          outputFormattingRef.current = createEmptyFormattingState();
-          if (options.switchToOutputOnComplete) {
-            setPaneMode('output');
-          }
+          applyPassthroughOutput(nextInputText, options);
           return;
         }
 
@@ -237,12 +307,7 @@ export const usePrettifierFlow = ({
       }
 
       if (!effectiveFallbackAgent.shouldWaitForFallback) {
-        setOutputText(nextInputText);
-        lastPrettifiedInputRef.current = nextInputText;
-        outputFormattingRef.current = createEmptyFormattingState();
-        if (options.switchToOutputOnComplete) {
-          setPaneMode('output');
-        }
+        applyPassthroughOutput(nextInputText, options);
         return;
       }
 
@@ -252,17 +317,12 @@ export const usePrettifierFlow = ({
 
       if (shouldPromptForFallbackConfirmation) {
         const shouldUseFallbackAgent = await requestFallbackConfirmation(lineCount);
-        if (requestId !== latestPrettifyRequestIdRef.current) {
+        if (!isLatestRequest(requestId)) {
           return;
         }
 
         if (!shouldUseFallbackAgent) {
-          setOutputText(nextInputText);
-          lastPrettifiedInputRef.current = nextInputText;
-          outputFormattingRef.current = createEmptyFormattingState();
-          if (options.switchToOutputOnComplete) {
-            setPaneMode('output');
-          }
+          applyPassthroughOutput(nextInputText, options);
           return;
         }
       }
@@ -273,6 +333,8 @@ export const usePrettifierFlow = ({
         agentName: effectiveFallbackAgent.agentName,
         progressLines: [],
       });
+      // Only one fallback request can be active at a time in the renderer; the
+      // stored id is used for explicit cancellation and progress correlation.
       activeFallbackRequestIdRef.current = requestId;
       setIsLlmRunning(true);
 
@@ -287,7 +349,7 @@ export const usePrettifierFlow = ({
             : {}),
         });
 
-        if (requestId !== latestPrettifyRequestIdRef.current) {
+        if (!isLatestRequest(requestId)) {
           return;
         }
 
@@ -297,44 +359,42 @@ export const usePrettifierFlow = ({
           isPrettified: isAppliedPrettifyStatus(response.status),
           indentSize: isAppliedPrettifyStatus(response.status) ? indentSize : null,
         };
-        if (options.switchToOutputOnComplete) {
-          setPaneMode('output');
-        }
+        showOutputIfRequested(options.switchToOutputOnComplete);
       } catch (error) {
-        if (requestId !== latestPrettifyRequestIdRef.current) {
+        if (!isLatestRequest(requestId)) {
           return;
         }
 
-        setOutputText(nextInputText);
-        lastPrettifiedInputRef.current = nextInputText;
-        outputFormattingRef.current = createEmptyFormattingState();
-        if (options.switchToOutputOnComplete) {
-          setPaneMode('output');
-        }
+        applyPassthroughOutput(nextInputText, options);
         reportRendererError('Failed to run prettifier fallback', error);
       } finally {
         if (activeFallbackRequestIdRef.current === requestId) {
           activeFallbackRequestIdRef.current = null;
         }
 
-        if (requestId === latestPrettifyRequestIdRef.current) {
+        if (isLatestRequest(requestId)) {
           setIsLlmRunning(false);
           setFallbackWaitState(null);
         }
       }
     },
     [
+      applyPassthroughOutput,
+      applyPrettifiedOutput,
       fallbackAgentId,
       fallbackAgentOptions,
       fallbackWarningLineThreshold,
       getWindowApi,
-      indentSize,
+      isLatestRequest,
       logTelemetry,
       prettifierService,
       requestFallbackConfirmation,
       requestFallbackAgentSelection,
       cancelFallbackRequest,
-      setPaneMode,
+      clearOutputFormatting,
+      indentSize,
+      showOutputIfRequested,
+      takeActiveFallbackRequestId,
     ],
   );
 
@@ -348,38 +408,13 @@ export const usePrettifierFlow = ({
       });
 
       if (isFileIngestSource(source) && nextText.length === 0) {
-        const activeRequestId = activeFallbackRequestIdRef.current;
-        activeFallbackRequestIdRef.current = null;
-        if (activeRequestId !== null) {
-          void cancelFallbackRequest(activeRequestId);
-        }
-        latestPrettifyRequestIdRef.current += 1;
-        lastPrettifiedInputRef.current = null;
-        setIsLlmRunning(false);
-        setFallbackWaitState(null);
-        setOutputText('');
-        outputFormattingRef.current = createEmptyFormattingState();
-        setPaneMode('input');
-        setIngestNotice(EMPTY_FILE_NOTICE);
+        resetToInputState(EMPTY_FILE_NOTICE);
         return;
       }
 
+      // Empty whitespace should reset the UI instead of showing passthrough output.
       if (nextText.trim().length === 0) {
-        const activeRequestId = activeFallbackRequestIdRef.current;
-        activeFallbackRequestIdRef.current = null;
-        if (activeRequestId !== null) {
-          void cancelFallbackRequest(activeRequestId);
-        }
-        latestPrettifyRequestIdRef.current += 1;
-        lastPrettifiedInputRef.current = null;
-        setIsLlmRunning(false);
-        setFallbackWaitState(null);
-        setOutputText('');
-        outputFormattingRef.current = createEmptyFormattingState();
-        setPaneMode('input');
-        if (source !== 'paste') {
-          setIngestNotice(null);
-        }
+        resetToInputState(source === 'paste' ? undefined : null);
         return;
       }
 
@@ -388,29 +423,16 @@ export const usePrettifierFlow = ({
         switchToOutputOnComplete: true,
       });
     },
-    [
-      cancelFallbackRequest,
-      logTelemetry,
-      runPrettifier,
-      setIngestNotice,
-      setInputText,
-      setPaneMode,
-    ],
+    [logTelemetry, resetToInputState, runPrettifier, setIngestNotice, setInputText],
   );
 
   const resetPrettifierState = useCallback(() => {
-    const activeRequestId = activeFallbackRequestIdRef.current;
-    activeFallbackRequestIdRef.current = null;
+    const activeRequestId = takeActiveFallbackRequestId();
     if (activeRequestId !== null) {
       void cancelFallbackRequest(activeRequestId);
     }
-    latestPrettifyRequestIdRef.current += 1;
-    lastPrettifiedInputRef.current = null;
-    setIsLlmRunning(false);
-    setFallbackWaitState(null);
-    setOutputText('');
-    outputFormattingRef.current = createEmptyFormattingState();
-  }, [cancelFallbackRequest]);
+    clearRunState('');
+  }, [cancelFallbackRequest, clearRunState, takeActiveFallbackRequestId]);
 
   const isInputAlreadyPrettified = useCallback((input: string): boolean => {
     return lastPrettifiedInputRef.current === input;
@@ -487,6 +509,8 @@ export const usePrettifierFlow = ({
       return;
     }
 
+    // Main emits progress for every request, so renderer filters by `requestId`
+    // before appending to the visible rolling buffer.
     return api.prettifier.onProgress((event) => {
       setFallbackWaitState((currentState) => {
         if (!currentState || currentState.requestId !== event.requestId) {

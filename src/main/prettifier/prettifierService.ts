@@ -28,6 +28,40 @@ export type PrettifierService = {
   cancel: (requestId: number) => boolean;
 };
 
+// Centralize completion logging so every exit path reports the same metadata.
+const logCompletedRun = (logger: Logger, response: PrettifyRunResponse): PrettifyRunResponse => {
+  logger.info('prettifier.run.completed', {
+    status: response.status,
+    localDetection: response.localDetection,
+    fallbackStatus: response.fallbackStatus,
+    durationMs: response.durationMs,
+  });
+
+  return response;
+};
+
+// Passthrough responses all preserve the original input; only the reason/status varies.
+const createPassthroughResponse = (
+  request: PrettifyRunRequest,
+  localDetection: PrettifyRunResponse['localDetection'],
+  fallbackStatus: PrettifyRunResponse['fallbackStatus'],
+  agentId: string | null,
+  durationMs: number,
+  status: Extract<
+    PrettifyRunResponse['status'],
+    'passthrough-no-fallback' | 'passthrough-fallback-failed'
+  >,
+): PrettifyRunResponse => {
+  return {
+    status,
+    outputText: request.inputText,
+    localDetection,
+    fallbackStatus,
+    agentId,
+    durationMs,
+  };
+};
+
 const summarizeFallbackResult = (
   fallbackResult: AgentFallbackExecutionResult,
   localDetection: PrettifyRunResponse['localDetection'],
@@ -65,6 +99,9 @@ export const createPrettifierService = ({
   return {
     run: async (request, options = {}) => {
       const startedAt = now();
+      // `getDurationMs` keeps duration accounting consistent even when the flow
+      // returns early from multiple decision branches.
+      const getDurationMs = (): number => now() - startedAt;
       logger.info('prettifier.run.requested', {
         trigger: request.trigger,
         inputLength: request.inputText.length,
@@ -79,78 +116,59 @@ export const createPrettifierService = ({
       });
 
       if (localResult.kind === 'applied') {
-        const response: PrettifyRunResponse = {
+        return logCompletedRun(logger, {
           status: 'applied-local',
           outputText: localResult.outputText,
           localDetection: localResult.detection,
           fallbackStatus: 'not-attempted',
           agentId: null,
-          durationMs: now() - startedAt,
-        };
-
-        logger.info('prettifier.run.completed', {
-          status: response.status,
-          localDetection: response.localDetection,
-          fallbackStatus: response.fallbackStatus,
-          durationMs: response.durationMs,
+          durationMs: getDurationMs(),
         });
-
-        return response;
       }
 
       const preferences = await preferencesService.getAll();
       const resolvedFallbackAgentId =
         request.fallbackAgentIdOverride ?? preferences.fallbackAgentId ?? null;
 
+      // The renderer may request a one-off override, but main still validates
+      // the resolved agent against current persisted preferences before execution.
       if (!resolvedFallbackAgentId) {
-        const response: PrettifyRunResponse = {
-          status: 'passthrough-no-fallback',
-          outputText: request.inputText,
-          localDetection: localResult.detection,
-          fallbackStatus: 'skipped-no-fallback',
-          agentId: null,
-          durationMs: now() - startedAt,
-        };
-
         logger.info('prettifier.fallback.decision', {
-          fallbackStatus: response.fallbackStatus,
+          fallbackStatus: 'skipped-no-fallback',
           reason: 'fallback-agent-id-not-configured',
         });
-        logger.info('prettifier.run.completed', {
-          status: response.status,
-          localDetection: response.localDetection,
-          fallbackStatus: response.fallbackStatus,
-          durationMs: response.durationMs,
-        });
-
-        return response;
+        return logCompletedRun(
+          logger,
+          createPassthroughResponse(
+            request,
+            localResult.detection,
+            'skipped-no-fallback',
+            null,
+            getDurationMs(),
+            'passthrough-no-fallback',
+          ),
+        );
       }
 
       const fallbackAgent = preferences.agents.find(
         (agent) => agent.id === resolvedFallbackAgentId,
       );
       if (!fallbackAgent || !fallbackAgent.enabled) {
-        const response: PrettifyRunResponse = {
-          status: 'passthrough-no-fallback',
-          outputText: request.inputText,
-          localDetection: localResult.detection,
-          fallbackStatus: 'skipped-invalid-agent',
-          agentId: resolvedFallbackAgentId,
-          durationMs: now() - startedAt,
-        };
-
         logger.info('prettifier.fallback.decision', {
-          fallbackStatus: response.fallbackStatus,
+          fallbackStatus: 'skipped-invalid-agent',
           fallbackAgentId: resolvedFallbackAgentId,
         });
-        logger.info('prettifier.run.completed', {
-          status: response.status,
-          localDetection: response.localDetection,
-          fallbackStatus: response.fallbackStatus,
-          durationMs: response.durationMs,
-        });
-
-        return response;
+        return logCompletedRun(
+          logger,
+          createPassthroughResponse(
+            request,
+            localResult.detection,
+            'skipped-invalid-agent',
+            resolvedFallbackAgentId,
+            getDurationMs(),
+            'passthrough-no-fallback',
+          ),
+        );
       }
 
       const prompt = renderAgentPromptTemplate(
@@ -186,22 +204,17 @@ export const createPrettifierService = ({
           errorName: error instanceof Error ? error.name : 'unknown',
         });
 
-        const response: PrettifyRunResponse = {
-          status: 'passthrough-fallback-failed',
-          outputText: request.inputText,
-          localDetection: localResult.detection,
-          fallbackStatus: 'failed-spawn-error',
-          agentId: fallbackAgent.id,
-          durationMs: now() - startedAt,
-        };
-        logger.info('prettifier.run.completed', {
-          status: response.status,
-          localDetection: response.localDetection,
-          fallbackStatus: response.fallbackStatus,
-          durationMs: response.durationMs,
-        });
-
-        return response;
+        return logCompletedRun(
+          logger,
+          createPassthroughResponse(
+            request,
+            localResult.detection,
+            'failed-spawn-error',
+            fallbackAgent.id,
+            getDurationMs(),
+            'passthrough-fallback-failed',
+          ),
+        );
       }
 
       logger.info('prettifier.fallback.end', {
@@ -217,17 +230,10 @@ export const createPrettifierService = ({
         localResult.detection,
         request,
         fallbackAgent.id,
-        now() - startedAt,
+        getDurationMs(),
       );
 
-      logger.info('prettifier.run.completed', {
-        status: response.status,
-        localDetection: response.localDetection,
-        fallbackStatus: response.fallbackStatus,
-        durationMs: response.durationMs,
-      });
-
-      return response;
+      return logCompletedRun(logger, response);
     },
     cancel: (requestId) => {
       const didCancel = fallbackExecutor.cancel(requestId);

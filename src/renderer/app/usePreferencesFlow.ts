@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { IndentSize } from '../../shared/preferences';
+import type { MutableRefObject } from 'react';
+import type { IndentSize, Preferences } from '../../shared/preferences';
 import type { ThemeMode } from '../../shared/types';
 import type { WindowApi } from '../../shared/window-api';
 import { type FallbackAgentOption, toFallbackAgentOptions } from './appDomain';
@@ -20,6 +21,22 @@ export type UsePreferencesFlowResult = {
   persistFallbackAgentId: (nextFallbackAgentId: string | null) => Promise<void>;
 };
 
+// Request ids let optimistic UI updates ignore late async responses that belong
+// to an earlier selection.
+const getNextRequestId = (requestIdRef: MutableRefObject<number>): number => {
+  const nextRequestId = requestIdRef.current + 1;
+  requestIdRef.current = nextRequestId;
+  return nextRequestId;
+};
+
+const isLatestRequest = (requestIdRef: MutableRefObject<number>, requestId: number): boolean => {
+  return requestIdRef.current === requestId;
+};
+
+/**
+ * Hydrates renderer-owned preference state and persists optimistic edits while
+ * guarding against stale async responses from earlier requests.
+ */
 export const usePreferencesFlow = ({
   themeMode,
   setThemeMode,
@@ -31,6 +48,19 @@ export const usePreferencesFlow = ({
   const [fallbackAgentId, setFallbackAgentId] = useState<string | null>(null);
   const [fallbackAgentOptions, setFallbackAgentOptions] = useState<FallbackAgentOption[]>([]);
   const [fallbackWarningLineThreshold, setFallbackWarningLineThreshold] = useState(300);
+
+  // Keep the one-time hydration write path in one helper so startup and future
+  // preference shape changes do not drift.
+  const applyHydratedPreferences = useCallback(
+    (preferences: Preferences): void => {
+      setThemeMode(preferences.themeMode);
+      setIndentSize(preferences.indentSize);
+      setFallbackWarningLineThreshold(preferences.fallbackWarningLineThreshold);
+      setFallbackAgentId(preferences.fallbackAgentId);
+      setFallbackAgentOptions(toFallbackAgentOptions(preferences));
+    },
+    [setIndentSize, setThemeMode],
+  );
 
   const persistThemeMode = useCallback(
     async (nextThemeMode: ThemeMode): Promise<void> => {
@@ -46,17 +76,16 @@ export const usePreferencesFlow = ({
         return;
       }
 
-      const requestId = latestThemeRequestIdRef.current + 1;
-      latestThemeRequestIdRef.current = requestId;
+      const requestId = getNextRequestId(latestThemeRequestIdRef);
 
       try {
         const updatedPreferences = await api.preferences.update({ themeMode: nextThemeMode });
 
-        if (requestId === latestThemeRequestIdRef.current) {
+        if (isLatestRequest(latestThemeRequestIdRef, requestId)) {
           setThemeMode(updatedPreferences.themeMode);
         }
       } catch (error) {
-        if (requestId === latestThemeRequestIdRef.current) {
+        if (isLatestRequest(latestThemeRequestIdRef, requestId)) {
           setThemeMode(previousThemeMode);
         }
 
@@ -80,20 +109,19 @@ export const usePreferencesFlow = ({
         return;
       }
 
-      const requestId = latestFallbackAgentRequestIdRef.current + 1;
-      latestFallbackAgentRequestIdRef.current = requestId;
+      const requestId = getNextRequestId(latestFallbackAgentRequestIdRef);
 
       try {
         const updatedPreferences = await api.preferences.update({
           fallbackAgentId: nextFallbackAgentId,
         });
 
-        if (requestId === latestFallbackAgentRequestIdRef.current) {
+        if (isLatestRequest(latestFallbackAgentRequestIdRef, requestId)) {
           setFallbackAgentId(updatedPreferences.fallbackAgentId);
           setFallbackAgentOptions(toFallbackAgentOptions(updatedPreferences));
         }
       } catch (error) {
-        if (requestId === latestFallbackAgentRequestIdRef.current) {
+        if (isLatestRequest(latestFallbackAgentRequestIdRef, requestId)) {
           setFallbackAgentId(previousFallbackAgentId);
         }
 
@@ -104,32 +132,30 @@ export const usePreferencesFlow = ({
   );
 
   useEffect(() => {
-    let cancelled = false;
+    let isCancelled = false;
     const api = getWindowApi();
 
     if (!api) {
       return;
     }
 
-    void (async () => {
+    const loadPreferences = async (): Promise<void> => {
       try {
         const preferences = await api.preferences.getAll();
-        if (!cancelled) {
-          setThemeMode(preferences.themeMode);
-          setIndentSize(preferences.indentSize);
-          setFallbackWarningLineThreshold(preferences.fallbackWarningLineThreshold);
-          setFallbackAgentId(preferences.fallbackAgentId);
-          setFallbackAgentOptions(toFallbackAgentOptions(preferences));
+        if (!isCancelled) {
+          applyHydratedPreferences(preferences);
         }
       } catch (error) {
         reportRendererError('Failed to load preferences', error);
       }
-    })();
+    };
+
+    void loadPreferences();
 
     return () => {
-      cancelled = true;
+      isCancelled = true;
     };
-  }, [getWindowApi, setIndentSize, setThemeMode]);
+  }, [applyHydratedPreferences, getWindowApi]);
 
   return {
     fallbackAgentId,

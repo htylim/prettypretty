@@ -68,5 +68,7 @@ Do not add routine status updates, implementation history, or one-time decisions
 - Do not let e2e tests leak preference mutations across runs; reset persisted preferences at test boundaries to keep app-launch defaults deterministic and avoid cross-test pollution.
 - Do not persist a temporary fallback choice just to support a one-off malformed-input retry; pass an explicit per-request fallback agent override through renderer IPC so the modal-selected agent applies only to that run.
 - Do not let late startup preference hydration overwrite newer user actions; initial async preference loads need stale-response guards just like optimistic writes do.
+- Do not duplicate optimistic preference-write sequencing or fallback/prettifier state-reset branches inline across multiple handlers; move those transitions behind named helpers or small flow changes become regression-prone.
+- Do not leave request-id ownership, cancellation rules, or modal resolver semantics implicit in async renderer flows; document those invariants at the helper boundary or later refactors will break stale-response guards.
 - Do not implement renderer keyboard shortcuts or modifier-based Monaco gestures with macOS-only `metaKey` checks when the app targets Windows/Linux too; centralize a platform-aware primary modifier helper.
 - Do not let a renderer log viewer append forever after reading a bounded main-session log; keep renderer retention capped too or long sessions become memory leaks.
