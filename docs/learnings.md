@@ -74,3 +74,4 @@ Do not add routine status updates, implementation history, or one-time decisions
 - Do not leave request-id ownership, cancellation rules, or modal resolver semantics implicit in async renderer flows; document those invariants at the helper boundary or later refactors will break stale-response guards.
 - Do not implement renderer keyboard shortcuts or modifier-based Monaco gestures with macOS-only `metaKey` checks when the app targets Windows/Linux too; centralize a platform-aware primary modifier helper.
 - Do not let a renderer log viewer append forever after reading a bounded main-session log; keep renderer retention capped too or long sessions become memory leaks.
+- Do not center editor-shell states with `height: 100%` when a responsive layout can switch the parent to `min-height`; use flex growth on the shell and child panes so centered content stays centered after resize.

@@ -18,6 +18,7 @@
 ## Empty State
 
 - Centered single-line CTA: `Paste, Drop or Click`.
+- Empty-state CTA remains vertically centered within the editor shell across window resizes and responsive breakpoints.
 - Only `Click` is interactive, visually underlined, and opens file picker via preload bridge.
 - Drop and paste are supported in editor shell.
 
