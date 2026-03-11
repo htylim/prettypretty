@@ -1,4 +1,9 @@
-import { BrowserWindow, type BrowserWindowConstructorOptions } from 'electron';
+import {
+  BrowserWindow,
+  screen,
+  type BrowserWindowConstructorOptions,
+  type Rectangle,
+} from 'electron';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,20 +14,87 @@ const appIconPath = join(process.cwd(), 'build/icon.png');
 const mainWindowIcon =
   process.platform === 'darwin' || !existsSync(appIconPath) ? undefined : appIconPath;
 const INITIAL_THEME_MODE_ARG_PREFIX = '--prettypretty-theme-mode=';
+const MAIN_WINDOW_WIDTH = 1280;
+const MAIN_WINDOW_HEIGHT = 840;
+const WINDOW_STAGGER_OFFSET = 32;
 const mainWindows = new WeakSet<BrowserWindow>();
 
 const getMainWindowBackgroundColor = (themeMode: ThemeMode): string => {
   return themeMode === 'dark' ? '#121316' : '#f5f1eb';
 };
 
-export const createMainWindow = async (initialThemeMode: ThemeMode): Promise<BrowserWindow> => {
+const getReferenceWindowBounds = (): Rectangle | null => {
+  const focusedWindow = BrowserWindow.getFocusedWindow();
+  if (!focusedWindow || focusedWindow.isDestroyed()) {
+    return null;
+  }
+
+  return {
+    ...focusedWindow.getNormalBounds(),
+  };
+};
+
+const clampAxisPosition = (value: number, min: number, max: number): number => {
+  if (value < min) {
+    return min;
+  }
+
+  if (value > max) {
+    return max;
+  }
+
+  return value;
+};
+
+const getWrappedAxisPosition = (
+  origin: number,
+  min: number,
+  max: number,
+  offset: number,
+): number => {
+  const clampedOrigin = clampAxisPosition(origin, min, max);
+  const next = clampedOrigin + offset;
+  if (next <= max) {
+    return next;
+  }
+
+  return min + Math.min(offset, Math.max(max - min, 0));
+};
+
+const getStaggeredWindowPosition = (
+  referenceBounds: Rectangle | null,
+): Pick<BrowserWindowConstructorOptions, 'x' | 'y'> => {
+  if (!referenceBounds) {
+    return {};
+  }
+
+  const { workArea } = screen.getDisplayMatching(referenceBounds);
+  const maxX = workArea.x + Math.max(workArea.width - MAIN_WINDOW_WIDTH, 0);
+  const maxY = workArea.y + Math.max(workArea.height - MAIN_WINDOW_HEIGHT, 0);
+
+  return {
+    x: getWrappedAxisPosition(referenceBounds.x, workArea.x, maxX, WINDOW_STAGGER_OFFSET),
+    y: getWrappedAxisPosition(referenceBounds.y, workArea.y, maxY, WINDOW_STAGGER_OFFSET),
+  };
+};
+
+type CreateMainWindowOptions = {
+  referenceBounds?: Rectangle | null;
+};
+
+export const createMainWindow = async (
+  initialThemeMode: ThemeMode,
+  options: CreateMainWindowOptions = {},
+): Promise<BrowserWindow> => {
+  const referenceBounds = options.referenceBounds ?? getReferenceWindowBounds();
   const windowOptions: BrowserWindowConstructorOptions = {
-    width: 1280,
-    height: 840,
+    width: MAIN_WINDOW_WIDTH,
+    height: MAIN_WINDOW_HEIGHT,
     minWidth: 960,
     minHeight: 640,
     title: 'prettypretty',
     backgroundColor: getMainWindowBackgroundColor(initialThemeMode),
+    ...getStaggeredWindowPosition(referenceBounds),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,

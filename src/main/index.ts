@@ -1,4 +1,4 @@
-import { BrowserWindow, app } from 'electron';
+import { BrowserWindow, app, type Rectangle } from 'electron';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { IPCChannels } from '../shared/ipc-contracts';
@@ -19,6 +19,16 @@ import { createMainWindow, isMainWindow } from './windows/mainWindow';
 let terminateFallbackProcesses:
   | ((source: 'before-quit' | 'will-quit' | 'window-all-closed') => void)
   | null = null;
+
+const getDocumentWindowReferenceBounds = (window: BrowserWindow | null): Rectangle | null => {
+  if (!window || window.isDestroyed() || !isMainWindow(window)) {
+    return null;
+  }
+
+  return {
+    ...window.getNormalBounds(),
+  };
+};
 
 const bootstrap = async (): Promise<void> => {
   const runtimeFlags = parseRuntimeFlags();
@@ -81,9 +91,14 @@ const bootstrap = async (): Promise<void> => {
     }
   };
 
-  const openDocumentWindow = async (source: 'bootstrap' | 'ipc' | 'menu'): Promise<void> => {
+  const openDocumentWindow = async (
+    source: 'bootstrap' | 'ipc' | 'menu',
+    referenceBounds: Rectangle | null = null,
+  ): Promise<void> => {
     const initialThemeMode = await resolveInitialThemeMode();
-    await createMainWindow(initialThemeMode);
+    await createMainWindow(initialThemeMode, {
+      referenceBounds,
+    });
     logger.info('app.window.created', {
       source,
     });
@@ -103,7 +118,8 @@ const bootstrap = async (): Promise<void> => {
   };
   configureApplicationMenu({
     onNewWindow: () => {
-      void openDocumentWindow('menu').catch((error: unknown) => {
+      const referenceBounds = getDocumentWindowReferenceBounds(BrowserWindow.getFocusedWindow());
+      void openDocumentWindow('menu', referenceBounds).catch((error: unknown) => {
         logger.error('app.window.open-failed', {
           source: 'menu',
           reason: error instanceof Error ? error.message : 'unknown',
@@ -124,8 +140,8 @@ const bootstrap = async (): Promise<void> => {
     prettifierService,
     logger,
     logStore: sessionLogStore,
-    onOpenWindow: async () => {
-      await openDocumentWindow('ipc');
+    onOpenWindow: async (window) => {
+      await openDocumentWindow('ipc', getDocumentWindowReferenceBounds(window));
     },
   });
   logger.info('app.bootstrap.ipc-registered');

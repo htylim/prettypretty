@@ -107,6 +107,7 @@ describe('registerIpcHandlers preferences channels', () => {
     prettifierService.run.mockReset();
     prettifierService.cancel.mockReset();
     logStore.getSnapshot.mockClear();
+    onOpenWindow.mockReset().mockResolvedValue(undefined);
     logger.isVerboseEnabled.mockReset();
     logger.info.mockReset();
     logger.warn.mockReset();
@@ -128,6 +129,17 @@ describe('registerIpcHandlers preferences channels', () => {
     expect(channels).toContain(IPCChannels.preferencesUpdate);
     expect(channels).toContain(IPCChannels.preferencesReset);
     expect(channels).toContain(IPCChannels.logsGetHistory);
+  });
+
+  it('forwards the sender window when opening a new window', async () => {
+    const openWindowHandler = getRegisteredHandler(IPCChannels.appOpenWindow);
+
+    await openWindowHandler({
+      sender: {},
+    });
+
+    expect(onOpenWindow).toHaveBeenCalledTimes(1);
+    expect(onOpenWindow).toHaveBeenCalledWith(parentWindow);
   });
 
   it('forwards valid preferences update payloads to service', async () => {

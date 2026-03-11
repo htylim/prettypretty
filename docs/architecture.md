@@ -30,7 +30,7 @@
 2. Main process initializes `PreferencesStore` + `PreferencesService` using `app.getPath('userData')/preferences.json`.
 3. Main process configures an explicit application menu via `src/main/menu/applicationMenu.ts` using fixed app naming (`prettypretty`) to avoid macOS dev menu fallback label `Electron`, exposes `Preferences...` in the macOS app menu, and routes `New Window` / `Reset Window` commands through main-process callbacks.
 4. Main process resolves persisted preferences each time a document window is created and passes `themeMode` into `BrowserWindow` (`backgroundColor` + `additionalArguments`) in `src/main/windows/mainWindow.ts`.
-5. Startup creates one document window; later document windows can be created from the File menu or renderer IPC without reusing renderer state from an existing window.
+5. Startup creates one document window; later document windows can be created from the File menu or renderer IPC without reusing renderer state from an existing window, and new document windows cascade from the originating document window bounds captured at command dispatch with a bounded offset inside the active display work area.
 6. Main process identifies document windows separately from the optional log window and can send focused-window reset events only to document renderers.
 7. Preload script exposes `window.prettypretty`, including window-creation and reset-subscription APIs.
 8. Renderer calls preload APIs for open/save/copy/window/info/preferences/prettifier/telemetry.

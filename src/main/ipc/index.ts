@@ -17,7 +17,7 @@ type IpcDependencies = {
   prettifierService: Pick<PrettifierService, 'run' | 'cancel'>;
   logger: Logger;
   logStore: Pick<SessionLogStore, 'getSnapshot'>;
-  onOpenWindow: () => Promise<void>;
+  onOpenWindow: (window: BrowserWindow | null) => Promise<void>;
 };
 
 const isString = (value: unknown): value is string => {
@@ -158,8 +158,8 @@ export const registerIpcHandlers = ({
     };
   });
 
-  ipcMain.handle(IPCChannels.appOpenWindow, async () => {
-    await onOpenWindow();
+  ipcMain.handle(IPCChannels.appOpenWindow, async (event) => {
+    await onOpenWindow(getSenderWindow(event.sender));
   });
 
   ipcMain.handle(IPCChannels.logsGetHistory, () => {

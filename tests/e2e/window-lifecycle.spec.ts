@@ -15,14 +15,25 @@ const launchApp = async (): Promise<ElectronApplication> => {
 
 const getWindowSnapshot = async (
   app: ElectronApplication,
-): Promise<Array<{ id: number; destroyed: boolean; visible: boolean; title: string }>> => {
+): Promise<
+  Array<{
+    id: number;
+    destroyed: boolean;
+    visible: boolean;
+    title: string;
+    bounds: { x: number; y: number; width: number; height: number };
+  }>
+> => {
   return await app.evaluate(({ BrowserWindow }) => {
-    return BrowserWindow.getAllWindows().map((window) => ({
-      id: window.id,
-      destroyed: window.isDestroyed(),
-      title: window.getTitle(),
-      visible: window.isVisible(),
-    }));
+    return BrowserWindow.getAllWindows()
+      .map((window) => ({
+        bounds: window.getBounds(),
+        id: window.id,
+        destroyed: window.isDestroyed(),
+        title: window.getTitle(),
+        visible: window.isVisible(),
+      }))
+      .sort((left, right) => left.id - right.id);
   });
 };
 
@@ -143,6 +154,11 @@ test('Cmd+N opens a new document window and Cmd+Shift+N resets only the focused 
   }
 
   await secondWindow.waitForLoadState('domcontentloaded');
+  const windows = await getWindowSnapshot(app);
+  expect(windows).toHaveLength(2);
+  expect(windows[1]?.bounds.x).toBe((windows[0]?.bounds.x ?? 0) + 32);
+  expect(windows[1]?.bounds.y).toBe((windows[0]?.bounds.y ?? 0) + 32);
+
   await dispatchPaste(secondWindow, '{"window":"two"}');
   await expect(secondWindow.getByTestId('output-editor')).toContainText('"window": "two"');
 

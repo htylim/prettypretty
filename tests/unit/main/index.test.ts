@@ -24,6 +24,7 @@ const {
   setApplicationMenuMock,
   shellOpenPathMock,
   showErrorBoxMock,
+  screenGetDisplayMatchingMock,
   terminateAllFallbackProcessesMock,
   writeTextMock,
 } = vi.hoisted(() => {
@@ -47,6 +48,7 @@ const {
     setApplicationMenuMock: vi.fn(),
     shellOpenPathMock: vi.fn(),
     showErrorBoxMock: vi.fn(),
+    screenGetDisplayMatchingMock: vi.fn(),
     terminateAllFallbackProcessesMock: vi.fn().mockReturnValue(0),
     writeTextMock: vi.fn(),
   };
@@ -57,6 +59,12 @@ let focusedWindow: BrowserWindowMock | null = null;
 
 class BrowserWindowMock {
   id: number;
+  bounds = {
+    x: 100,
+    y: 100,
+    width: 1280,
+    height: 840,
+  };
   webContents = {
     send: focusedWindowSendMock,
   };
@@ -74,6 +82,14 @@ class BrowserWindowMock {
 
   async loadURL(...args: unknown[]): Promise<void> {
     await browserWindowLoadURLMock(...args);
+  }
+
+  isDestroyed(): boolean {
+    return false;
+  }
+
+  getNormalBounds(): typeof this.bounds {
+    return this.bounds;
   }
 }
 
@@ -112,6 +128,9 @@ vi.mock('electron', () => {
     },
     shell: {
       openPath: shellOpenPathMock,
+    },
+    screen: {
+      getDisplayMatching: screenGetDisplayMatchingMock,
     },
   };
 });
@@ -221,6 +240,14 @@ describe('main process window lifecycle', () => {
     setApplicationMenuMock.mockReset();
     shellOpenPathMock.mockReset().mockResolvedValue('');
     showErrorBoxMock.mockReset();
+    screenGetDisplayMatchingMock.mockReset().mockReturnValue({
+      workArea: {
+        x: 0,
+        y: 0,
+        width: 1600,
+        height: 1200,
+      },
+    });
     terminateAllFallbackProcessesMock.mockReset().mockReturnValue(0);
     writeTextMock.mockReset();
   });
@@ -244,6 +271,42 @@ describe('main process window lifecycle', () => {
     getMenuItem('New Window').click?.(undefined as never, undefined, {} as never);
     await flushMicrotasks();
     expect(browserWindowConstructorMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('captures menu window bounds before async creation yields control', async () => {
+    await loadMainEntry();
+
+    const firstWindow = browserWindows[0];
+    if (!firstWindow) {
+      throw new Error('Expected startup window');
+    }
+
+    firstWindow.bounds = {
+      x: 140,
+      y: 180,
+      width: 1280,
+      height: 840,
+    };
+
+    getMenuItem('New Window').click?.(undefined as never, undefined, {} as never);
+    focusedWindow = {
+      isDestroyed: () => false,
+      getNormalBounds: () => ({
+        x: 520,
+        y: 560,
+        width: 1280,
+        height: 840,
+      }),
+    } as unknown as BrowserWindowMock;
+
+    await flushMicrotasks();
+
+    const secondWindowOptions = browserWindowConstructorMock.mock.calls[1]?.[0] as {
+      x: number;
+      y: number;
+    };
+    expect(secondWindowOptions.x).toBe(172);
+    expect(secondWindowOptions.y).toBe(212);
   });
 
   it('resets only the focused document window through the File menu callback', async () => {
