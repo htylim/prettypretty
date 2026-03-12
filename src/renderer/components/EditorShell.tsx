@@ -137,12 +137,8 @@ export const EditorShell = ({
       ) : !hasContent ? (
         <div className="empty-state">
           <p className="empty-state-cta" data-testid="empty-state-cta">
-            Paste, Drop or{' '}
-            <button
-              className="empty-state-link cta-serif"
-              onClick={() => void onOpenFile()}
-              type="button"
-            >
+            Paste, Drop <em>or</em>{' '}
+            <button className="empty-state-link" onClick={() => void onOpenFile()} type="button">
               Click
             </button>
           </p>

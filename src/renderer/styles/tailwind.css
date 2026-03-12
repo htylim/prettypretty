@@ -4,6 +4,7 @@
   --font-display: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   --font-code: 'SF Mono', Menlo, Monaco, Consolas, 'Courier New', monospace;
+  --font-serif: ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
 
   --bg: #ffffff;
   --bg-alt: #f3f3f3;
@@ -492,10 +493,15 @@ body {
   display: inline-flex;
   align-items: baseline;
   gap: 8px;
-  font-family: var(--font-display);
-  font-size: clamp(1.45rem, 2.6vw, 2.1rem);
-  letter-spacing: 0.01em;
+  font-family: var(--font-serif);
+  font-size: clamp(1.8rem, 3.5vw, 2.5rem);
+  letter-spacing: -0.02em;
   color: var(--text);
+}
+
+.empty-state-cta em {
+  font-style: italic;
+  font-family: var(--font-serif);
 }
 
 .empty-state-link {
@@ -505,9 +511,15 @@ body {
   color: var(--accent);
   text-decoration: underline;
   text-underline-offset: 0.12em;
+  font-style: italic;
   font-weight: inherit;
   font-size: inherit;
   cursor: pointer;
+  transition: opacity 150ms ease;
+}
+
+.empty-state-link:hover {
+  opacity: 0.7;
 }
 
 .input-editor {
