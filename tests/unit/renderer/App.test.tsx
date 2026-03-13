@@ -551,7 +551,7 @@ describe('App', () => {
     expect(await screen.findByTestId('output-editor')).toHaveTextContent('"agent": "amp"');
   });
 
-  it('uses arrow navigation in the no-fallback modal to run another agent', async () => {
+  it('uses arrow navigation in the no-fallback modal to change the selected agent before running it', async () => {
     const user = userEvent.setup();
     preferencesGetAllMock.mockResolvedValue(createPreferences({ fallbackAgentId: null }));
     prettifierRunMock.mockResolvedValue(
@@ -574,6 +574,11 @@ describe('App', () => {
     expect(screen.getByTestId('fallback-agent-combo-button')).toHaveFocus();
 
     await user.keyboard('{ArrowDown}{Enter}');
+
+    expect(screen.getByTestId('fallback-agent-combo-button')).toHaveTextContent('Codex');
+    expect(prettifierRunMock).not.toHaveBeenCalled();
+
+    await user.keyboard('{Enter}');
 
     await waitFor(() => {
       expect(prettifierRunMock).toHaveBeenCalledTimes(1);
@@ -612,7 +617,7 @@ describe('App', () => {
     expect(screen.getByTestId('output-editor')).toHaveTextContent('{bad');
   });
 
-  it('runs a one-shot fallback agent selected from the no-fallback modal', async () => {
+  it('runs a one-shot fallback agent only after the selection is confirmed from the main split button', async () => {
     const user = userEvent.setup();
     preferencesGetAllMock.mockResolvedValue(createPreferences({ fallbackAgentId: null }));
     prettifierRunMock.mockResolvedValue(
@@ -634,6 +639,10 @@ describe('App', () => {
     await user.click(screen.getByTestId('pane-segment-output'));
     await user.click(screen.getByTestId('fallback-agent-combo-toggle'));
     await user.click(screen.getByTestId('fallback-agent-combo-option-amp'));
+
+    expect(prettifierRunMock).not.toHaveBeenCalled();
+
+    await user.click(screen.getByTestId('fallback-agent-combo-button'));
 
     await waitFor(() => {
       expect(prettifierRunMock).toHaveBeenCalledTimes(1);

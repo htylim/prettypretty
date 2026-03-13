@@ -13,7 +13,7 @@ describe('FallbackAgentComboButton', () => {
           { id: 'amp', name: 'Amp', enabled: true },
           { id: 'codex', name: 'Codex', enabled: false },
         ]}
-        onSelect={vi.fn()}
+        onTrigger={vi.fn()}
       />,
     );
 
@@ -26,9 +26,9 @@ describe('FallbackAgentComboButton', () => {
     expect(screen.queryByTestId('fallback-agent-combo-option-codex')).not.toBeInTheDocument();
   });
 
-  it('calls onSelect with the current selection when the primary action is clicked', async () => {
+  it('calls onTrigger with the current selection when the primary action is clicked', async () => {
     const user = userEvent.setup();
-    const onSelect = vi.fn();
+    const onTrigger = vi.fn();
 
     render(
       <FallbackAgentComboButton
@@ -36,18 +36,18 @@ describe('FallbackAgentComboButton', () => {
           { id: 'amp', name: 'Amp', enabled: true },
           { id: 'codex', name: 'Codex', enabled: true },
         ]}
-        onSelect={onSelect}
+        onTrigger={onTrigger}
       />,
     );
 
     await user.click(screen.getByTestId('fallback-agent-combo-button'));
 
-    expect(onSelect).toHaveBeenCalledWith('amp');
+    expect(onTrigger).toHaveBeenCalledWith('amp');
   });
 
-  it('runs the clicked dropdown option immediately and updates the primary label', async () => {
+  it('updates the primary label when a dropdown option is clicked without triggering the action', async () => {
     const user = userEvent.setup();
-    const onSelect = vi.fn();
+    const onTrigger = vi.fn();
 
     render(
       <FallbackAgentComboButton
@@ -55,7 +55,7 @@ describe('FallbackAgentComboButton', () => {
           { id: 'amp', name: 'Amp', enabled: true },
           { id: 'codex', name: 'Codex', enabled: true },
         ]}
-        onSelect={onSelect}
+        onTrigger={onTrigger}
       />,
     );
 
@@ -63,15 +63,16 @@ describe('FallbackAgentComboButton', () => {
     await user.click(screen.getByTestId('fallback-agent-combo-option-codex'));
 
     expect(screen.getByTestId('fallback-agent-combo-button')).toHaveTextContent('Codex');
-    expect(onSelect).toHaveBeenCalledWith('codex');
+    expect(screen.getByTestId('fallback-agent-combo-button')).toHaveFocus();
+    expect(onTrigger).not.toHaveBeenCalled();
     await waitFor(() => {
       expect(screen.queryByTestId('fallback-agent-combo-panel')).not.toBeInTheDocument();
     });
   });
 
-  it('supports arrow navigation from the primary action and enter to run the highlighted option', async () => {
+  it('supports arrow navigation to change selection, then enter to trigger the selected agent', async () => {
     const user = userEvent.setup();
-    const onSelect = vi.fn();
+    const onTrigger = vi.fn();
 
     render(
       <FallbackAgentComboButton
@@ -81,7 +82,7 @@ describe('FallbackAgentComboButton', () => {
           { id: 'codex', name: 'Codex', enabled: true },
           { id: 'claude', name: 'Claude', enabled: true },
         ]}
-        onSelect={onSelect}
+        onTrigger={onTrigger}
       />,
     );
 
@@ -89,10 +90,15 @@ describe('FallbackAgentComboButton', () => {
 
     await user.keyboard('{ArrowDown}{Enter}');
 
-    expect(onSelect).toHaveBeenCalledWith('codex');
     expect(screen.getByTestId('fallback-agent-combo-button')).toHaveTextContent('Codex');
+    expect(screen.getByTestId('fallback-agent-combo-button')).toHaveFocus();
+    expect(onTrigger).not.toHaveBeenCalled();
     await waitFor(() => {
       expect(screen.queryByTestId('fallback-agent-combo-panel')).not.toBeInTheDocument();
     });
+
+    await user.keyboard('{Enter}');
+
+    expect(onTrigger).toHaveBeenCalledWith('codex');
   });
 });

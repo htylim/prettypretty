@@ -81,7 +81,7 @@
   - empty paste: remain input without file-empty notice.
 - Local parser chain order: strict JSON -> newline-delimited JSON (strict JSON per non-empty line) -> JSON5 (JS/TS object-literal style) -> Python-literal normalization + JSON5.
 - Malformed/unsupported local inputs trigger fallback agent execution via main-process IPC when configured.
-- If no fallback agent is configured but at least one enabled agent exists, malformed/unsupported local inputs open a modal that focuses the split fallback button by default: `Enter` runs the currently selected agent, while `ArrowDown`/`ArrowUp` opens the menu and moves through enabled agents for immediate one-shot execution.
+- If no fallback agent is configured but at least one enabled agent exists, malformed/unsupported local inputs open a modal that focuses the split fallback button by default: `Enter` runs the currently selected agent, while `ArrowDown`/`ArrowUp` opens the menu and changes the current selection. Selecting from the open menu updates the primary button label and closes the menu; it does not run the agent until the primary action is invoked.
 - If no fallback agent is configured and the one-shot modal is dismissed or canceled, output remains passthrough unchanged.
 - Manual typing behavior: updates input text without forcing output mode.
 - Output mode language detection is heuristic and parser-independent, with malformed JSON-like content preferring JSON highlighting.

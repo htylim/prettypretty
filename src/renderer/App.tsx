@@ -68,7 +68,7 @@ export const App = () => {
               <FallbackAgentComboButton
                 autoFocusPrimaryAction={true}
                 fallbackAgentOptions={enabledFallbackAgentOptions}
-                onSelect={controller.onSelectFallbackAgent}
+                onTrigger={controller.onSelectFallbackAgent}
               />
             </>
           ) : undefined

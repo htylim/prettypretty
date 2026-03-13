@@ -9,18 +9,19 @@ import type { FallbackAgentOption } from '../app/appDomain';
 
 type FallbackAgentComboButtonProps = {
   fallbackAgentOptions: FallbackAgentOption[];
-  onSelect: (agentId: string) => void;
+  onTrigger: (agentId: string) => void;
   autoFocusPrimaryAction?: boolean;
 };
 
 export const FallbackAgentComboButton = ({
   fallbackAgentOptions,
-  onSelect,
+  onTrigger,
   autoFocusPrimaryAction = false,
 }: FallbackAgentComboButtonProps) => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [activeOptionIndex, setActiveOptionIndex] = useState<number | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const primaryButtonRef = useRef<HTMLButtonElement>(null);
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const enabledOptions = fallbackAgentOptions.filter((option) => option.enabled);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(
@@ -35,9 +36,12 @@ export const FallbackAgentComboButton = ({
     (option) => option.id === selectedAgentIdValue,
   );
 
-  const closeDropdown = useCallback(() => {
+  const closeDropdown = useCallback((options?: { restorePrimaryFocus?: boolean }) => {
     setDropdownOpen(false);
     setActiveOptionIndex(null);
+    if (options?.restorePrimaryFocus) {
+      primaryButtonRef.current?.focus();
+    }
   }, []);
 
   const getWrappedOptionIndex = useCallback(
@@ -75,14 +79,29 @@ export const FallbackAgentComboButton = ({
     setActiveOptionIndex(index);
   }, []);
 
-  const selectAgent = useCallback(
+  const updateSelection = useCallback(
     (agentId: string): void => {
       setSelectedAgentId(agentId);
-      closeDropdown();
-      onSelect(agentId);
+      closeDropdown({ restorePrimaryFocus: true });
     },
-    [closeDropdown, onSelect, setSelectedAgentId],
+    [closeDropdown, setSelectedAgentId],
   );
+
+  const triggerSelectedAgent = useCallback((): void => {
+    if (selectedAgent) {
+      onTrigger(selectedAgent.id);
+    }
+  }, [onTrigger, selectedAgent]);
+
+  const toggleDropdown = useCallback((): void => {
+    if (dropdownOpen) {
+      closeDropdown();
+      return;
+    }
+
+    setDropdownOpen(true);
+    setActiveOptionIndex(selectedAgentIndex >= 0 ? selectedAgentIndex : 0);
+  }, [closeDropdown, dropdownOpen, selectedAgentIndex]);
 
   useEffect(() => {
     if (!dropdownOpen) {
@@ -150,11 +169,11 @@ export const FallbackAgentComboButton = ({
         event.preventDefault();
         const option = enabledOptions[index];
         if (option) {
-          selectAgent(option.id);
+          updateSelection(option.id);
         }
       }
     },
-    [enabledOptions, getWrappedOptionIndex, selectAgent],
+    [enabledOptions, getWrappedOptionIndex, updateSelection],
   );
 
   return (
@@ -165,12 +184,9 @@ export const FallbackAgentComboButton = ({
           className="btn btn-primary"
           data-testid="fallback-agent-combo-button"
           disabled={selectedAgent === null}
-          onClick={() => {
-            if (selectedAgent) {
-              onSelect(selectedAgent.id);
-            }
-          }}
+          onClick={triggerSelectedAgent}
           onKeyDown={handleTriggerKeyDown}
+          ref={primaryButtonRef}
           type="button"
         >
           <span className="combo-button-label">{selectedAgent?.name ?? 'Select agent'}</span>
@@ -181,7 +197,7 @@ export const FallbackAgentComboButton = ({
           className="btn btn-primary btn-icon"
           data-testid="fallback-agent-combo-toggle"
           disabled={enabledOptions.length === 0}
-          onClick={() => setDropdownOpen((previous) => !previous)}
+          onClick={toggleDropdown}
           onKeyDown={handleTriggerKeyDown}
           type="button"
         >
@@ -217,7 +233,7 @@ export const FallbackAgentComboButton = ({
               className={`dropdown-option${agentOption.id === selectedAgent?.id ? ' dropdown-option-active' : ''}`}
               data-testid={`fallback-agent-combo-option-${agentOption.id}`}
               key={agentOption.id}
-              onClick={() => selectAgent(agentOption.id)}
+              onClick={() => updateSelection(agentOption.id)}
               onKeyDown={(event) => handleOptionKeyDown(event, index)}
               ref={(element) => {
                 optionRefs.current[index] = element;
