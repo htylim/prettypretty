@@ -516,6 +516,102 @@ describe('App', () => {
     expect(screen.getByTestId('output-editor')).toHaveTextContent('{bad');
   });
 
+  it('runs the default fallback agent when enter is pressed in the no-fallback modal', async () => {
+    const user = userEvent.setup();
+    preferencesGetAllMock.mockResolvedValue(createPreferences({ fallbackAgentId: null }));
+    prettifierRunMock.mockResolvedValue(
+      createPrettifierResponse({
+        outputText: '{\n  "agent": "amp"\n}',
+        agentId: 'amp',
+      }),
+    );
+
+    act(() => {
+      useUiStore.setState({
+        paneMode: 'input',
+        inputText: '{bad',
+        ingestNotice: null,
+      });
+    });
+
+    await renderApp();
+    await user.click(screen.getByTestId('pane-segment-output'));
+    expect(screen.getByTestId('fallback-agent-combo-button')).toHaveFocus();
+
+    await user.keyboard('{Enter}');
+
+    await waitFor(() => {
+      expect(prettifierRunMock).toHaveBeenCalledTimes(1);
+    });
+    expect(prettifierRunMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fallbackAgentIdOverride: 'amp',
+      }),
+    );
+    expect(await screen.findByTestId('output-editor')).toHaveTextContent('"agent": "amp"');
+  });
+
+  it('uses arrow navigation in the no-fallback modal to run another agent', async () => {
+    const user = userEvent.setup();
+    preferencesGetAllMock.mockResolvedValue(createPreferences({ fallbackAgentId: null }));
+    prettifierRunMock.mockResolvedValue(
+      createPrettifierResponse({
+        outputText: '{\n  "agent": "codex"\n}',
+        agentId: 'codex',
+      }),
+    );
+
+    act(() => {
+      useUiStore.setState({
+        paneMode: 'input',
+        inputText: '{bad',
+        ingestNotice: null,
+      });
+    });
+
+    await renderApp();
+    await user.click(screen.getByTestId('pane-segment-output'));
+    expect(screen.getByTestId('fallback-agent-combo-button')).toHaveFocus();
+
+    await user.keyboard('{ArrowDown}{Enter}');
+
+    await waitFor(() => {
+      expect(prettifierRunMock).toHaveBeenCalledTimes(1);
+    });
+    expect(prettifierRunMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fallbackAgentIdOverride: 'codex',
+      }),
+    );
+    expect(await screen.findByTestId('output-editor')).toHaveTextContent('"agent": "codex"');
+  });
+
+  it('closes the no-fallback modal on escape even when the agent menu is open', async () => {
+    const user = userEvent.setup();
+    preferencesGetAllMock.mockResolvedValue(createPreferences({ fallbackAgentId: null }));
+
+    act(() => {
+      useUiStore.setState({
+        paneMode: 'input',
+        inputText: '{bad',
+        ingestNotice: null,
+      });
+    });
+
+    await renderApp();
+    await user.click(screen.getByTestId('pane-segment-output'));
+    await user.keyboard('{ArrowDown}');
+    expect(screen.getByTestId('fallback-agent-combo-panel')).toBeInTheDocument();
+
+    await user.keyboard('{Escape}');
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('fallback-confirmation-modal')).not.toBeInTheDocument();
+    });
+    expect(prettifierRunMock).not.toHaveBeenCalled();
+    expect(screen.getByTestId('output-editor')).toHaveTextContent('{bad');
+  });
+
   it('runs a one-shot fallback agent selected from the no-fallback modal', async () => {
     const user = userEvent.setup();
     preferencesGetAllMock.mockResolvedValue(createPreferences({ fallbackAgentId: null }));
@@ -538,7 +634,6 @@ describe('App', () => {
     await user.click(screen.getByTestId('pane-segment-output'));
     await user.click(screen.getByTestId('fallback-agent-combo-toggle'));
     await user.click(screen.getByTestId('fallback-agent-combo-option-amp'));
-    await user.click(screen.getByTestId('fallback-agent-combo-button'));
 
     await waitFor(() => {
       expect(prettifierRunMock).toHaveBeenCalledTimes(1);

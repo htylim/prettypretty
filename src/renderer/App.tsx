@@ -62,10 +62,11 @@ export const App = () => {
         actions={
           isFallbackAgentSelectionModal ? (
             <>
-              <button autoFocus className="btn" onClick={controller.onCancelFallback} type="button">
+              <button className="btn" onClick={controller.onCancelFallback} type="button">
                 No
               </button>
               <FallbackAgentComboButton
+                autoFocusPrimaryAction={true}
                 fallbackAgentOptions={enabledFallbackAgentOptions}
                 onSelect={controller.onSelectFallbackAgent}
               />

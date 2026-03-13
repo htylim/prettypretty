@@ -81,7 +81,7 @@
   - empty paste: remain input without file-empty notice.
 - Local parser chain order: strict JSON -> newline-delimited JSON (strict JSON per non-empty line) -> JSON5 (JS/TS object-literal style) -> Python-literal normalization + JSON5.
 - Malformed/unsupported local inputs trigger fallback agent execution via main-process IPC when configured.
-- If no fallback agent is configured but at least one enabled agent exists, malformed/unsupported local inputs open a modal that offers `No` (default) or a split fallback button: the primary action shows the currently selected agent and runs it, while the chevron side swaps the selected agent for that one-shot fallback run.
+- If no fallback agent is configured but at least one enabled agent exists, malformed/unsupported local inputs open a modal that focuses the split fallback button by default: `Enter` runs the currently selected agent, while `ArrowDown`/`ArrowUp` opens the menu and moves through enabled agents for immediate one-shot execution.
 - If no fallback agent is configured and the one-shot modal is dismissed or canceled, output remains passthrough unchanged.
 - Manual typing behavior: updates input text without forcing output mode.
 - Output mode language detection is heuristic and parser-independent, with malformed JSON-like content preferring JSON highlighting.
@@ -101,5 +101,5 @@
 - Indentation persistence behavior: renderer hydrates `indentSize` from persisted preferences at startup and uses it as the single runtime source for formatter + Monaco indentation.
 - Fallback preference behavior: renderer hydrates both `fallbackAgentId` and configured agent list from persisted preferences at startup and writes selection changes with optimistic UI + rollback on failed writes.
 - Large-content fallback guard: when malformed/unsupported input exceeds the persisted `fallbackWarningLineThreshold` (default `300` lines), renderer shows a confirmation modal (`Content is <N> lines. Use fallback agent?`) before starting fallback execution.
-- One-shot fallback modal behavior: pressing `Escape` closes the modal and resolves the action the same as clicking `No`.
+- One-shot fallback modal behavior: pressing `Escape` always closes the modal without invoking fallback, even if the agent menu is open.
 - Current scope persists `fallbackWarningLineThreshold` in preferences with default `300`; there is no toolbar control for changing it yet.

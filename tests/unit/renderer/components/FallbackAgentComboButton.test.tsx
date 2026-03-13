@@ -45,7 +45,7 @@ describe('FallbackAgentComboButton', () => {
     expect(onSelect).toHaveBeenCalledWith('amp');
   });
 
-  it('changes the displayed selection from the dropdown and uses it for the primary action', async () => {
+  it('runs the clicked dropdown option immediately and updates the primary label', async () => {
     const user = userEvent.setup();
     const onSelect = vi.fn();
 
@@ -63,12 +63,36 @@ describe('FallbackAgentComboButton', () => {
     await user.click(screen.getByTestId('fallback-agent-combo-option-codex'));
 
     expect(screen.getByTestId('fallback-agent-combo-button')).toHaveTextContent('Codex');
+    expect(onSelect).toHaveBeenCalledWith('codex');
     await waitFor(() => {
       expect(screen.queryByTestId('fallback-agent-combo-panel')).not.toBeInTheDocument();
     });
+  });
 
-    await user.click(screen.getByTestId('fallback-agent-combo-button'));
+  it('supports arrow navigation from the primary action and enter to run the highlighted option', async () => {
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+
+    render(
+      <FallbackAgentComboButton
+        autoFocusPrimaryAction={true}
+        fallbackAgentOptions={[
+          { id: 'amp', name: 'Amp', enabled: true },
+          { id: 'codex', name: 'Codex', enabled: true },
+          { id: 'claude', name: 'Claude', enabled: true },
+        ]}
+        onSelect={onSelect}
+      />,
+    );
+
+    expect(screen.getByTestId('fallback-agent-combo-button')).toHaveFocus();
+
+    await user.keyboard('{ArrowDown}{Enter}');
 
     expect(onSelect).toHaveBeenCalledWith('codex');
+    expect(screen.getByTestId('fallback-agent-combo-button')).toHaveTextContent('Codex');
+    await waitFor(() => {
+      expect(screen.queryByTestId('fallback-agent-combo-panel')).not.toBeInTheDocument();
+    });
   });
 });
