@@ -1,0 +1,178 @@
+import type { editor as MonacoEditor } from 'monaco-editor';
+
+const FOLDING_CONTRIBUTION_ID = 'editor.contrib.folding';
+
+type FoldingRegion = {
+  readonly regionIndex: number;
+  readonly startLineNumber: number;
+  readonly endLineNumber: number;
+  readonly isCollapsed: boolean;
+  readonly parentIndex: number;
+};
+
+type FoldingRegions = {
+  readonly length: number;
+  getStartLineNumber: (index: number) => number;
+  getEndLineNumber: (index: number) => number;
+  isCollapsed: (index: number) => boolean;
+  toRegion: (index: number) => FoldingRegion;
+};
+
+type FoldingModel = {
+  readonly regions: FoldingRegions;
+  getRegionAtLine: (lineNumber: number) => FoldingRegion | null;
+  toggleCollapseState: (regions: FoldingRegion[]) => void;
+};
+
+type FoldingContribution = {
+  readonly foldingModel?: FoldingModel | null;
+  getFoldingModel?: () => Promise<FoldingModel | null> | null;
+};
+
+export type FoldStart = {
+  lineNumber: number;
+  endLineNumber: number;
+  isCollapsed: boolean;
+};
+
+const getFoldingContribution = (
+  editor: MonacoEditor.IStandaloneCodeEditor,
+): FoldingContribution | null =>
+  (editor.getContribution(FOLDING_CONTRIBUTION_ID) as FoldingContribution | null) ?? null;
+
+const getCurrentFoldingModel = (
+  editor: MonacoEditor.IStandaloneCodeEditor,
+): FoldingModel | null => {
+  const contribution = getFoldingContribution(editor);
+  return contribution?.foldingModel ?? null;
+};
+
+const getFoldingModel = async (
+  editor: MonacoEditor.IStandaloneCodeEditor,
+): Promise<FoldingModel | null> => {
+  const currentModel = getCurrentFoldingModel(editor);
+  if (currentModel) {
+    return currentModel;
+  }
+
+  const contribution = getFoldingContribution(editor);
+  return (await contribution?.getFoldingModel?.()) ?? null;
+};
+
+const getFoldStartsFromModel = (foldingModel: FoldingModel): FoldStart[] => {
+  const foldStarts: FoldStart[] = [];
+  const regions = foldingModel.regions;
+
+  for (let index = 0; index < regions.length; index += 1) {
+    foldStarts.push({
+      lineNumber: regions.getStartLineNumber(index),
+      endLineNumber: regions.getEndLineNumber(index),
+      isCollapsed: regions.isCollapsed(index),
+    });
+  }
+
+  return foldStarts;
+};
+
+const getVisibleLineWindow = (
+  editor: MonacoEditor.IStandaloneCodeEditor,
+  overscanLines: number,
+): { startLineNumber: number; endLineNumber: number } | null => {
+  const model = editor.getModel();
+  if (!model) {
+    return null;
+  }
+
+  const visibleRanges = editor.getVisibleRanges();
+  if (visibleRanges.length === 0) {
+    return null;
+  }
+
+  let startLineNumber = Number.POSITIVE_INFINITY;
+  let endLineNumber = 0;
+
+  for (const range of visibleRanges) {
+    startLineNumber = Math.min(startLineNumber, range.startLineNumber);
+    endLineNumber = Math.max(endLineNumber, range.endLineNumber);
+  }
+
+  return {
+    startLineNumber: Math.max(1, startLineNumber - overscanLines),
+    endLineNumber: Math.min(model.getLineCount(), endLineNumber + overscanLines),
+  };
+};
+
+const getFoldRegionAtStartLine = (
+  foldingModel: FoldingModel,
+  foldStartLineNumber: number,
+): FoldingRegion | null => {
+  const directRegion = foldingModel.getRegionAtLine(foldStartLineNumber);
+  if (directRegion?.startLineNumber === foldStartLineNumber) {
+    return directRegion;
+  }
+
+  const regions = foldingModel.regions;
+  for (let index = 0; index < regions.length; index += 1) {
+    if (regions.getStartLineNumber(index) === foldStartLineNumber) {
+      return regions.toRegion(index);
+    }
+  }
+
+  return null;
+};
+
+export const getVisibleFoldStartLines = async (
+  editor: MonacoEditor.IStandaloneCodeEditor,
+  overscanLines = 0,
+): Promise<FoldStart[]> => {
+  const foldingModel = await getFoldingModel(editor);
+  const visibleWindow = getVisibleLineWindow(editor, overscanLines);
+  if (!foldingModel || !visibleWindow) {
+    return [];
+  }
+
+  return getFoldStartsFromModel(foldingModel).filter(
+    ({ lineNumber }) =>
+      lineNumber >= visibleWindow.startLineNumber && lineNumber <= visibleWindow.endLineNumber,
+  );
+};
+
+export const findOwningFoldStartLine = (
+  editor: MonacoEditor.IStandaloneCodeEditor,
+  lineNumber: number,
+): number | null => {
+  const foldingModel = getCurrentFoldingModel(editor);
+  const region = foldingModel?.getRegionAtLine(lineNumber) ?? null;
+  return region?.startLineNumber ?? null;
+};
+
+export const isFoldStartCollapsed = (
+  editor: MonacoEditor.IStandaloneCodeEditor,
+  foldStartLineNumber: number,
+): boolean | null => {
+  const foldingModel = getCurrentFoldingModel(editor);
+  if (!foldingModel) {
+    return null;
+  }
+
+  const region = getFoldRegionAtStartLine(foldingModel, foldStartLineNumber);
+  return region?.isCollapsed ?? null;
+};
+
+export const toggleFoldStart = (
+  editor: MonacoEditor.IStandaloneCodeEditor,
+  foldStartLineNumber: number,
+): boolean => {
+  const foldingModel = getCurrentFoldingModel(editor);
+  if (!foldingModel) {
+    return false;
+  }
+
+  const region = getFoldRegionAtStartLine(foldingModel, foldStartLineNumber);
+  if (!region) {
+    return false;
+  }
+
+  foldingModel.toggleCollapseState([region]);
+  return true;
+};

@@ -11,6 +11,7 @@ import {
   registerMonacoThemes,
 } from '../output/monacoThemes';
 import { registerCmdClickFoldToggle } from '../output/indentBlockFolding';
+import { registerInlineFoldControls } from '../output/inlineFoldControls';
 import { getOutputEditorOptions } from '../output/outputEditorConfig';
 
 export type OutputEditorHandle = {
@@ -113,7 +114,10 @@ export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
       if (initialViewState) {
         editor.restoreViewState(initialViewState);
       }
-      interactionDisposablesRef.current = [registerCmdClickFoldToggle(editor)];
+      interactionDisposablesRef.current = [
+        registerCmdClickFoldToggle(editor),
+        registerInlineFoldControls(editor),
+      ];
     };
 
     return (

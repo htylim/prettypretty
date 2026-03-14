@@ -11,6 +11,8 @@ const {
   configureMonacoMock,
   registerMonacoThemesMock,
   getOutputEditorOptionsMock,
+  registerCmdClickFoldToggleMock,
+  registerInlineFoldControlsMock,
   editorRenderSpy,
   foldRunMock,
   unfoldRunMock,
@@ -22,8 +24,8 @@ const {
   setScrollLeftMock,
   setPositionMock,
   getActionMock,
-  toggleFoldRunMock,
-  onMouseDownDisposeMock,
+  cmdClickDisposeMock,
+  inlineControlsDisposeMock,
 } = vi.hoisted(() => ({
   configureMonacoMock: vi.fn(),
   registerMonacoThemesMock: vi.fn(),
@@ -31,6 +33,8 @@ const {
     readOnly: true,
     lineNumbers: 'on',
   })),
+  registerCmdClickFoldToggleMock: vi.fn(() => ({ dispose: cmdClickDisposeMock })),
+  registerInlineFoldControlsMock: vi.fn(() => ({ dispose: inlineControlsDisposeMock })),
   editorRenderSpy: vi.fn(),
   foldRunMock: vi.fn(async () => undefined),
   unfoldRunMock: vi.fn(async () => undefined),
@@ -42,8 +46,8 @@ const {
   setScrollLeftMock: vi.fn(),
   setPositionMock: vi.fn(),
   getActionMock: vi.fn(),
-  toggleFoldRunMock: vi.fn(async () => undefined),
-  onMouseDownDisposeMock: vi.fn(),
+  cmdClickDisposeMock: vi.fn(),
+  inlineControlsDisposeMock: vi.fn(),
 }));
 
 vi.mock('../../../../src/renderer/output/configureMonaco', () => ({
@@ -58,6 +62,14 @@ vi.mock('../../../../src/renderer/output/monacoThemes', () => ({
 
 vi.mock('../../../../src/renderer/output/outputEditorConfig', () => ({
   getOutputEditorOptions: getOutputEditorOptionsMock,
+}));
+
+vi.mock('../../../../src/renderer/output/indentBlockFolding', () => ({
+  registerCmdClickFoldToggle: registerCmdClickFoldToggleMock,
+}));
+
+vi.mock('../../../../src/renderer/output/inlineFoldControls', () => ({
+  registerInlineFoldControls: registerInlineFoldControlsMock,
 }));
 
 type MonacoRenderProps = {
@@ -76,14 +88,6 @@ type MonacoRenderProps = {
 };
 
 let viewStateCounter = 0;
-let mouseDownHandler: ((event: MonacoEditor.IEditorMouseEvent) => void) | null = null;
-let modelLines = ['{"a": 1}'];
-
-const modelMock = {
-  getLineCount: () => modelLines.length,
-  getLineContent: (lineNumber: number) => modelLines[lineNumber - 1] ?? '',
-  getOptions: () => ({ tabSize: 2 }),
-} as unknown as MonacoEditor.ITextModel;
 
 const editorMock = {
   getAction: (id: string): { run: () => Promise<void> } | undefined => {
@@ -100,10 +104,6 @@ const editorMock = {
       return { run: findRunMock };
     }
 
-    if (id === 'editor.toggleFold') {
-      return { run: toggleFoldRunMock };
-    }
-
     return undefined;
   },
   saveViewState: () => {
@@ -116,11 +116,6 @@ const editorMock = {
   setScrollLeft: setScrollLeftMock,
   setPosition: setPositionMock,
   focus: focusMock,
-  getModel: () => modelMock,
-  onMouseDown: (handler: (event: MonacoEditor.IEditorMouseEvent) => void) => {
-    mouseDownHandler = handler;
-    return { dispose: onMouseDownDisposeMock };
-  },
 } as unknown as MonacoEditor.IStandaloneCodeEditor;
 
 const monacoMock = {
@@ -160,6 +155,8 @@ describe('OutputEditor', () => {
     configureMonacoMock.mockClear();
     registerMonacoThemesMock.mockClear();
     getOutputEditorOptionsMock.mockClear();
+    registerCmdClickFoldToggleMock.mockClear();
+    registerInlineFoldControlsMock.mockClear();
     editorRenderSpy.mockClear();
     foldRunMock.mockClear();
     unfoldRunMock.mockClear();
@@ -171,10 +168,8 @@ describe('OutputEditor', () => {
     setScrollLeftMock.mockClear();
     setPositionMock.mockClear();
     getActionMock.mockClear();
-    toggleFoldRunMock.mockClear();
-    onMouseDownDisposeMock.mockClear();
-    mouseDownHandler = null;
-    modelLines = ['{"a": 1}'];
+    cmdClickDisposeMock.mockClear();
+    inlineControlsDisposeMock.mockClear();
   });
 
   it('renders Monaco in read-only mode with line numbers seam', () => {
@@ -270,59 +265,28 @@ describe('OutputEditor', () => {
     expect(restoredStates.some((state) => state?.token === 'view-state-0')).toBe(true);
   });
 
-  it('toggles fold only on Cmd+click within an indent block', () => {
-    modelLines = ['{', '  "nested": {', '    "x": 1', '  }', '}'];
+  it('registers fold gesture and inline controls on mount', () => {
     render(
       <OutputEditor
-        documentId="doc-hover-B"
+        documentId="doc-inline-controls"
         themeMode="light"
         indentSize={2}
-        value={modelLines.join('\n')}
+        value='{"nested":{"value":1}}'
       />,
     );
 
-    const regularClickPreventDefault = vi.fn();
-    const regularClickStopPropagation = vi.fn();
-    mouseDownHandler?.({
-      target: { position: { lineNumber: 3, column: 6 } },
-      event: {
-        altKey: false,
-        metaKey: false,
-        browserEvent: { detail: 1 },
-        preventDefault: regularClickPreventDefault,
-        stopPropagation: regularClickStopPropagation,
-      },
-    } as unknown as MonacoEditor.IEditorMouseEvent);
-
-    expect(toggleFoldRunMock).not.toHaveBeenCalled();
-    expect(regularClickPreventDefault).not.toHaveBeenCalled();
-
-    const cmdClickPreventDefault = vi.fn();
-    const cmdClickStopPropagation = vi.fn();
-    mouseDownHandler?.({
-      target: { position: { lineNumber: 3, column: 6 } },
-      event: {
-        metaKey: true,
-        browserEvent: { detail: 1 },
-        preventDefault: cmdClickPreventDefault,
-        stopPropagation: cmdClickStopPropagation,
-      },
-    } as unknown as MonacoEditor.IEditorMouseEvent);
-
-    expect(getActionMock).toHaveBeenCalledWith('editor.toggleFold');
-    expect(toggleFoldRunMock).toHaveBeenCalledTimes(1);
-    expect(cmdClickPreventDefault).toHaveBeenCalledTimes(1);
-    expect(cmdClickStopPropagation).toHaveBeenCalledTimes(1);
-    expect(setPositionMock).toHaveBeenCalledWith({ lineNumber: 2, column: 1 });
+    expect(registerCmdClickFoldToggleMock).toHaveBeenCalledWith(editorMock);
+    expect(registerInlineFoldControlsMock).toHaveBeenCalledWith(editorMock);
   });
 
-  it('disposes mouse listeners on unmount', () => {
+  it('disposes interaction hooks on unmount', () => {
     const { unmount } = render(
       <OutputEditor documentId="doc-unmount-A" themeMode="light" indentSize={2} value='{"x":1}' />,
     );
 
     unmount();
 
-    expect(onMouseDownDisposeMock).toHaveBeenCalledTimes(1);
+    expect(cmdClickDisposeMock).toHaveBeenCalledTimes(1);
+    expect(inlineControlsDisposeMock).toHaveBeenCalledTimes(1);
   });
 });

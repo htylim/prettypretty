@@ -93,8 +93,21 @@
 - Monaco editors must keep visible:
   - line-number gutter,
   - document minimap,
-  - fold controls in gutter at all times,
+  - input-editor fold controls in gutter,
   - indentation guides + bracket-pair guides.
+- Output editor fold affordance rules:
+  - hide Monaco gutter fold controls,
+  - render inline fold buttons only on visible Monaco fold-start lines,
+  - anchor controls to the end of the fold-start line so they move with code horizontally and vertically,
+  - use tokenized UI colors, not syntax-token colors, so the control never reads as source text.
+- Output inline fold button styling:
+  - square or soft-rect `16px` to `18px`,
+  - vertically center inside the `23px` Monaco line box instead of sitting on the text baseline,
+  - keep expanded controls close to the fold-start line end, but shift collapsed controls a few pixels farther right so Monaco folded placeholders (`...`) do not visually collide with the control,
+  - muted default color using panel/border tokens,
+  - stronger text/border contrast on hover,
+  - visible `:focus-visible` ring using `--focus-ring`,
+  - explicit expand/collapse glyphs (`+` / `-` in current scope).
 - Bracket pair colorization must define at least six depth colors before repeating.
 - Search in output mode should use Monaco's native find widget (no custom decoration class for search matches).
 

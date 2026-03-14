@@ -341,6 +341,49 @@ body {
   width: 100%;
 }
 
+.output-inline-fold-control-widget {
+  display: flex;
+  align-items: center;
+  height: 23px;
+  padding-top: 1px;
+  padding-left: 18px;
+  transform: translateY(-4px);
+  user-select: none;
+}
+
+.output-inline-fold-control {
+  width: 18px;
+  height: 18px;
+  border: 1px solid color-mix(in oklab, var(--line) 88%, transparent);
+  border-radius: 4px;
+  background: color-mix(in oklab, var(--panel-alt) 92%, var(--bg));
+  color: var(--muted);
+  font-family: var(--font-ui);
+  font-size: 0.74rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    background-color 100ms ease,
+    border-color 100ms ease,
+    color 100ms ease,
+    transform 100ms ease;
+}
+
+.output-inline-fold-control:hover {
+  color: var(--text);
+  border-color: color-mix(in oklab, var(--accent) 24%, var(--line));
+  background: color-mix(in oklab, var(--accent-soft) 60%, var(--panel-alt));
+}
+
+.output-inline-fold-control:focus-visible {
+  outline: 1px solid var(--focus-ring);
+  outline-offset: -1px;
+  color: var(--text);
+}
+
 .fallback-wait-screen {
   display: flex;
   flex-direction: column;

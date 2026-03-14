@@ -4,44 +4,74 @@ Specs are instructions for coding agents. They define what to build, why, and ho
 
 ## Structure
 
-### 1. Goal
+### 1. Current State
 
-State what the spec achieves in 2-3 sentences. Include a usage example if relevant.
+Explain the current state. _Why_ this is needed. What problem does it solve?
 
-### 2. Problem / Context (optional)
+### 2. Desired end state
 
-Explain _why_ this is needed. What problem does it solve? What's the intent?
+State what the desired end state should be. Include examples if relevant.
 
-### 3. Deliverables
+### 3. Patterns To Follow
 
-Be explicit. Communicate clearly:
+Mention (and show) the existing patterns in code that should be used here to achieve the desired state.
 
-- architecture decisions (ie, use this library, and replace that library, ..),
-- design decisions (ie, will implement this module, and refactor that module, etc..),
-- data models decisions (ie, add model X, modify model X to do Y, etc),
-- tests decisions (ie, add unit test for this component, include this scenario and this scenario, etc),
-- code changes decisions (refactor that code, make this code more clean, add this here, etc..),
+### 4. Deliverables
+
+Be explicit. Communicate clearly all the decisions. Use headings to separate them:
+
+**architecture decisions**
+
+- use this library
+- replace that library...
+
+**design decisions**
+
+- will implement this module
+- refactor that module, etc..
+
+**data models decisions**
+
+- add model X,
+- modify model X to do Y, etc..
+
+**tests decisions**
+
+- add unit test for this component
+- include this scenario and this scenario, etc..
+
+**code changes decisions**
+
+- refactor that code
+- make this code more clean, etc..
+
 - etc.
 
 **Don't give vague instructions like "make it work" or "add tests"**
 
-### 4. Acceptance Criteria
+### 5. Acceptance Criteria
 
 Checkboxes for what "done" means. Include:
 
 - Functional requirements
-- Quality gates (`pnpm test`, `pnpm check`)
+- Quality gates (`uv run pytest`, `uv run pre-commit run --all-files`)
 - Edge cases
 
-### 5. File Summary
+### 6. File Summary
 
 Quick reference of new/modified files.
 
-### 6. Open Questions / Resolved Decisions
+### 7. Open Questions / Resolved Decisions
 
 Document unknowns and decisions made during spec writing.
 
 ## Guidelines
+
+### Goal of a Spec file.
+
+The goal of a spec file is to communicate a desired outcome, in depth and clearly.
+To be easily read so it can be easily reviewed and understood.
+An spec might include technical info or include technical work but is not an implementation plan. The goal of a spec is to be the input for an implementation plan.
 
 ### Code in Specs
 
@@ -62,9 +92,10 @@ Specs should strive to be **complete and unambiguous**. However:
 
 Always require:
 
-- `pnpm test` - tests pass
-- `pnpm check` - linting/formatting pass
+- `uv run pytest` - tests pass (unless the spec explicitly declares a bootstrap exception)
+- `uv run mypy src` - type checks pass
+- `uv run pre-commit run --all-files` - configured hooks pass
 
 ### Naming
 
-Use sequential IDs: `0001-project-setup.md`, `0002-db-scaffolding.md`, etc.
+Use sequential numeric IDs with zero padding: `0001-project-setup.md`, `0002-db-scaffolding.md`, etc.

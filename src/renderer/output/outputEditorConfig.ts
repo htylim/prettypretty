@@ -51,6 +51,8 @@ export const getOutputEditorOptions = (
   indentSize: IndentSize,
 ): editor.IStandaloneEditorConstructionOptions => ({
   ...getSharedEditorOptions(indentSize),
+  glyphMargin: false,
+  showFoldingControls: 'never',
   readOnly: true,
   domReadOnly: true,
 });

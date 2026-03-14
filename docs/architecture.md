@@ -24,6 +24,13 @@
 - `src/renderer/app/appDomain.ts` contains pure helper functions/constants shared by renderer controller hooks.
 - `src/renderer/app/reportRendererError.ts` provides a single renderer-side error reporting path.
 
+## Renderer Editor Folding
+
+- `src/renderer/editor/monacoFolding.ts` is the single renderer folding adapter. It isolates Monaco folding-contribution access and exposes fold-start discovery, fold-owner resolution, collapsed-state lookup, and toggle-by-fold-start behavior for renderer features.
+- `src/renderer/output/inlineFoldControls.ts` owns output-only inline fold control widgets. It renders Monaco content widgets on visible fold-start lines and refreshes them from scroll, layout, model, language, and hidden-area changes.
+- `src/renderer/output/indentBlockFolding.ts` remains the modifier-click registration seam, but it now delegates fold targeting and toggling to `monacoFolding.ts` instead of inferring fold ranges from indentation.
+- Output-editor fold/view state continues to persist through Monaco view-state save/restore keyed by renderer `documentId`; inline controls reflect that restored state instead of persisting separate UI state.
+
 ## Runtime Flow
 
 1. App starts in `src/main/index.ts`.

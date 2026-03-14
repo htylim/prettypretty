@@ -16,13 +16,18 @@ Do not add routine status updates, implementation history, or one-time decisions
 - Do not style Monaco text metrics via external CSS selectors (for example `.view-lines`); set typography metrics in Monaco options or cursor/selection alignment can drift.
 - Do not let prettifier indentation and Monaco indentation settings come from different sources; both must read the same persisted preference value.
 - Do not mutate output text to implement search highlighting; use Monaco-native find/decorations so copy/save output remains accurate.
+- Do not implement code-anchored Monaco controls with viewport-anchored overlay widgets; when the affordance must move with code, anchor it to model positions and style it so it cannot be mistaken for source text.
+- Do not stop at model-position anchoring for inline Monaco controls; tune vertical offset and post-line spacing against Monaco line metrics or the control will sit low in the line and crowd folded placeholder text.
+- Do not assume one horizontal offset works for both inline fold states; expanded controls can sit tighter to code, while collapsed controls may need extra right-side clearance from Monaco placeholder text.
+- Do not implement inline Monaco fold affordances with injected text; use content widgets so copied/saved output and syntax highlighting stay untouched.
 - Do not treat bubbled paste events from Monaco find/replace widgets as shell-level ingest; allow widget-local paste or search can overwrite the active document.
 - Do not key output fold/view state to transient UI state; persist/restore by deterministic document identity.
 - Do not maintain separate Monaco option sets for input/output that can drift; use one shared base and derive editable/read-only variants.
 - Do not enable fold actions when there is no content; fold controls should be content-aware and no-op states should stay disabled.
-- Do not let shared Monaco affordances (for example fold-control visibility) diverge between input and output panes; keep them in the shared editor-options seam and lock them with unit tests.
+- Do not let Monaco option drift happen between input and output panes; keep one shared base options seam and make any intentional pane-specific overrides explicit and unit-tested.
 - Do not bypass Monaco built-ins with CSS overlays for editor primitives (for example minimap); use Monaco options for stability and compatibility.
 - Do not bind structural fold toggling to plain click in Monaco editors; keep default click behavior and require an explicit modifier (for example Cmd+click) when adding custom fold gestures.
+- Do not compute foldability from indentation-only helpers when Monaco already defines fold regions for the active language; wrap Monaco folding in one shared adapter and reuse it across inline controls and modifier gestures.
 - Do not persist app preferences in renderer localStorage or install directories; keep main-process ownership and store in Electron `app.getPath('userData')` for OS-correct, writable config behavior.
 - Do not implement optimistic preference writes without request sequencing; stale async failures can rollback newer user selections.
 - Do not parse JS/TS object-literal input with `eval`/`new Function`; use parser-based approaches to keep renderer execution safe.

@@ -11,14 +11,13 @@ const {
   configureMonacoMock,
   registerMonacoThemesMock,
   getInputEditorOptionsMock,
+  registerCmdClickFoldToggleMock,
   editorRenderSpy,
   setThemeMock,
   foldRunMock,
   unfoldRunMock,
   getActionMock,
-  toggleFoldRunMock,
-  setPositionMock,
-  onMouseDownDisposeMock,
+  foldToggleDisposeMock,
 } = vi.hoisted(() => ({
   configureMonacoMock: vi.fn(),
   registerMonacoThemesMock: vi.fn(),
@@ -26,14 +25,13 @@ const {
     readOnly: false,
     lineNumbers: 'on',
   })),
+  registerCmdClickFoldToggleMock: vi.fn(() => ({ dispose: foldToggleDisposeMock })),
   editorRenderSpy: vi.fn(),
   setThemeMock: vi.fn(),
   foldRunMock: vi.fn(async () => undefined),
   unfoldRunMock: vi.fn(async () => undefined),
   getActionMock: vi.fn(),
-  toggleFoldRunMock: vi.fn(async () => undefined),
-  setPositionMock: vi.fn(),
-  onMouseDownDisposeMock: vi.fn(),
+  foldToggleDisposeMock: vi.fn(),
 }));
 
 vi.mock('../../../../src/renderer/output/configureMonaco', () => ({
@@ -48,6 +46,10 @@ vi.mock('../../../../src/renderer/output/monacoThemes', () => ({
 
 vi.mock('../../../../src/renderer/output/outputEditorConfig', () => ({
   getInputEditorOptions: getInputEditorOptionsMock,
+}));
+
+vi.mock('../../../../src/renderer/output/indentBlockFolding', () => ({
+  registerCmdClickFoldToggle: registerCmdClickFoldToggleMock,
 }));
 
 type MonacoRenderProps = {
@@ -78,27 +80,10 @@ const editorMock = {
     if (id === 'editor.unfoldAll') {
       return { run: unfoldRunMock };
     }
-    if (id === 'editor.toggleFold') {
-      return { run: toggleFoldRunMock };
-    }
 
     return undefined;
   },
-  getModel: () =>
-    ({
-      getLineCount: () => 5,
-      getLineContent: (lineNumber: number) =>
-        ['{', '  "nested": {', '    "x": 1', '  }', '}'][lineNumber - 1] ?? '',
-      getOptions: () => ({ tabSize: 2 }),
-    }) as unknown as MonacoEditor.ITextModel,
-  onMouseDown: (handler: (event: MonacoEditor.IEditorMouseEvent) => void) => {
-    mouseDownHandler = handler;
-    return { dispose: onMouseDownDisposeMock };
-  },
-  setPosition: setPositionMock,
 } as unknown as MonacoEditor.IStandaloneCodeEditor;
-
-let mouseDownHandler: ((event: MonacoEditor.IEditorMouseEvent) => void) | null = null;
 
 vi.mock('@monaco-editor/react', async () => {
   const React = await import('react');
@@ -134,15 +119,13 @@ describe('InputEditor', () => {
     configureMonacoMock.mockClear();
     registerMonacoThemesMock.mockClear();
     getInputEditorOptionsMock.mockClear();
+    registerCmdClickFoldToggleMock.mockClear();
     editorRenderSpy.mockClear();
     setThemeMock.mockClear();
     foldRunMock.mockClear();
     unfoldRunMock.mockClear();
     getActionMock.mockClear();
-    toggleFoldRunMock.mockClear();
-    setPositionMock.mockClear();
-    onMouseDownDisposeMock.mockClear();
-    mouseDownHandler = null;
+    foldToggleDisposeMock.mockClear();
   });
 
   it('renders Monaco with shared options seam in editable mode', () => {
@@ -200,35 +183,19 @@ describe('InputEditor', () => {
     expect(unfoldRunMock).toHaveBeenCalledTimes(1);
   });
 
-  it('toggles fold on Cmd+click within an indent block', () => {
+  it('registers shared fold toggle wiring on mount', () => {
     render(<InputEditor themeMode="light" indentSize={2} value="alpha" onChange={vi.fn()} />);
 
-    const preventDefault = vi.fn();
-    const stopPropagation = vi.fn();
-    mouseDownHandler?.({
-      target: { position: { lineNumber: 3, column: 6 } },
-      event: {
-        metaKey: true,
-        browserEvent: { detail: 1 },
-        preventDefault,
-        stopPropagation,
-      },
-    } as unknown as MonacoEditor.IEditorMouseEvent);
-
-    expect(getActionMock).toHaveBeenCalledWith('editor.toggleFold');
-    expect(toggleFoldRunMock).toHaveBeenCalledTimes(1);
-    expect(setPositionMock).toHaveBeenCalledWith({ lineNumber: 2, column: 1 });
-    expect(preventDefault).toHaveBeenCalledTimes(1);
-    expect(stopPropagation).toHaveBeenCalledTimes(1);
+    expect(registerCmdClickFoldToggleMock).toHaveBeenCalledWith(editorMock);
   });
 
-  it('disposes cmd-click listener on unmount', () => {
+  it('disposes fold listener on unmount', () => {
     const { unmount } = render(
       <InputEditor themeMode="light" indentSize={2} value="alpha" onChange={vi.fn()} />,
     );
 
     unmount();
 
-    expect(onMouseDownDisposeMock).toHaveBeenCalledTimes(1);
+    expect(foldToggleDisposeMock).toHaveBeenCalledTimes(1);
   });
 });
