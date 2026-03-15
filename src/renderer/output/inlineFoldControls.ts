@@ -15,20 +15,19 @@ type FoldWidget = MonacoEditor.IContentWidget & {
   update: (foldStart: FoldStart) => void;
 };
 
-type FoldControlActionScope = 'self' | 'children';
-
 const getSelfToggleAction = (foldStart: FoldStart): FoldToggleAction =>
   foldStart.isCollapsed ? 'expand' : 'collapse';
 
-const getFoldControlAction = (
-  foldStart: FoldStart,
-  actionScope: FoldControlActionScope,
-): FoldToggleAction =>
-  actionScope === 'children'
-    ? (foldStart.childToggleAction ?? 'collapse')
-    : getSelfToggleAction(foldStart);
-
-const getFoldControlGlyph = (action: FoldToggleAction): string => (action === 'expand' ? '+' : '-');
+const getFoldControlGlyph = (action: FoldToggleAction, scope: 'self' | 'children'): string => {
+  if (scope === 'children') {
+    return action === 'expand'
+      ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h6"/><path d="M7 9v6"/><path d="M14 12h6"/><path d="M17 9v6"/></svg>`
+      : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h6"/><path d="M14 12h6"/></svg>`;
+  }
+  return action === 'expand'
+    ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>`
+    : `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg>`;
+};
 
 const createSelfFoldControlLabel = (foldStart: FoldStart): string =>
   getSelfToggleAction(foldStart) === 'expand'
@@ -43,13 +42,6 @@ const createChildFoldControlLabel = (foldStart: FoldStart, action: FoldToggleAct
 const createDisabledChildFoldControlLabel = (foldStart: FoldStart): string =>
   `No direct child blocks at line ${foldStart.lineNumber}`;
 
-const stopMouseDownPropagation = (event: MouseEvent): void => {
-  event.stopPropagation();
-  if (event.ctrlKey) {
-    event.preventDefault();
-  }
-};
-
 const stopContextMenu = (event: MouseEvent): void => {
   event.preventDefault();
   event.stopPropagation();
@@ -61,22 +53,33 @@ const runButtonAction = (event: MouseEvent, action: () => void): void => {
   action();
 };
 
-const createFoldControlButton = (
-  scope: FoldControlActionScope,
-  action: () => void,
-): HTMLButtonElement => {
+const createFoldControlButton = (action: (event: MouseEvent) => void): HTMLButtonElement => {
   const button = document.createElement('button');
+  let shouldIgnoreNextClick = false;
   button.type = 'button';
   button.className = 'output-inline-fold-control';
-  button.setAttribute(
-    'data-testid',
-    scope === 'self' ? 'output-inline-fold-control' : 'output-inline-fold-children-control',
-  );
-  button.setAttribute('data-fold-action-scope', scope);
-  button.setAttribute('data-fold-control-kind', scope);
-  button.addEventListener('mousedown', stopMouseDownPropagation);
+  button.setAttribute('data-testid', 'output-inline-fold-control');
+  button.addEventListener('mousedown', (event: MouseEvent) => {
+    event.stopPropagation();
+    if (!event.ctrlKey) {
+      return;
+    }
+
+    shouldIgnoreNextClick = true;
+    window.setTimeout(() => {
+      shouldIgnoreNextClick = false;
+    }, 0);
+    runButtonAction(event, () => action(event));
+  });
   button.addEventListener('click', (event: MouseEvent) => {
-    runButtonAction(event, action);
+    if (shouldIgnoreNextClick) {
+      shouldIgnoreNextClick = false;
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+
+    runButtonAction(event, () => action(event));
   });
   button.addEventListener('contextmenu', stopContextMenu);
   return button;
@@ -85,6 +88,7 @@ const createFoldControlButton = (
 const createFoldWidget = (
   editor: MonacoEditor.IStandaloneCodeEditor,
   initialFoldStart: FoldStart,
+  getIsCtrlModifierActive: () => boolean,
   refresh: () => void,
 ): FoldWidget => {
   let foldStart = initialFoldStart;
@@ -116,39 +120,61 @@ const createFoldWidget = (
     );
   };
 
-  const selfButton = createFoldControlButton('self', runSelfToggleAction);
-  const childButton = createFoldControlButton('children', runChildToggleAction);
-
-  buttonRow.append(selfButton, childButton);
-  domNode.append(buttonRow);
-
-  const updateButtons = (): void => {
-    const selfAction = getSelfToggleAction(foldStart);
-    selfButton.textContent = getFoldControlGlyph(selfAction);
-    selfButton.setAttribute('data-line-number', String(foldStart.lineNumber));
-    selfButton.setAttribute('data-fold-state', foldStart.isCollapsed ? 'collapsed' : 'expanded');
-    selfButton.setAttribute('data-fold-action', selfAction);
-    selfButton.setAttribute('aria-expanded', String(!foldStart.isCollapsed));
-    selfButton.setAttribute('aria-label', createSelfFoldControlLabel(foldStart));
-    selfButton.title = createSelfFoldControlLabel(foldStart);
-
-    const childAction = foldStart.childToggleAction;
-    if (childAction === null) {
-      childButton.disabled = true;
-      childButton.textContent = '-';
-      childButton.setAttribute('data-line-number', String(foldStart.lineNumber));
-      childButton.setAttribute('data-fold-action', 'none');
-      childButton.setAttribute('aria-label', createDisabledChildFoldControlLabel(foldStart));
-      childButton.title = createDisabledChildFoldControlLabel(foldStart);
+  const controlButton = createFoldControlButton((event) => {
+    const isCtrlModifierActive = event.ctrlKey || getIsCtrlModifierActive();
+    if (isCtrlModifierActive) {
+      if (foldStart.childToggleAction) {
+        runChildToggleAction();
+      }
       return;
     }
 
-    childButton.disabled = false;
-    childButton.textContent = getFoldControlGlyph(getFoldControlAction(foldStart, 'children'));
-    childButton.setAttribute('data-line-number', String(foldStart.lineNumber));
-    childButton.setAttribute('data-fold-action', childAction);
-    childButton.setAttribute('aria-label', createChildFoldControlLabel(foldStart, childAction));
-    childButton.title = createChildFoldControlLabel(foldStart, childAction);
+    runSelfToggleAction();
+  });
+
+  buttonRow.append(controlButton);
+  domNode.append(buttonRow);
+
+  const updateButton = (): void => {
+    const isCtrlModifierActive = getIsCtrlModifierActive();
+    const selfAction = getSelfToggleAction(foldStart);
+    controlButton.setAttribute('data-line-number', String(foldStart.lineNumber));
+
+    if (!isCtrlModifierActive) {
+      controlButton.disabled = false;
+      controlButton.innerHTML = getFoldControlGlyph(selfAction, 'self');
+      controlButton.setAttribute(
+        'data-fold-state',
+        foldStart.isCollapsed ? 'collapsed' : 'expanded',
+      );
+      controlButton.setAttribute('data-fold-action', selfAction);
+      controlButton.setAttribute('data-fold-action-scope', 'self');
+      controlButton.setAttribute('data-fold-control-kind', 'self');
+      controlButton.setAttribute('aria-expanded', String(!foldStart.isCollapsed));
+      controlButton.setAttribute('aria-label', createSelfFoldControlLabel(foldStart));
+      controlButton.title = createSelfFoldControlLabel(foldStart);
+      return;
+    }
+
+    const childAction = foldStart.childToggleAction;
+    controlButton.removeAttribute('aria-expanded');
+    controlButton.setAttribute('data-fold-action-scope', 'children');
+    controlButton.setAttribute('data-fold-control-kind', 'children');
+
+    if (childAction === null) {
+      controlButton.disabled = true;
+      controlButton.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg>`;
+      controlButton.setAttribute('data-fold-action', 'none');
+      controlButton.setAttribute('aria-label', createDisabledChildFoldControlLabel(foldStart));
+      controlButton.title = createDisabledChildFoldControlLabel(foldStart);
+      return;
+    }
+
+    controlButton.disabled = false;
+    controlButton.innerHTML = getFoldControlGlyph(childAction, 'children');
+    controlButton.setAttribute('data-fold-action', childAction);
+    controlButton.setAttribute('aria-label', createChildFoldControlLabel(foldStart, childAction));
+    controlButton.title = createChildFoldControlLabel(foldStart, childAction);
   };
 
   const widget: FoldWidget = {
@@ -174,7 +200,7 @@ const createFoldWidget = (
     },
     update: (nextFoldStart) => {
       foldStart = nextFoldStart;
-      updateButtons();
+      updateButton();
       editor.layoutContentWidget(widget);
     },
     dispose: () => {
@@ -182,7 +208,7 @@ const createFoldWidget = (
     },
   };
 
-  updateButtons();
+  updateButton();
   return widget;
 };
 
@@ -190,6 +216,7 @@ const syncWidgets = (
   editor: MonacoEditor.IStandaloneCodeEditor,
   widgetsByLine: Map<number, FoldWidget>,
   foldStarts: FoldStart[],
+  getIsCtrlModifierActive: () => boolean,
   refresh: () => void,
 ): void => {
   const nextLineNumbers = new Set(foldStarts.map(({ lineNumber }) => lineNumber));
@@ -211,7 +238,7 @@ const syncWidgets = (
       continue;
     }
 
-    const widget = createFoldWidget(editor, foldStart, refresh);
+    const widget = createFoldWidget(editor, foldStart, getIsCtrlModifierActive, refresh);
     widgetsByLine.set(foldStart.lineNumber, widget);
     editor.addContentWidget(widget);
   }
@@ -223,6 +250,7 @@ export const registerInlineFoldControls = (
   const disposables: Array<{ dispose: () => void }> = [];
   const widgetsByLine = new Map<number, FoldWidget>();
   let disposed = false;
+  let isCtrlModifierActive = false;
   let refreshSequence = 0;
 
   const disposeWidgets = (): void => {
@@ -240,8 +268,17 @@ export const registerInlineFoldControls = (
         return;
       }
 
-      syncWidgets(editor, widgetsByLine, foldStarts, refresh);
+      syncWidgets(editor, widgetsByLine, foldStarts, () => isCtrlModifierActive, refresh);
     });
+  };
+
+  const setCtrlModifierActive = (nextIsCtrlModifierActive: boolean): void => {
+    if (isCtrlModifierActive === nextIsCtrlModifierActive) {
+      return;
+    }
+
+    isCtrlModifierActive = nextIsCtrlModifierActive;
+    refresh();
   };
 
   disposables.push(editor.onDidScrollChange(refresh));
@@ -251,6 +288,30 @@ export const registerInlineFoldControls = (
   disposables.push(editor.onDidChangeModelContent(refresh));
   disposables.push(editor.onDidChangeModelDecorations(refresh));
   disposables.push(editor.onDidChangeModelLanguage(refresh));
+  const handleWindowKeyDown = (event: KeyboardEvent): void => {
+    if (event.key === 'Control') {
+      setCtrlModifierActive(true);
+    }
+  };
+  const handleWindowKeyUp = (event: KeyboardEvent): void => {
+    if (event.key === 'Control') {
+      setCtrlModifierActive(false);
+    }
+  };
+  const handleWindowBlur = (): void => {
+    setCtrlModifierActive(false);
+  };
+
+  window.addEventListener('keydown', handleWindowKeyDown);
+  window.addEventListener('keyup', handleWindowKeyUp);
+  window.addEventListener('blur', handleWindowBlur);
+  disposables.push({
+    dispose: () => {
+      window.removeEventListener('keydown', handleWindowKeyDown);
+      window.removeEventListener('keyup', handleWindowKeyUp);
+      window.removeEventListener('blur', handleWindowBlur);
+    },
+  });
 
   refresh();
 

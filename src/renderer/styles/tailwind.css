@@ -433,23 +433,6 @@ body {
     transform 100ms ease;
 }
 
-.output-inline-fold-control::after {
-  content: '';
-  position: absolute;
-  right: 2px;
-  bottom: 2px;
-  width: 4px;
-  height: 3px;
-  background: currentColor;
-  clip-path: polygon(50% 100%, 0 0, 100% 0);
-  opacity: 0;
-  transition: opacity 100ms ease;
-}
-
-.output-inline-fold-control[data-fold-control-kind='children']::after {
-  opacity: 0.72;
-}
-
 .output-inline-fold-control:hover:not(:disabled) {
   color: var(--text);
   border-color: color-mix(in oklab, var(--accent) 24%, var(--line));

@@ -69,7 +69,6 @@ const readInlineFoldControlGeometry = async (
   lineNumber: number,
   lineText: string,
 ): Promise<{
-  child: RectSnapshot | null;
   line: RectSnapshot | null;
   lineText: RectSnapshot | null;
   self: RectSnapshot | null;
@@ -86,7 +85,6 @@ const readInlineFoldControlGeometry = async (
       if (!editor) {
         return {
           self: null,
-          child: null,
           line: null,
           lineText: null,
         };
@@ -126,13 +124,6 @@ const readInlineFoldControlGeometry = async (
             )
             ?.getBoundingClientRect() ?? null,
         ),
-        child: toRect(
-          editor
-            .querySelector(
-              `[data-testid="output-inline-fold-children-control"][data-line-number="${targetLineNumber}"]`,
-            )
-            ?.getBoundingClientRect() ?? null,
-        ),
         line: toRect(line?.getBoundingClientRect() ?? null),
         lineText: toRect(lineRange?.getBoundingClientRect() ?? null),
       };
@@ -146,15 +137,11 @@ const expectInlineFoldControlsAnchored = async (
   lineText: string,
 ): Promise<void> => {
   const geometry = await readInlineFoldControlGeometry(page, lineNumber, lineText);
-  if (!geometry.self || !geometry.child || !geometry.line || !geometry.lineText) {
+  if (!geometry.self || !geometry.line || !geometry.lineText) {
     throw new Error('Expected inline fold geometry');
   }
 
-  expect(Math.abs(geometry.self.top - geometry.child.top)).toBeLessThan(2);
-  expect(geometry.child.left).toBeGreaterThan(geometry.self.right);
-  expect(geometry.child.left - geometry.self.right).toBeLessThan(10);
   expect(Math.abs(geometry.self.centerY - geometry.line.centerY)).toBeLessThan(8);
-  expect(Math.abs(geometry.child.centerY - geometry.line.centerY)).toBeLessThan(8);
   expect(geometry.self.left).toBeGreaterThan(geometry.lineText.right - 4);
   expect(geometry.self.left - geometry.lineText.right).toBeLessThan(64);
 };
@@ -233,20 +220,8 @@ test('renders inline output fold controls and hides gutter fold controls', async
   const inlineControl = page.getByRole('button', { name: /Collapse folded block at line/ }).first();
   await expect(inlineControl).toBeVisible();
   await expect(
-    outputEditor.locator(
-      '[data-testid="output-inline-fold-children-control"][data-line-number="3"]',
-    ),
-  ).toBeVisible();
-  await expect(
-    outputEditor.locator(
-      '[data-testid="output-inline-fold-children-control"][data-line-number="3"]',
-    ),
-  ).toBeDisabled();
-  await expect(
-    outputEditor.locator(
-      '[data-testid="output-inline-fold-children-control"][data-line-number="3"]',
-    ),
-  ).toHaveAttribute('aria-label', 'No direct child blocks at line 3');
+    outputEditor.locator('[data-testid="output-inline-fold-control"][data-line-number="3"]'),
+  ).toHaveAttribute('aria-label', 'Collapse folded block at line 3');
 
   await inlineControl.click();
   await expect(outputEditor).not.toContainText('"leaf": 3');
@@ -262,7 +237,7 @@ test('renders inline output fold controls and hides gutter fold controls', async
   await app.close();
 });
 
-test('clicking the dedicated inline child fold control toggles only direct child blocks', async () => {
+test('holding Ctrl switches the inline fold control to direct-child behavior', async () => {
   const app = await electron.launch({
     args: [join(process.cwd(), 'out/main/index.js')],
   });
@@ -278,35 +253,32 @@ test('clicking the dedicated inline child fold control toggles only direct child
   const topControl = outputEditor.locator(
     '[data-testid="output-inline-fold-control"][data-line-number="3"]',
   );
-  const topChildrenControl = outputEditor.locator(
-    '[data-testid="output-inline-fold-children-control"][data-line-number="3"]',
-  );
   await expect(topControl).toBeVisible();
-  await expect(topChildrenControl).toBeVisible();
   await expect(topControl).toHaveAttribute('aria-label', 'Collapse folded block at line 3');
-  await expect(topChildrenControl).toHaveAttribute(
-    'aria-label',
-    'Collapse direct child blocks at line 3',
-  );
 
-  await topChildrenControl.click();
+  await page.keyboard.down('Control');
+  await expect(topControl).toHaveAttribute('data-fold-action-scope', 'children');
+  await expect(topControl).toHaveAttribute('aria-label', 'Collapse direct child blocks at line 3');
+
+  await topControl.click();
   await expect(outputEditor).toContainText('"d": {');
   await expect(outputEditor).toContainText('"f": {');
   await expect(outputEditor).not.toContainText('"e": {}');
   await expect(outputEditor).not.toContainText('"g": 2');
 
-  await expect(topChildrenControl).toHaveAttribute('data-fold-action', 'expand');
-  await expect(topChildrenControl).toHaveAttribute(
-    'aria-label',
-    'Expand direct child blocks at line 3',
-  );
+  await expect(topControl).toHaveAttribute('data-fold-action', 'expand');
+  await expect(topControl).toHaveAttribute('aria-label', 'Expand direct child blocks at line 3');
+  await page.keyboard.up('Control');
 
   await topControl.click();
   await expect(outputEditor).not.toContainText('"a": 1');
   await expect(topControl).toHaveAttribute('aria-label', 'Expand folded block at line 3');
 
-  await topChildrenControl.click();
+  await page.keyboard.down('Control');
+  await expect(topControl).toHaveAttribute('aria-label', 'Expand direct child blocks at line 3');
+  await topControl.click();
   await expect(outputEditor).not.toContainText('"a": 1');
+  await page.keyboard.up('Control');
 
   await topControl.click();
   await expect(outputEditor).toContainText('"e": {}');
@@ -316,7 +288,7 @@ test('clicking the dedicated inline child fold control toggles only direct child
   await app.close();
 });
 
-test('keeps inline self and child fold buttons on one row and anchored to the fold-start line', async () => {
+test('keeps the inline fold button anchored to the fold-start line across mode changes', async () => {
   const app = await electron.launch({
     args: [join(process.cwd(), 'out/main/index.js')],
   });
@@ -330,17 +302,15 @@ test('keeps inline self and child fold buttons on one row and anchored to the fo
   const topControl = outputEditor.locator(
     '[data-testid="output-inline-fold-control"][data-line-number="3"]',
   );
-  const topChildrenControl = outputEditor.locator(
-    '[data-testid="output-inline-fold-children-control"][data-line-number="3"]',
-  );
 
   await expect(topControl).toBeVisible();
-  await expect(topChildrenControl).toBeVisible();
   await expectInlineFoldControlsAnchored(page, 3, '"top"');
 
-  await topChildrenControl.click();
+  await page.keyboard.down('Control');
+  await topControl.click();
   await expect(outputEditor).not.toContainText('"e": {}');
   await expectInlineFoldControlsAnchored(page, 3, '"top"');
+  await page.keyboard.up('Control');
 
   await topControl.click();
   await expect(topControl).toHaveAttribute('aria-label', 'Expand folded block at line 3');

@@ -93,13 +93,13 @@
 - Output mode hides Monaco gutter fold controls and renders inline fold buttons anchored to visible Monaco fold-start lines.
 - Output inline fold buttons are UI controls, not code text; they sit after the rendered line content, move with horizontal and vertical scroll, and disappear when Monaco reports no fold regions.
 - Output inline fold button interaction:
-  - the left button toggles only the clicked fold block,
-  - a second button to its right applies the direct-child action to the clicked block's immediate child foldable regions without toggling the clicked block itself,
+  - without modifiers, the button toggles only the clicked fold block,
+  - while literal `Ctrl` is held, that same button applies the direct-child action to the clicked block's immediate child foldable regions without toggling the clicked block itself,
   - direct-child action rule:
-    - if at least one immediate child foldable block is expanded, the child button enters `collapse children`,
-    - if all immediate child foldable blocks are collapsed, the child button enters `expand children`,
-    - if no immediate child foldable blocks exist, keep the child button visible but disabled,
-  - the child-action button keeps a persistent subtle downward cue so it stays visually distinct from the self-toggle button.
+    - if at least one immediate child foldable block is expanded, the button enters `collapse children`,
+    - if all immediate child foldable blocks are collapsed, the button enters `expand children`,
+    - if no immediate child foldable blocks exist, keep the button visible but disabled while `Ctrl` is held,
+  - the direct-child mode keeps a subtle downward cue so it stays visually distinct from the default self-toggle mode.
 - Output mode minimap is enabled for document-level navigation.
 - Output mode search uses Monaco native find widget (triggered by the platform primary modifier plus `F` in output mode).
 - Paste inside Monaco find/replace inputs stays local to that widget and must not trigger app-level ingest/prettify flow.
@@ -122,7 +122,7 @@
   - remain mounted off-screen so fold/search/view state survives viewport navigation.
 - Every pane shows a custom Monaco decoration highlight for its direct child selection; highlights are not native Monaco/browser text selections and do not change copy/save output text.
 - Repeating `Ctrl+click` on a pane replaces only that pane's direct child and truncates all descendants to the right.
-- Output-pane modifier-click fold toggling is removed in this scope. Output folding remains available through inline fold controls and toolbar fold actions, with separate inline buttons for self-toggle and immediate-child fold state changes. Input-pane modifier-click folding remains unchanged.
+- Output-pane modifier-click fold toggling is removed in this scope. Output folding remains available through inline fold controls and toolbar fold actions, with one inline button that switches between self-toggle and immediate-child fold state changes while literal `Ctrl` is held. Input-pane modifier-click folding remains unchanged.
 - Output `Expand`, `Collapse`, and `Cmd+F` target the active visible output pane. Split-open, split-pop, viewport navigation, and normal click focus all retarget that active pane. `Save` and `Copy` remain rooted to the full root output text even when derived panes are open.
 - Output split navigation shortcuts:
   - literal `Ctrl+Left` / `Ctrl+Right`: move the split viewport one pane left/right in output mode,

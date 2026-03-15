@@ -24,8 +24,8 @@ Do not add routine status updates, implementation history, or one-time decisions
 - Do not implement inline Monaco fold affordances with injected text; use content widgets so copied/saved output and syntax highlighting stay untouched.
 - Do not rely on the Monaco content-widget root node for flex row layout; Monaco injects an inline `display: block` host style, so multi-control inline widgets need a nested row container.
 - Do not derive direct-child fold actions from rendered text or visible indentation; use Monaco region parent indexes so immediate-child toggles stay correct even when the parent block itself is folded.
-- Do not overload inline output fold actions behind transient modifier state; keep self-toggle and direct-child actions as separate controls, and derive the child action from direct-child fold states so it switches to `expand children` only when all direct children are already collapsed.
-- Do not hide the inline child-fold control when a block has no immediate child fold regions; keep the button visible but disabled so per-line control spacing stays stable and predictable.
+- Do not duplicate inline fold UI just to expose direct-child actions; if product direction wants one anchor, swap the same button between self-toggle and child-toggle from explicit modifier state and keep both modes on the same Monaco-backed fold source.
+- Do not hide the inline direct-child affordance when a block has no immediate child fold regions; keep the shared button visible and disabled in `Ctrl` mode so the modifier-state transition stays predictable.
 - Do not treat bubbled paste events from Monaco find/replace widgets as shell-level ingest; allow widget-local paste or search can overwrite the active document.
 - Do not key output fold/view state to transient UI state; persist/restore by deterministic document identity.
 - Do not reuse a derived pane's old Monaco view-state key when replacing it with a new extracted block; regenerate the derived-pane key or the pane can reopen pre-folded instead of expanded.
