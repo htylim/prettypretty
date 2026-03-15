@@ -40,6 +40,7 @@
   - Transparent surface by default, soft accent background on hover.
   - Font weight `400`.
 - Do not create per-action button color variants for toolbar actions.
+- The output split-close affordance uses the same `.btn` contract, combines a leftward rewind/back icon with the text label `Split`, and stays visible after the fallback dropdown.
 
 ## Toggles
 
@@ -58,6 +59,7 @@
 - Dropdowns do not use a visible label; the selected value inside the trigger serves as context.
 - Focus ring applies to both `.dropdown-trigger` and `.dropdown-option`.
 - Toolbar left-side controls include the indentation-size dropdown and fallback-agent dropdown after the Copy button.
+- Toolbar left-side controls continue with the split-close button immediately after the fallback-agent dropdown.
 - Toolbar right-side control order is just the theme segmented toggle.
 
 ## Inputs
@@ -100,6 +102,17 @@
   - render inline fold buttons only on visible Monaco fold-start lines,
   - anchor controls to the end of the fold-start line so they move with code horizontally and vertically,
   - use tokenized UI colors, not syntax-token colors, so the control never reads as source text.
+- Output split-pane rules:
+  - use an ordered horizontal pane strip with equal-width panes in stage one,
+  - separate adjacent panes with existing border/surface tokens,
+  - render derived panes as filtered views over the same Monaco source model as the leftmost pane,
+  - keep source line numbers visible in derived panes instead of renumbering from `1`,
+  - keep future multi-pane extension possible without rewriting the strip into a one-off two-pane layout.
+- Split-source highlight rules:
+  - render through Monaco decorations, not native selection,
+  - use subtle token-derived fills with a clearer start-line anchor treatment,
+  - remain visible on folded start lines without pulsing or animation,
+  - avoid matching Monaco search-match or selection styling closely enough to be confused with them.
 - Output inline fold button styling:
   - square or soft-rect `16px` to `18px`,
   - vertically center inside the `23px` Monaco line box instead of sitting on the text baseline,

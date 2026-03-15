@@ -15,6 +15,9 @@
   --line: #cccccc;
   --accent: #007acc;
   --accent-soft: #e4e6f1;
+  --split-selection-fill: color-mix(in oklab, var(--accent) 8%, transparent);
+  --split-selection-anchor: color-mix(in oklab, var(--accent) 14%, transparent);
+  --split-selection-edge: color-mix(in oklab, var(--accent) 58%, var(--line));
   --shadow-soft: 0 4px 12px rgba(0, 0, 0, 0.08);
   --focus-ring: var(--accent);
 }
@@ -29,6 +32,9 @@
   --line: #3c3c3c;
   --accent: #007acc;
   --accent-soft: #37373d;
+  --split-selection-fill: color-mix(in oklab, var(--accent) 10%, transparent);
+  --split-selection-anchor: color-mix(in oklab, var(--accent) 18%, transparent);
+  --split-selection-edge: color-mix(in oklab, var(--accent) 68%, var(--line));
   --shadow-soft: 0 4px 12px rgba(0, 0, 0, 0.25);
   --focus-ring: var(--accent);
 }
@@ -341,6 +347,26 @@ body {
   width: 100%;
 }
 
+.output-pane-strip {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.output-pane-strip-item {
+  display: flex;
+  flex: 1 0 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+.output-pane-strip-item + .output-pane-strip-item {
+  border-left: 1px solid var(--line);
+}
+
 .output-inline-fold-control-widget {
   display: flex;
   align-items: center;
@@ -577,6 +603,15 @@ body {
   width: 100%;
   min-height: 0;
   background: transparent;
+}
+
+.output-split-selection-range {
+  background: var(--split-selection-fill);
+}
+
+.output-split-selection-anchor {
+  background: var(--split-selection-anchor);
+  box-shadow: inset 2px 0 0 var(--split-selection-edge);
 }
 
 @keyframes llm-spinner-rotate {

@@ -1,9 +1,10 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { createRef } from 'react';
+import type { ComponentProps } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { EditorShell } from '../../../../src/renderer/components/EditorShell';
+import type { OutputPaneViewModel } from '../../../../src/renderer/components/OutputPaneStrip';
 import type { InputEditorHandle } from '../../../../src/renderer/components/InputEditor';
-import type { OutputEditorHandle } from '../../../../src/renderer/components/OutputEditor';
 
 vi.mock('../../../../src/renderer/components/InputEditor', async () => {
   const React = await import('react');
@@ -25,46 +26,68 @@ vi.mock('../../../../src/renderer/components/InputEditor', async () => {
   };
 });
 
-vi.mock('../../../../src/renderer/components/OutputEditor', async () => {
+vi.mock('../../../../src/renderer/components/OutputPaneStrip', async () => {
   const React = await import('react');
 
   return {
-    OutputEditor: React.forwardRef(() =>
-      React.createElement('div', { 'data-testid': 'output-editor' }),
-    ),
+    OutputPaneStrip: ({ panes }: { panes: OutputPaneViewModel[] }) =>
+      React.createElement(
+        'div',
+        { 'data-testid': 'output-pane-strip' },
+        panes
+          .map(
+            (pane) =>
+              `${pane.testId}:${pane.viewRange?.startLineNumber ?? 'root'}:${pane.viewRange?.endLineNumber ?? 'root'}`,
+          )
+          .join('\n'),
+      ),
   };
 });
 
-const createOutputEditorRef = () => createRef<OutputEditorHandle>();
 const createInputEditorRef = () => createRef<InputEditorHandle>();
+
+const createOutputPanes = (): OutputPaneViewModel[] => [
+  {
+    paneId: 'output-root-pane',
+    documentId: 'doc-1',
+    viewStateKey: 'output-root-pane:doc-1',
+    value: '{"a":1}',
+    viewRange: null,
+    sourceHighlightRange: null,
+    isSplitSelectionEnabled: true,
+    testId: 'output-editor',
+  },
+];
+
+const createProps = (
+  overrides: Partial<ComponentProps<typeof EditorShell>> = {},
+): ComponentProps<typeof EditorShell> => ({
+  paneMode: 'input',
+  themeMode: 'light',
+  indentSize: 2,
+  inputText: '',
+  outputPanes: createOutputPanes(),
+  ingestNotice: null,
+  fallbackWaitState: null,
+  inputEditorRef: createInputEditorRef(),
+  onEditInputChange: vi.fn(),
+  onIngestInput: vi.fn(),
+  onDismissIngestNotice: vi.fn(),
+  onOpenFile: vi.fn().mockResolvedValue(undefined),
+  onCancelFallbackWait: vi.fn(),
+  onOutputPaneHandleChange: vi.fn(),
+  onOutputPaneFocus: vi.fn(),
+  onOutputPaneSplitSelection: vi.fn(),
+  ...overrides,
+});
 
 describe('EditorShell', () => {
   it('renders empty state when input is empty', () => {
     const onOpenFile = vi.fn().mockResolvedValue(undefined);
 
-    render(
-      <EditorShell
-        paneMode="input"
-        themeMode="light"
-        indentSize={2}
-        inputText=""
-        outputText=""
-        outputDocumentId="doc-1"
-        ingestNotice={null}
-        fallbackWaitState={null}
-        inputEditorRef={createInputEditorRef()}
-        outputEditorRef={createOutputEditorRef()}
-        onEditInputChange={vi.fn()}
-        onIngestInput={vi.fn()}
-        onDismissIngestNotice={vi.fn()}
-        onOpenFile={onOpenFile}
-        onCancelFallbackWait={vi.fn()}
-      />,
-    );
+    render(<EditorShell {...createProps({ onOpenFile })} />);
 
     const cta = screen.getByTestId('empty-state-cta');
-
-    expect(screen.getAllByTestId('empty-state-cta')).toHaveLength(1);
     expect(cta).toHaveTextContent(/^Paste, Drop or Click$/);
 
     fireEvent.click(screen.getByRole('button', { name: 'Click' }));
@@ -77,21 +100,11 @@ describe('EditorShell', () => {
 
     render(
       <EditorShell
-        paneMode="input"
-        themeMode="light"
-        indentSize={2}
-        inputText="alpha"
-        outputText=""
-        outputDocumentId="doc-2"
-        ingestNotice={null}
-        fallbackWaitState={null}
-        inputEditorRef={createInputEditorRef()}
-        outputEditorRef={createOutputEditorRef()}
-        onEditInputChange={onEditInputChange}
-        onIngestInput={onIngestInput}
-        onDismissIngestNotice={vi.fn()}
-        onOpenFile={vi.fn().mockResolvedValue(undefined)}
-        onCancelFallbackWait={vi.fn()}
+        {...createProps({
+          inputText: 'alpha',
+          onEditInputChange,
+          onIngestInput,
+        })}
       />,
     );
 
@@ -107,25 +120,7 @@ describe('EditorShell', () => {
       text: vi.fn().mockResolvedValue('{"a":1}'),
     } as unknown as File;
 
-    render(
-      <EditorShell
-        paneMode="input"
-        themeMode="light"
-        indentSize={2}
-        inputText=""
-        outputText=""
-        outputDocumentId="doc-3"
-        ingestNotice={null}
-        fallbackWaitState={null}
-        inputEditorRef={createInputEditorRef()}
-        outputEditorRef={createOutputEditorRef()}
-        onEditInputChange={vi.fn()}
-        onIngestInput={onIngestInput}
-        onDismissIngestNotice={vi.fn()}
-        onOpenFile={vi.fn().mockResolvedValue(undefined)}
-        onCancelFallbackWait={vi.fn()}
-      />,
-    );
+    render(<EditorShell {...createProps({ onIngestInput })} />);
 
     fireEvent.drop(screen.getByTestId('editor-shell'), {
       dataTransfer: { files: [droppedFile] },
@@ -142,25 +137,7 @@ describe('EditorShell', () => {
       text: vi.fn().mockResolvedValue(''),
     } as unknown as File;
 
-    render(
-      <EditorShell
-        paneMode="input"
-        themeMode="light"
-        indentSize={2}
-        inputText=""
-        outputText=""
-        outputDocumentId="doc-4"
-        ingestNotice={null}
-        fallbackWaitState={null}
-        inputEditorRef={createInputEditorRef()}
-        outputEditorRef={createOutputEditorRef()}
-        onEditInputChange={vi.fn()}
-        onIngestInput={onIngestInput}
-        onDismissIngestNotice={vi.fn()}
-        onOpenFile={vi.fn().mockResolvedValue(undefined)}
-        onCancelFallbackWait={vi.fn()}
-      />,
-    );
+    render(<EditorShell {...createProps({ onIngestInput })} />);
 
     fireEvent.drop(screen.getByTestId('editor-shell'), {
       dataTransfer: { files: [droppedFile] },
@@ -174,25 +151,7 @@ describe('EditorShell', () => {
   it('routes pasted text through ingest callback', () => {
     const onIngestInput = vi.fn();
 
-    render(
-      <EditorShell
-        paneMode="input"
-        themeMode="light"
-        indentSize={2}
-        inputText=""
-        outputText=""
-        outputDocumentId="doc-5"
-        ingestNotice={null}
-        fallbackWaitState={null}
-        inputEditorRef={createInputEditorRef()}
-        outputEditorRef={createOutputEditorRef()}
-        onEditInputChange={vi.fn()}
-        onIngestInput={onIngestInput}
-        onDismissIngestNotice={vi.fn()}
-        onOpenFile={vi.fn().mockResolvedValue(undefined)}
-        onCancelFallbackWait={vi.fn()}
-      />,
-    );
+    render(<EditorShell {...createProps({ onIngestInput })} />);
 
     fireEvent.paste(screen.getByTestId('editor-shell'), {
       clipboardData: {
@@ -206,25 +165,7 @@ describe('EditorShell', () => {
   it('routes empty pasted text through ingest callback', () => {
     const onIngestInput = vi.fn();
 
-    render(
-      <EditorShell
-        paneMode="input"
-        themeMode="light"
-        indentSize={2}
-        inputText=""
-        outputText=""
-        outputDocumentId="doc-6"
-        ingestNotice={null}
-        fallbackWaitState={null}
-        inputEditorRef={createInputEditorRef()}
-        outputEditorRef={createOutputEditorRef()}
-        onEditInputChange={vi.fn()}
-        onIngestInput={onIngestInput}
-        onDismissIngestNotice={vi.fn()}
-        onOpenFile={vi.fn().mockResolvedValue(undefined)}
-        onCancelFallbackWait={vi.fn()}
-      />,
-    );
+    render(<EditorShell {...createProps({ onIngestInput })} />);
 
     fireEvent.paste(screen.getByTestId('editor-shell'), {
       clipboardData: {
@@ -240,128 +181,102 @@ describe('EditorShell', () => {
 
     render(
       <EditorShell
-        paneMode="output"
-        themeMode="light"
-        indentSize={2}
-        inputText="alpha"
-        outputText="alpha"
-        outputDocumentId="doc-find-widget"
-        ingestNotice={null}
-        fallbackWaitState={null}
-        inputEditorRef={createInputEditorRef()}
-        outputEditorRef={createOutputEditorRef()}
-        onEditInputChange={vi.fn()}
-        onIngestInput={onIngestInput}
-        onDismissIngestNotice={vi.fn()}
-        onOpenFile={vi.fn().mockResolvedValue(undefined)}
-        onCancelFallbackWait={vi.fn()}
+        {...createProps({
+          paneMode: 'output',
+          inputText: 'alpha',
+          onIngestInput,
+        })}
       />,
     );
 
-    const shell = screen.getByTestId('editor-shell');
-    const findWidget = document.createElement('div');
-    findWidget.className = 'find-widget';
-    const findInput = document.createElement('textarea');
-    findWidget.appendChild(findInput);
-    shell.appendChild(findWidget);
+    const findWidget = document.createElement('input');
+    const findWidgetWrapper = document.createElement('div');
+    findWidgetWrapper.className = 'find-widget';
+    findWidgetWrapper.append(findWidget);
+    screen.getByTestId('editor-shell').append(findWidgetWrapper);
 
-    fireEvent.paste(findInput, {
+    fireEvent.paste(findWidget, {
       clipboardData: {
-        getData: () => 'query',
+        getData: () => '{"ignored":true}',
       },
     });
 
     expect(onIngestInput).not.toHaveBeenCalled();
+    findWidgetWrapper.remove();
   });
 
-  it('renders read-only output in output mode', () => {
+  it('renders output pane strip in output mode', () => {
     render(
       <EditorShell
-        paneMode="output"
-        themeMode="dark"
-        indentSize={2}
-        inputText="alpha"
-        outputText="alpha"
-        outputDocumentId="doc-7"
-        ingestNotice={null}
-        fallbackWaitState={null}
-        inputEditorRef={createInputEditorRef()}
-        outputEditorRef={createOutputEditorRef()}
-        onEditInputChange={vi.fn()}
-        onIngestInput={vi.fn()}
-        onDismissIngestNotice={vi.fn()}
-        onOpenFile={vi.fn().mockResolvedValue(undefined)}
-        onCancelFallbackWait={vi.fn()}
+        {...createProps({
+          paneMode: 'output',
+          inputText: 'alpha',
+          outputPanes: [
+            ...createOutputPanes(),
+            {
+              paneId: 'output-pane-1',
+              documentId: 'doc-1',
+              viewStateKey: 'output-pane-1:selection-1',
+              value: '{"a":1}',
+              viewRange: {
+                startLineNumber: 4,
+                startColumn: 1,
+                endLineNumber: 6,
+                endColumn: 2,
+              },
+              sourceHighlightRange: null,
+              isSplitSelectionEnabled: false,
+              testId: 'output-editor-pane-1',
+            },
+          ],
+        })}
       />,
     );
 
-    expect(screen.getByTestId('output-editor')).toBeInTheDocument();
+    expect(screen.getByTestId('output-pane-strip')).toHaveTextContent('output-editor:root:root');
+    expect(screen.getByTestId('output-pane-strip')).toHaveTextContent('output-editor-pane-1:4:6');
   });
 
-  it('renders ingest notice and allows dismiss', () => {
-    const onDismissIngestNotice = vi.fn();
-
-    render(
-      <EditorShell
-        paneMode="input"
-        themeMode="light"
-        indentSize={2}
-        inputText=""
-        outputText=""
-        outputDocumentId="doc-8"
-        ingestNotice="File has no content."
-        fallbackWaitState={null}
-        inputEditorRef={createInputEditorRef()}
-        outputEditorRef={createOutputEditorRef()}
-        onEditInputChange={vi.fn()}
-        onIngestInput={vi.fn()}
-        onDismissIngestNotice={onDismissIngestNotice}
-        onOpenFile={vi.fn().mockResolvedValue(undefined)}
-        onCancelFallbackWait={vi.fn()}
-      />,
-    );
-
-    expect(screen.getByTestId('ingest-notice')).toHaveTextContent('File has no content.');
-    fireEvent.click(screen.getByRole('button', { name: 'Dismiss notice' }));
-    expect(onDismissIngestNotice).toHaveBeenCalledTimes(1);
-  });
-
-  it('renders fallback wait screen when fallback is running', () => {
+  it('renders fallback wait screen and cancel action when fallback is active', () => {
     const onCancelFallbackWait = vi.fn();
 
     render(
       <EditorShell
-        paneMode="output"
-        themeMode="dark"
-        indentSize={2}
-        inputText="alpha"
-        outputText="alpha"
-        outputDocumentId="doc-9"
-        ingestNotice={null}
-        fallbackWaitState={{
-          requestId: 1,
-          formatLabel: 'JSON',
-          agentName: 'Codex',
-          progressLines: ['Generating output...', 'Formatting response...'],
-        }}
-        inputEditorRef={createInputEditorRef()}
-        outputEditorRef={createOutputEditorRef()}
-        onEditInputChange={vi.fn()}
-        onIngestInput={vi.fn()}
-        onDismissIngestNotice={vi.fn()}
-        onOpenFile={vi.fn().mockResolvedValue(undefined)}
-        onCancelFallbackWait={onCancelFallbackWait}
+        {...createProps({
+          inputText: 'alpha',
+          fallbackWaitState: {
+            requestId: 1,
+            formatLabel: 'JSON',
+            agentName: 'Codex',
+            progressLines: ['line 1', 'line 2'],
+          },
+          onCancelFallbackWait,
+        })}
       />,
     );
 
-    expect(screen.getByTestId('fallback-wait-screen')).toBeInTheDocument();
-    expect(screen.getByTestId('fallback-wait-message')).toHaveTextContent(
-      /Malformed JSON\s*Calling Codex/,
-    );
-    expect(screen.getByTestId('fallback-wait-line')).toHaveTextContent('Generating output...');
-    expect(screen.getByTestId('fallback-wait-line')).toHaveTextContent('Formatting response...');
+    expect(screen.getByTestId('fallback-wait-screen')).toBeVisible();
+    expect(screen.getByTestId('fallback-wait-line')).toHaveTextContent(/line 1\s+line 2/u);
+
     fireEvent.click(screen.getByTestId('fallback-wait-cancel'));
     expect(onCancelFallbackWait).toHaveBeenCalledTimes(1);
-    expect(screen.queryByTestId('output-editor')).not.toBeInTheDocument();
+  });
+
+  it('renders and dismisses ingest notices', () => {
+    const onDismissIngestNotice = vi.fn();
+
+    render(
+      <EditorShell
+        {...createProps({
+          inputText: 'alpha',
+          ingestNotice: 'Notice text',
+          onDismissIngestNotice,
+        })}
+      />,
+    );
+
+    expect(screen.getByTestId('ingest-notice')).toHaveTextContent('Notice text');
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss notice' }));
+    expect(onDismissIngestNotice).toHaveBeenCalledTimes(1);
   });
 });

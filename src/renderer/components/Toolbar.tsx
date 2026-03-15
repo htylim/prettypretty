@@ -1,4 +1,4 @@
-import { VscExpandAll, VscCollapseAll, VscSave, VscCopy } from 'react-icons/vsc';
+import { VscCollapseAll, VscCopy, VscDebugStepBack, VscExpandAll, VscSave } from 'react-icons/vsc';
 import type { PaneMode, ThemeMode } from '../../shared/types';
 import type { IndentSize } from '../../shared/preferences';
 import { FallbackAgentDropdown, type FallbackAgentOption } from './FallbackAgentDropdown';
@@ -11,12 +11,14 @@ type ToolbarProps = {
   fallbackAgentId: string | null;
   fallbackAgentOptions: FallbackAgentOption[];
   hasContent: boolean;
+  hasDerivedOutputPane: boolean;
   onNew: () => void;
   onPaneModeChange: (nextMode: PaneMode) => void;
   onCollapseAll: () => void;
   onExpandAll: () => void;
   onSave: () => void;
   onCopy: () => void;
+  onCloseSplit: () => void;
   onThemeModeChange: (nextMode: ThemeMode) => void;
   onIndentSizeChange: (nextIndentSize: IndentSize) => void;
   onFallbackAgentIdChange: (nextAgentId: string | null) => void;
@@ -36,6 +38,7 @@ const tooltips = {
   collapse: 'Collapse',
   save: 'Save (Cmd+S)',
   copy: 'Copy (Cmd+Shift+C)',
+  split: 'Close split pane',
   lightTheme: 'Switch to light theme',
   darkTheme: 'Switch to dark theme',
 } as const;
@@ -52,12 +55,14 @@ export const Toolbar = ({
   fallbackAgentId,
   fallbackAgentOptions,
   hasContent,
+  hasDerivedOutputPane,
   onNew,
   onPaneModeChange,
   onCollapseAll,
   onExpandAll,
   onSave,
   onCopy,
+  onCloseSplit,
   onThemeModeChange,
   onIndentSizeChange,
   onFallbackAgentIdChange,
@@ -156,6 +161,18 @@ export const Toolbar = ({
           fallbackAgentOptions={fallbackAgentOptions}
           onFallbackAgentIdChange={onFallbackAgentIdChange}
         />
+
+        <button
+          className={buttonClass}
+          data-testid="toolbar-split-button"
+          disabled={!hasDerivedOutputPane}
+          onClick={onCloseSplit}
+          title={tooltips.split}
+          type="button"
+        >
+          <VscDebugStepBack />
+          <span>Split</span>
+        </button>
       </div>
 
       <div className="toolbar-right">

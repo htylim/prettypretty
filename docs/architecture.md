@@ -22,14 +22,19 @@
 - `src/renderer/app/usePreferencesFlow.ts` owns preferences hydration and optimistic persistence sequencing for theme/fallback agent.
 - `src/renderer/app/useKeyboardShortcuts.ts` owns keyboard shortcut bindings and mode gating.
 - `src/renderer/app/appDomain.ts` contains pure helper functions/constants shared by renderer controller hooks.
+- `src/renderer/app/outputPaneDomain.ts` owns pure derived-pane chain mutations, source-highlight lookup, and active-pane normalization for output split behavior.
 - `src/renderer/app/reportRendererError.ts` provides a single renderer-side error reporting path.
 
 ## Renderer Editor Folding
 
-- `src/renderer/editor/monacoFolding.ts` is the single renderer folding adapter. It isolates Monaco folding-contribution access and exposes fold-start discovery, fold-owner resolution, collapsed-state lookup, and toggle-by-fold-start behavior for renderer features.
+- `src/renderer/editor/monacoFolding.ts` is the single renderer folding adapter. It isolates Monaco folding-contribution access and exposes fold-start discovery, smallest-enclosing fold-range resolution, collapsed-state lookup, and toggle-by-fold-start behavior for renderer features.
 - `src/renderer/output/inlineFoldControls.ts` owns output-only inline fold control widgets. It renders Monaco content widgets on visible fold-start lines and refreshes them from scroll, layout, model, language, and hidden-area changes.
 - `src/renderer/output/indentBlockFolding.ts` remains the modifier-click registration seam, but it now delegates fold targeting and toggling to `monacoFolding.ts` instead of inferring fold ranges from indentation.
-- Output-editor fold/view state continues to persist through Monaco view-state save/restore keyed by renderer `documentId`; inline controls reflect that restored state instead of persisting separate UI state.
+- `src/renderer/output/structuralSplitSelection.ts` resolves the smallest enclosing foldable block from Monaco model data and returns the exact source range for derived output panes.
+- `src/renderer/output/outputViewRange.ts` owns pane-local hidden-area application so derived panes can render filtered views over the shared root Monaco model without mutating source text or fold state in sibling panes.
+- `src/renderer/output/splitSelectionDecorations.ts` owns the Monaco decoration collection for source-pane split highlights.
+- `src/renderer/components/OutputPaneStrip.tsx` renders the ordered horizontal output pane strip and mounts multiple `OutputEditor` instances safely.
+- Output-pane editors share one Monaco source model per root output document. Root-pane view state persists by root document identity; derived-pane view-state keys are still regenerated when a new source range replaces a pane so the derived pane reopens expanded with pane-local fold state.
 
 ## Runtime Flow
 
@@ -116,3 +121,5 @@
 - Fallback execution enforces timeout and output-size caps and classifies failures into typed statuses.
 - Any fallback failure degrades to passthrough output instead of throwing into renderer.
 - Empty open-file/drop content stays in input mode and shows an inline notice (`File has no content.`).
+- Output split state stays renderer-window local inside `useAppController`, resets on root-output invalidation / output-mode exit / window reset, and never changes the root output text used by save/copy.
+- Toolbar fold/find routing uses controller-managed `activePaneId` plus registered output-editor handles, so visible pane focus is independent from pane content identity.

@@ -37,7 +37,6 @@ type HarnessHandle = {
 
 type HarnessProps = {
   inputEditorRef: RefObject<InputEditorHandle | null>;
-  outputEditorRef: RefObject<OutputEditorHandle | null>;
 };
 
 const ControllerHarness = forwardRef<HarnessHandle, HarnessProps>((props, ref) => {
@@ -55,6 +54,25 @@ const ControllerHarness = forwardRef<HarnessHandle, HarnessProps>((props, ref) =
 });
 
 ControllerHarness.displayName = 'ControllerHarness';
+
+const createInputEditorRef = (
+  overrides: Partial<InputEditorHandle> = {},
+): RefObject<InputEditorHandle | null> => ({
+  current: {
+    collapseAll: vi.fn(),
+    expandAll: vi.fn(),
+    ...overrides,
+  },
+});
+
+const createOutputEditorHandle = (
+  overrides: Partial<OutputEditorHandle> = {},
+): OutputEditorHandle => ({
+  collapseAll: vi.fn(),
+  expandAll: vi.fn(),
+  openFind: vi.fn(),
+  ...overrides,
+});
 
 describe('useAppController', () => {
   beforeEach(() => {
@@ -149,26 +167,20 @@ describe('useAppController', () => {
   });
 
   it('exposes derived view-model data and delegates to flow hooks', async () => {
-    const inputEditorRef: RefObject<InputEditorHandle | null> = {
-      current: {
-        collapseAll: vi.fn(),
-        expandAll: vi.fn(),
-      },
-    };
-    const outputEditorRef: RefObject<OutputEditorHandle | null> = {
-      current: {
-        collapseAll: vi.fn(),
-        expandAll: vi.fn(),
-        openFind: vi.fn(),
-      },
-    };
+    const inputEditorRef = createInputEditorRef();
     const ref = { current: null as HarnessHandle | null };
 
-    render(createElement(ControllerHarness, { inputEditorRef, outputEditorRef, ref }));
+    render(createElement(ControllerHarness, { inputEditorRef, ref }));
 
     const controller = ref.current?.getController();
     expect(controller?.hasContent).toBe(true);
     expect(controller?.outputDocumentId).toMatch(/^output-/u);
+    expect(controller?.outputPanes).toHaveLength(1);
+    expect(controller?.outputPanes[0]).toMatchObject({
+      paneId: 'output-root-pane',
+      testId: 'output-editor',
+    });
+    expect(controller?.hasDerivedOutputPane).toBe(false);
     expect(controller?.fallbackAgentId).toBe('codex');
     expect(controller?.fallbackWarningLineThreshold).toBe(300);
     expect(controller?.fallbackModalState).toBeNull();
@@ -202,97 +214,142 @@ describe('useAppController', () => {
     expect(useUiStore.getState().indentSize).toBe(6);
   });
 
-  it('routes collapse and expand actions to active editor ref', () => {
+  it('routes output collapse, expand, and find actions to the focused visible pane while save/copy stay root-scoped', async () => {
     const inputCollapse = vi.fn();
     const inputExpand = vi.fn();
-    const outputCollapse = vi.fn();
-    const outputExpand = vi.fn();
-
-    const inputEditorRef: RefObject<InputEditorHandle | null> = {
-      current: {
-        collapseAll: inputCollapse,
-        expandAll: inputExpand,
-      },
-    };
-    const outputEditorRef: RefObject<OutputEditorHandle | null> = {
-      current: {
-        collapseAll: outputCollapse,
-        expandAll: outputExpand,
-        openFind: vi.fn(),
-      },
-    };
+    const inputEditorRef = createInputEditorRef({
+      collapseAll: inputCollapse,
+      expandAll: inputExpand,
+    });
+    const rootHandle = createOutputEditorHandle();
+    const childHandle = createOutputEditorHandle();
     const ref = { current: null as HarnessHandle | null };
-
-    const { rerender } = render(
-      createElement(ControllerHarness, { inputEditorRef, outputEditorRef, ref }),
-    );
+    const { rerender } = render(createElement(ControllerHarness, { inputEditorRef, ref }));
 
     ref.current?.getController().onCollapseAll();
     ref.current?.getController().onExpandAll();
 
     expect(inputCollapse).toHaveBeenCalledTimes(1);
     expect(inputExpand).toHaveBeenCalledTimes(1);
-    expect(outputCollapse).not.toHaveBeenCalled();
-    expect(outputExpand).not.toHaveBeenCalled();
 
     act(() => {
       useUiStore.setState({ paneMode: 'output' });
     });
+    rerender(createElement(ControllerHarness, { inputEditorRef, ref }));
 
-    rerender(createElement(ControllerHarness, { inputEditorRef, outputEditorRef, ref }));
+    ref.current?.getController().onOutputPaneHandleChange('output-root-pane', rootHandle);
+    ref.current?.getController().onCollapseAll();
+    ref.current?.getController().onExpandAll();
+    expect(rootHandle.collapseAll).toHaveBeenCalledTimes(1);
+    expect(rootHandle.expandAll).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      ref.current?.getController().onOutputPaneSplitSelection('output-root-pane', {
+        sourceRange: {
+          startLineNumber: 2,
+          startColumn: 1,
+          endLineNumber: 4,
+          endColumn: 2,
+        },
+      });
+    });
+
+    expect(ref.current?.getController().outputPanes).toHaveLength(2);
+    expect(ref.current?.getController().hasDerivedOutputPane).toBe(true);
+    expect(ref.current?.getController().outputPanes[1]).toMatchObject({
+      documentId: ref.current?.getController().outputDocumentId,
+      value: '{\n  "hello": true\n}',
+      viewRange: {
+        startLineNumber: 2,
+        startColumn: 1,
+        endLineNumber: 4,
+        endColumn: 2,
+      },
+    });
+
+    ref.current?.getController().onOutputPaneHandleChange('output-pane-1', childHandle);
+    act(() => {
+      ref.current?.getController().onOutputPaneFocus('output-pane-1');
+    });
 
     ref.current?.getController().onCollapseAll();
     ref.current?.getController().onExpandAll();
 
-    expect(outputCollapse).toHaveBeenCalledTimes(1);
-    expect(outputExpand).toHaveBeenCalledTimes(1);
-  });
+    expect(childHandle.collapseAll).toHaveBeenCalledTimes(1);
+    expect(childHandle.expandAll).toHaveBeenCalledTimes(1);
 
-  it('opens a new window via preload and resets only the current window on main-process signal', async () => {
-    const inputEditorRef: RefObject<InputEditorHandle | null> = {
-      current: {
-        collapseAll: vi.fn(),
-        expandAll: vi.fn(),
-      },
-    };
-    const outputEditorRef: RefObject<OutputEditorHandle | null> = {
-      current: {
-        collapseAll: vi.fn(),
-        expandAll: vi.fn(),
-        openFind: vi.fn(),
-      },
-    };
-    const ref = { current: null as HarnessHandle | null };
-
-    render(createElement(ControllerHarness, { inputEditorRef, outputEditorRef, ref }));
+    useKeyboardShortcutsMock.mock.calls.at(-1)?.[0]?.openFind();
+    expect(childHandle.openFind).toHaveBeenCalledTimes(1);
 
     await act(async () => {
-      ref.current?.getController().onNew();
-      await Promise.resolve();
+      await ref.current?.getController().onSave();
+      await ref.current?.getController().onCopy();
     });
 
-    expect(openWindowMock).toHaveBeenCalledTimes(1);
+    expect(fileSaveMock).toHaveBeenCalledWith('{\n  "hello": true\n}');
+    expect(clipboardCopyMock).toHaveBeenCalledWith('{\n  "hello": true\n}');
 
     act(() => {
-      useUiStore.setState({
-        paneMode: 'output',
-        inputText: '{"stale":true}',
-        ingestNotice: 'stale',
+      ref.current?.getController().onCloseSplit();
+    });
+
+    expect(ref.current?.getController().outputPanes).toHaveLength(1);
+    expect(ref.current?.getController().hasDerivedOutputPane).toBe(false);
+  });
+
+  it('clears split-pane state on output invalidation and current-window reset', () => {
+    const inputEditorRef = createInputEditorRef();
+    const ref = { current: null as HarnessHandle | null };
+    const { rerender } = render(createElement(ControllerHarness, { inputEditorRef, ref }));
+
+    act(() => {
+      useUiStore.setState({ paneMode: 'output' });
+    });
+    rerender(createElement(ControllerHarness, { inputEditorRef, ref }));
+
+    act(() => {
+      ref.current?.getController().onOutputPaneSplitSelection('output-root-pane', {
+        sourceRange: {
+          startLineNumber: 2,
+          startColumn: 1,
+          endLineNumber: 4,
+          endColumn: 2,
+        },
       });
     });
 
+    expect(ref.current?.getController().outputPanes).toHaveLength(2);
+
+    usePrettifierFlowMock.mockReturnValue({
+      ...usePrettifierFlowMock.mock.results[0]?.value,
+      outputText: '{\n  "changed": true\n}',
+    });
+
+    rerender(createElement(ControllerHarness, { inputEditorRef, ref }));
+    expect(ref.current?.getController().outputPanes).toHaveLength(1);
+
     act(() => {
+      ref.current?.getController().onOutputPaneSplitSelection('output-root-pane', {
+        sourceRange: {
+          startLineNumber: 2,
+          startColumn: 1,
+          endLineNumber: 4,
+          endColumn: 2,
+        },
+      });
       onResetCurrentWindowListener?.();
     });
 
     expect(useUiStore.getState().paneMode).toBe('input');
     expect(useUiStore.getState().inputText).toBe('');
     expect(useUiStore.getState().ingestNotice).toBeNull();
+    expect(ref.current?.getController().outputPanes).toHaveLength(1);
+    expect(ref.current?.getController().hasDerivedOutputPane).toBe(false);
     expect(usePrettifierFlowMock.mock.results[0]?.value.resetPrettifierState).toHaveBeenCalled();
   });
 
   it('blocks output mode switches while fallback execution is active', () => {
-    usePrettifierFlowMock.mockReturnValueOnce({
+    usePrettifierFlowMock.mockReturnValue({
       outputText: '',
       isLlmRunning: true,
       fallbackWaitState: {
@@ -318,22 +375,8 @@ describe('useAppController', () => {
       });
     });
 
-    const inputEditorRef: RefObject<InputEditorHandle | null> = {
-      current: {
-        collapseAll: vi.fn(),
-        expandAll: vi.fn(),
-      },
-    };
-    const outputEditorRef: RefObject<OutputEditorHandle | null> = {
-      current: {
-        collapseAll: vi.fn(),
-        expandAll: vi.fn(),
-        openFind: vi.fn(),
-      },
-    };
     const ref = { current: null as HarnessHandle | null };
-
-    render(createElement(ControllerHarness, { inputEditorRef, outputEditorRef, ref }));
+    render(createElement(ControllerHarness, { inputEditorRef: createInputEditorRef(), ref }));
 
     act(() => {
       ref.current?.getController().onPaneModeChange('output');
@@ -343,30 +386,17 @@ describe('useAppController', () => {
     expect(usePrettifierFlowMock.mock.results[0]?.value.runPrettifier).not.toHaveBeenCalled();
   });
 
-  it('safely no-ops side-effect actions when preload bridge is unavailable', async () => {
+  it('safely no-ops side-effect actions when the preload bridge is unavailable', async () => {
     const originalBridge = (window as Window & { prettypretty?: unknown }).prettypretty;
     Object.defineProperty(window, 'prettypretty', {
       configurable: true,
       value: undefined,
     });
 
-    const inputEditorRef: RefObject<InputEditorHandle | null> = {
-      current: {
-        collapseAll: vi.fn(),
-        expandAll: vi.fn(),
-      },
-    };
-    const outputEditorRef: RefObject<OutputEditorHandle | null> = {
-      current: {
-        collapseAll: vi.fn(),
-        expandAll: vi.fn(),
-        openFind: vi.fn(),
-      },
-    };
     const ref = { current: null as HarnessHandle | null };
 
     try {
-      render(createElement(ControllerHarness, { inputEditorRef, outputEditorRef, ref }));
+      render(createElement(ControllerHarness, { inputEditorRef: createInputEditorRef(), ref }));
 
       await act(async () => {
         ref.current?.getController().onNew();

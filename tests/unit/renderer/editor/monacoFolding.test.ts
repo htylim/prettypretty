@@ -2,8 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { editor as MonacoEditor } from 'monaco-editor';
 import {
   findOwningFoldStartLine,
+  findSmallestEnclosingFoldRange,
   getVisibleFoldStartLines,
   isFoldStartCollapsed,
+  resolveSmallestEnclosingFoldRange,
   toggleFoldStart,
 } from '../../../../src/renderer/editor/monacoFolding';
 
@@ -147,6 +149,28 @@ describe('monacoFolding', () => {
 
     expect(findOwningFoldStartLine(editor, 4)).toBe(3);
     expect(findOwningFoldStartLine(editor, 2)).toBe(2);
+  });
+
+  it('returns the smallest enclosing fold range for nested regions', async () => {
+    const { editor } = createEditor({
+      regions: [
+        { startLineNumber: 1, endLineNumber: 10 },
+        { startLineNumber: 3, endLineNumber: 8, parentIndex: 0 },
+        { startLineNumber: 4, endLineNumber: 6, parentIndex: 1, isCollapsed: true },
+      ],
+    });
+
+    expect(findSmallestEnclosingFoldRange(editor, 5)).toEqual({
+      startLineNumber: 4,
+      endLineNumber: 6,
+      isCollapsed: true,
+    });
+
+    await expect(resolveSmallestEnclosingFoldRange(editor, 5)).resolves.toEqual({
+      startLineNumber: 4,
+      endLineNumber: 6,
+      isCollapsed: true,
+    });
   });
 
   it('reports collapsed state for fold-start lines and null outside fold regions', () => {

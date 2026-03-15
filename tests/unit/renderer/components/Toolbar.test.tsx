@@ -16,12 +16,14 @@ const createProps = (
     { id: 'codex', name: 'Codex', enabled: true },
   ],
   hasContent: true,
+  hasDerivedOutputPane: false,
   onNew: vi.fn(),
   onPaneModeChange: vi.fn(),
   onCollapseAll: vi.fn(),
   onExpandAll: vi.fn(),
   onSave: vi.fn(),
   onCopy: vi.fn(),
+  onCloseSplit: vi.fn(),
   onThemeModeChange: vi.fn(),
   onIndentSizeChange: vi.fn(),
   onFallbackAgentIdChange: vi.fn(),
@@ -97,7 +99,7 @@ describe('Toolbar', () => {
   it('uses shared style for toolbar action buttons', () => {
     render(<Toolbar {...createProps({ paneMode: 'output' })} />);
 
-    const actionButtons = ['New', 'Collapse', 'Expand', 'Save', 'Copy'] as const;
+    const actionButtons = ['New', 'Collapse', 'Expand', 'Save', 'Copy', 'Split'] as const;
 
     for (const label of actionButtons) {
       const button = screen.getByRole('button', { name: label });
@@ -114,7 +116,7 @@ describe('Toolbar', () => {
       (button) => button.getAttribute('aria-label') || button.textContent?.trim(),
     );
 
-    expect(actionLabels).toEqual(['New', 'Collapse', 'Expand', 'Save', 'Copy']);
+    expect(actionLabels).toEqual(['New', 'Collapse', 'Expand', 'Save', 'Copy', 'Split']);
   });
 
   it('shows tooltips with shortcut hints for primary controls', () => {
@@ -252,5 +254,34 @@ describe('Toolbar', () => {
       .filter((label): label is string => Boolean(label));
 
     expect(triggerLabels).toEqual(['Indent: 2', 'Codex']);
+  });
+
+  it('keeps the split button visible, disables it when closed, and places it after fallback control', async () => {
+    const user = userEvent.setup();
+    const onCloseSplit = vi.fn();
+    const { rerender } = render(
+      <Toolbar
+        {...createProps({ hasDerivedOutputPane: false, onCloseSplit, paneMode: 'output' })}
+      />,
+    );
+
+    const splitButton = screen.getByRole('button', { name: 'Split' });
+    expect(splitButton).toBeDisabled();
+    expect(splitButton).toHaveAttribute('title', 'Close split pane');
+    expect(
+      screen.getByTestId('fallback-agent-select').closest('.dropdown')?.nextElementSibling,
+    ).toBe(splitButton);
+
+    await user.click(splitButton);
+    expect(onCloseSplit).not.toHaveBeenCalled();
+
+    rerender(
+      <Toolbar
+        {...createProps({ hasDerivedOutputPane: true, onCloseSplit, paneMode: 'output' })}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Split' }));
+    expect(onCloseSplit).toHaveBeenCalledTimes(1);
   });
 });

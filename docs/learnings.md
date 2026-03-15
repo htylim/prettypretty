@@ -12,6 +12,7 @@ Do not add routine status updates, implementation history, or one-time decisions
 
 - Do not split input ingestion paths by trigger (`drop`, `paste`, `open file`); use one ingestion path or pane-switch behavior drifts.
 - Do not let keyboard shortcuts and toolbar controls diverge; both must use the same mode guards and enable/disable rules.
+- Do not route output fold/find actions to the root pane unconditionally once multiple output panes exist; track focused visible pane id separately from pane content so toolbar and shortcut routing stay deterministic.
 - Do not rely on partial class assertions for style tests; assert exact class contracts so variants cannot drift silently.
 - Do not style Monaco text metrics via external CSS selectors (for example `.view-lines`); set typography metrics in Monaco options or cursor/selection alignment can drift.
 - Do not let prettifier indentation and Monaco indentation settings come from different sources; both must read the same persisted preference value.
@@ -22,6 +23,10 @@ Do not add routine status updates, implementation history, or one-time decisions
 - Do not implement inline Monaco fold affordances with injected text; use content widgets so copied/saved output and syntax highlighting stay untouched.
 - Do not treat bubbled paste events from Monaco find/replace widgets as shell-level ingest; allow widget-local paste or search can overwrite the active document.
 - Do not key output fold/view state to transient UI state; persist/restore by deterministic document identity.
+- Do not reuse a derived pane's old Monaco view-state key when replacing it with a new extracted block; regenerate the derived-pane key or the pane can reopen pre-folded instead of expanded.
+- Do not extend a single-output editor design with ad hoc `secondaryPane*` state; represent derived read-only panes as a parent-child chain so upstream reselection can truncate descendants cleanly.
+- Do not derive split-pane excerpts from only the visible folded text; resolve and extract Monaco model ranges so folded sources can open expanded in derived panes without data loss.
+- Do not create separate Monaco models for structural split panes when the UI must preserve source line numbers; share the root source model and apply pane-local hidden areas for derived views.
 - Do not maintain separate Monaco option sets for input/output that can drift; use one shared base and derive editable/read-only variants.
 - Do not enable fold actions when there is no content; fold controls should be content-aware and no-op states should stay disabled.
 - Do not let Monaco option drift happen between input and output panes; keep one shared base options seam and make any intentional pane-specific overrides explicit and unit-tested.

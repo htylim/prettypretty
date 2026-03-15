@@ -1,9 +1,11 @@
 import type { ClipboardEventHandler, DragEventHandler, RefObject } from 'react';
 import type { IndentSize } from '../../shared/preferences';
 import type { PaneMode, ThemeMode } from '../../shared/types';
+import type { OutputPaneSelection } from '../app/outputPaneDomain';
 import type { FallbackWaitState, IngestSource } from '../app/appDomain';
 import { InputEditor, type InputEditorHandle } from './InputEditor';
-import { OutputEditor, type OutputEditorHandle } from './OutputEditor';
+import { OutputPaneStrip, type OutputPaneViewModel } from './OutputPaneStrip';
+import type { OutputEditorHandle } from './OutputEditor';
 
 // Empty-state paste shares the shell container with Monaco. Ignore paste events
 // coming from Monaco's find widget so search input keeps working normally.
@@ -21,17 +23,18 @@ type EditorShellProps = {
   themeMode: ThemeMode;
   indentSize: IndentSize;
   inputText: string;
-  outputText: string;
-  outputDocumentId: string;
+  outputPanes: OutputPaneViewModel[];
   ingestNotice: string | null;
   fallbackWaitState: FallbackWaitState | null;
   inputEditorRef: RefObject<InputEditorHandle | null>;
-  outputEditorRef: RefObject<OutputEditorHandle | null>;
   onEditInputChange: (value: string) => void;
   onIngestInput: (value: string, source: IngestSource) => void;
   onDismissIngestNotice: () => void;
   onOpenFile: () => Promise<void>;
   onCancelFallbackWait: () => void;
+  onOutputPaneHandleChange: (paneId: string, handle: OutputEditorHandle | null) => void;
+  onOutputPaneFocus: (paneId: string) => void;
+  onOutputPaneSplitSelection: (paneId: string, selection: OutputPaneSelection) => void;
 };
 
 export const EditorShell = ({
@@ -39,17 +42,18 @@ export const EditorShell = ({
   themeMode,
   indentSize,
   inputText,
-  outputText,
-  outputDocumentId,
+  outputPanes,
   ingestNotice,
   fallbackWaitState,
   inputEditorRef,
-  outputEditorRef,
   onEditInputChange,
   onIngestInput,
   onDismissIngestNotice,
   onOpenFile,
   onCancelFallbackWait,
+  onOutputPaneHandleChange,
+  onOutputPaneFocus,
+  onOutputPaneSplitSelection,
 }: EditorShellProps) => {
   const hasContent = inputText.trim().length > 0;
   const fallbackWaitMessage = fallbackWaitState ? (
@@ -153,12 +157,13 @@ export const EditorShell = ({
         />
       ) : (
         <div className="output-pane">
-          <OutputEditor
-            ref={outputEditorRef}
-            documentId={outputDocumentId}
-            themeMode={themeMode}
+          <OutputPaneStrip
             indentSize={indentSize}
-            value={outputText}
+            onPaneFocus={onOutputPaneFocus}
+            onPaneHandleChange={onOutputPaneHandleChange}
+            onPaneSplitSelection={onOutputPaneSplitSelection}
+            panes={outputPanes}
+            themeMode={themeMode}
           />
         </div>
       )}

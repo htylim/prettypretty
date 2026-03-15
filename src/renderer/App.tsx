@@ -4,13 +4,11 @@ import { ConfirmationModal } from './components/ConfirmationModal';
 import { EditorShell } from './components/EditorShell';
 import { FallbackAgentComboButton } from './components/FallbackAgentComboButton';
 import type { InputEditorHandle } from './components/InputEditor';
-import type { OutputEditorHandle } from './components/OutputEditor';
 import { Toolbar } from './components/Toolbar';
 
 export const App = () => {
   const inputEditorRef = useRef<InputEditorHandle>(null);
-  const outputEditorRef = useRef<OutputEditorHandle>(null);
-  const controller = useAppController({ inputEditorRef, outputEditorRef });
+  const controller = useAppController({ inputEditorRef });
   const enabledFallbackAgentOptions = controller.fallbackAgentOptions.filter(
     (option) => option.enabled,
   );
@@ -28,12 +26,14 @@ export const App = () => {
           fallbackAgentId={controller.fallbackAgentId}
           fallbackAgentOptions={controller.fallbackAgentOptions}
           hasContent={controller.hasContent}
+          hasDerivedOutputPane={controller.hasDerivedOutputPane}
           onNew={controller.onNew}
           onPaneModeChange={controller.onPaneModeChange}
           onCollapseAll={controller.onCollapseAll}
           onExpandAll={controller.onExpandAll}
           onSave={() => void controller.onSave()}
           onCopy={() => void controller.onCopy()}
+          onCloseSplit={controller.onCloseSplit}
           onThemeModeChange={(mode) => void controller.onThemeModeChange(mode)}
           onIndentSizeChange={(size) => void controller.onIndentSizeChange(size)}
           onFallbackAgentIdChange={(agentId) => void controller.onFallbackAgentIdChange(agentId)}
@@ -44,17 +44,18 @@ export const App = () => {
           themeMode={controller.themeMode}
           indentSize={controller.indentSize}
           inputText={controller.inputText}
-          outputText={controller.outputText}
-          outputDocumentId={controller.outputDocumentId}
+          outputPanes={controller.outputPanes}
           ingestNotice={controller.ingestNotice}
           fallbackWaitState={controller.fallbackWaitState}
           inputEditorRef={inputEditorRef}
-          outputEditorRef={outputEditorRef}
           onEditInputChange={controller.onEditInputChange}
           onIngestInput={controller.onIngestInput}
           onDismissIngestNotice={controller.onDismissIngestNotice}
           onOpenFile={controller.onOpenFile}
           onCancelFallbackWait={() => void controller.onCancelActiveFallback()}
+          onOutputPaneHandleChange={controller.onOutputPaneHandleChange}
+          onOutputPaneFocus={controller.onOutputPaneFocus}
+          onOutputPaneSplitSelection={controller.onOutputPaneSplitSelection}
         />
       </div>
 
