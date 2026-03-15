@@ -168,9 +168,9 @@ C | D   (A and B still mounted off-screen to the left)
   - replace the standalone stage-one split button with a compact `Splits` toolbar group,
   - group contents are:
     - static text label `Splits`,
-    - pop-rightmost-split button,
     - viewport-left button,
-    - viewport-right button.
+    - viewport-right button,
+    - pop-rightmost-split button.
 - Close action rules:
   - pop button and `Escape` always remove the rightmost derived pane,
   - after pop, animate the viewport so the new rightmost visible pair is shown,

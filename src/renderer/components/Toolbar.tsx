@@ -187,17 +187,6 @@ export const Toolbar = ({
           role="group"
         >
           <button
-            aria-label="Pop split"
-            className={`${buttonClass} btn-icon`}
-            data-testid="toolbar-splits-pop"
-            disabled={!canPopSplit}
-            onClick={onPopSplit}
-            title={tooltips.splitPop}
-            type="button"
-          >
-            <VscClose />
-          </button>
-          <button
             aria-label="Navigate splits left"
             className={`${buttonClass} btn-icon`}
             data-testid="toolbar-splits-left"
@@ -218,6 +207,17 @@ export const Toolbar = ({
             type="button"
           >
             <VscArrowRight />
+          </button>
+          <button
+            aria-label="Pop split"
+            className={`${buttonClass} btn-icon`}
+            data-testid="toolbar-splits-pop"
+            disabled={!canPopSplit}
+            onClick={onPopSplit}
+            title={tooltips.splitPop}
+            type="button"
+          >
+            <VscClose />
           </button>
         </div>
       </div>

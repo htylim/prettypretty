@@ -40,7 +40,7 @@
   - Transparent surface by default, soft accent background on hover.
   - Font weight `400`.
 - Do not create per-action button color variants for toolbar actions.
-- The output `Splits` group stays visible after the fallback dropdown, uses a muted static text label plus three `.btn` icon buttons (`Pop split`, `Navigate splits left`, `Navigate splits right`), and does not introduce a separate button color variant.
+- The output `Splits` group stays visible after the fallback dropdown, uses a muted static text label plus three `.btn` icon buttons (`Navigate splits left`, `Navigate splits right`, `Pop split`), and does not introduce a separate button color variant.
 
 ## Toggles
 

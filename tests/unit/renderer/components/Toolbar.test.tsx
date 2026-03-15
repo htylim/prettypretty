@@ -109,9 +109,9 @@ describe('Toolbar', () => {
       'Expand',
       'Save',
       'Copy',
-      'Pop split',
       'Navigate splits left',
       'Navigate splits right',
+      'Pop split',
     ] as const;
 
     for (const label of actionButtons) {
@@ -135,9 +135,9 @@ describe('Toolbar', () => {
       'Expand',
       'Save',
       'Copy',
-      'Pop split',
       'Navigate splits left',
       'Navigate splits right',
+      'Pop split',
     ]);
   });
 
@@ -311,6 +311,11 @@ describe('Toolbar', () => {
     expect(
       screen.getByTestId('fallback-agent-select').closest('.dropdown')?.nextElementSibling,
     ).toBe(splitsGroup);
+    expect(
+      Array.from(splitsGroup.querySelectorAll('button')).map(
+        (button) => button.getAttribute('aria-label') ?? button.textContent?.trim(),
+      ),
+    ).toEqual(['Navigate splits left', 'Navigate splits right', 'Pop split']);
 
     await user.click(popButton);
     await user.click(leftButton);

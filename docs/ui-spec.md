@@ -51,7 +51,7 @@
 - Dropdown trigger displays the selected agent name (or `No Fallback`) with a chevron indicator; no external label.
 - Disabled agents are visible in the dropdown panel but non-selectable (`<name> (Disabled)`).
 - Fallback preference persistence: selected fallback agent id (or no fallback) is stored through preload/main preferences APIs and restored on next app launch.
-- `Splits` group: always visible immediately after the fallback-agent control, includes a static `Splits` label plus `Pop split`, `Navigate splits left`, and `Navigate splits right` buttons.
+- `Splits` group: always visible immediately after the fallback-agent control, includes a static `Splits` label plus `Navigate splits left`, `Navigate splits right`, and `Pop split` buttons.
 - `Pop split` is disabled when no derived output pane is open.
 - Split navigation buttons are enabled only when at least three panes exist and there is another snapped viewport position in that direction.
 
