@@ -29,10 +29,13 @@ type FoldingContribution = {
   getFoldingModel?: () => Promise<FoldingModel | null> | null;
 };
 
+export type FoldToggleAction = 'collapse' | 'expand';
+
 export type FoldStart = {
   lineNumber: number;
   endLineNumber: number;
   isCollapsed: boolean;
+  childToggleAction: FoldToggleAction | null;
 };
 
 export type FoldRange = {
@@ -65,19 +68,28 @@ const getFoldingModel = async (
   return (await contribution?.getFoldingModel?.()) ?? null;
 };
 
-const getFoldStartsFromModel = (foldingModel: FoldingModel): FoldStart[] => {
-  const foldStarts: FoldStart[] = [];
+const buildDirectChildRegionsByParentIndex = (
+  foldingModel: FoldingModel,
+): ReadonlyMap<number, readonly FoldingRegion[]> => {
+  const childRegionsByParentIndex = new Map<number, FoldingRegion[]>();
   const regions = foldingModel.regions;
 
   for (let index = 0; index < regions.length; index += 1) {
-    foldStarts.push({
-      lineNumber: regions.getStartLineNumber(index),
-      endLineNumber: regions.getEndLineNumber(index),
-      isCollapsed: regions.isCollapsed(index),
-    });
+    const region = regions.toRegion(index);
+    if (!region || region.parentIndex < 0) {
+      continue;
+    }
+
+    const existingChildren = childRegionsByParentIndex.get(region.parentIndex);
+    if (existingChildren) {
+      existingChildren.push(region);
+      continue;
+    }
+
+    childRegionsByParentIndex.set(region.parentIndex, [region]);
   }
 
-  return foldStarts;
+  return childRegionsByParentIndex;
 };
 
 const getVisibleLineWindow = (
@@ -125,6 +137,40 @@ const getFoldRegionAtStartLine = (
   }
 
   return null;
+};
+
+const getDirectChildRegions = (
+  foldingModel: FoldingModel,
+  parentRegion: FoldingRegion,
+): FoldingRegion[] => {
+  return [
+    ...(buildDirectChildRegionsByParentIndex(foldingModel).get(parentRegion.regionIndex) ?? []),
+  ];
+};
+
+const getChildToggleAction = (childRegions: readonly FoldingRegion[]): FoldToggleAction | null => {
+  if (childRegions.length === 0) {
+    return null;
+  }
+
+  return childRegions.some((region) => !region.isCollapsed) ? 'collapse' : 'expand';
+};
+
+const getFoldStartsFromModel = (foldingModel: FoldingModel): FoldStart[] => {
+  const foldStarts: FoldStart[] = [];
+  const childRegionsByParentIndex = buildDirectChildRegionsByParentIndex(foldingModel);
+  const regions = foldingModel.regions;
+
+  for (let index = 0; index < regions.length; index += 1) {
+    foldStarts.push({
+      lineNumber: regions.getStartLineNumber(index),
+      endLineNumber: regions.getEndLineNumber(index),
+      isCollapsed: regions.isCollapsed(index),
+      childToggleAction: getChildToggleAction(childRegionsByParentIndex.get(index) ?? []),
+    });
+  }
+
+  return foldStarts;
 };
 
 const toFoldRange = (region: FoldingRegion | null): FoldRange | null => {
@@ -288,5 +334,32 @@ export const setCollapseStateForFoldStart = async (
   }
 
   foldingModel.toggleCollapseState([region]);
+  return true;
+};
+
+export const applyFoldStartChildrenAction = async (
+  editor: MonacoEditor.IStandaloneCodeEditor,
+  foldStartLineNumber: number,
+  action: FoldToggleAction,
+): Promise<boolean> => {
+  const foldingModel = await getFoldingModel(editor);
+  if (!foldingModel) {
+    return false;
+  }
+
+  const parentRegion = getFoldRegionAtStartLine(foldingModel, foldStartLineNumber);
+  if (!parentRegion) {
+    return false;
+  }
+
+  const shouldCollapse = action === 'collapse';
+  const targetRegions = getDirectChildRegions(foldingModel, parentRegion).filter(
+    (region) => region.isCollapsed !== shouldCollapse,
+  );
+  if (targetRegions.length === 0) {
+    return false;
+  }
+
+  foldingModel.toggleCollapseState(targetRegions);
   return true;
 };

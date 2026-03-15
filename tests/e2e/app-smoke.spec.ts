@@ -128,6 +128,62 @@ test('renders inline output fold controls and hides gutter fold controls', async
   await app.close();
 });
 
+test('ctrl-clicking an inline fold control toggles only direct child blocks and shows the hint state', async () => {
+  const app = await electron.launch({
+    args: [join(process.cwd(), 'out/main/index.js')],
+  });
+
+  const page = await app.firstWindow();
+  await page.waitForLoadState('domcontentloaded');
+  await resetPreferences(page);
+  await dispatchPaste(page, '{"outer":{"top":{"a":1,"d":{"e":{}},"f":{"g":2}}}}');
+
+  const outputEditor = page.getByTestId('output-editor');
+  await expect(outputEditor.locator('.monaco-editor')).toBeVisible();
+
+  const topControl = outputEditor.locator(
+    '[data-testid="output-inline-fold-control"][data-line-number="3"]',
+  );
+  await expect(topControl).toBeVisible();
+  await expect(topControl).toHaveAttribute('aria-label', 'Collapse folded block at line 3');
+
+  await page.keyboard.down('Control');
+  await expect(topControl).toHaveAttribute('data-ctrl-hint', 'true');
+  await expect(topControl).toHaveAttribute('data-fold-action-scope', 'children');
+  await expect(topControl).toHaveAttribute('data-fold-action', 'collapse');
+  await page.keyboard.up('Control');
+  await expect(topControl).toHaveAttribute('data-ctrl-hint', 'false');
+  await expect(topControl).toHaveAttribute('data-fold-action-scope', 'self');
+  await expect(topControl).toHaveAttribute('data-fold-action', 'collapse');
+
+  await topControl.click({ modifiers: ['Control'] });
+  await expect(outputEditor).toContainText('"d": {');
+  await expect(outputEditor).toContainText('"f": {');
+  await expect(outputEditor).not.toContainText('"e": {}');
+  await expect(outputEditor).not.toContainText('"g": 2');
+
+  await page.keyboard.down('Control');
+  await expect(topControl).toHaveAttribute('data-fold-action-scope', 'children');
+  await expect(topControl).toHaveAttribute('data-fold-action', 'expand');
+  await page.keyboard.up('Control');
+  await expect(topControl).toHaveAttribute('data-fold-action-scope', 'self');
+  await expect(topControl).toHaveAttribute('data-fold-action', 'collapse');
+
+  await topControl.click();
+  await expect(outputEditor).not.toContainText('"a": 1');
+  await expect(topControl).toHaveAttribute('aria-label', 'Expand folded block at line 3');
+
+  await topControl.click({ modifiers: ['Control'] });
+  await expect(outputEditor).not.toContainText('"a": 1');
+
+  await topControl.click();
+  await expect(outputEditor).toContainText('"e": {}');
+  await expect(outputEditor).toContainText('"g": 2');
+
+  await resetPreferences(page);
+  await app.close();
+});
+
 test('keeps inline fold controls aligned with Monaco TypeScript folding', async () => {
   const app = await electron.launch({
     args: [join(process.cwd(), 'out/main/index.js')],

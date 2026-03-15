@@ -3,12 +3,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { editor as MonacoEditor } from 'monaco-editor';
 import { registerInlineFoldControls } from '../../../../src/renderer/output/inlineFoldControls';
 
-const { getVisibleFoldStartLinesMock, toggleFoldStartMock } = vi.hoisted(() => ({
-  getVisibleFoldStartLinesMock: vi.fn(),
-  toggleFoldStartMock: vi.fn(),
-}));
+const { getVisibleFoldStartLinesMock, applyFoldStartChildrenActionMock, toggleFoldStartMock } =
+  vi.hoisted(() => ({
+    getVisibleFoldStartLinesMock: vi.fn(),
+    applyFoldStartChildrenActionMock: vi.fn(),
+    toggleFoldStartMock: vi.fn(),
+  }));
 
 vi.mock('../../../../src/renderer/editor/monacoFolding', () => ({
+  applyFoldStartChildrenAction: applyFoldStartChildrenActionMock,
   getVisibleFoldStartLines: getVisibleFoldStartLinesMock,
   toggleFoldStart: toggleFoldStartMock,
 }));
@@ -106,17 +109,18 @@ const createEditor = (): {
 describe('inlineFoldControls', () => {
   beforeEach(() => {
     getVisibleFoldStartLinesMock.mockReset();
+    applyFoldStartChildrenActionMock.mockReset().mockResolvedValue(true);
     toggleFoldStartMock.mockReset().mockReturnValue(true);
   });
 
   it('creates widgets for visible fold-start lines only', async () => {
     const { editor, widgets, addContentWidgetMock } = createEditor();
     getVisibleFoldStartLinesMock.mockResolvedValue([
-      { lineNumber: 2, endLineNumber: 6, isCollapsed: false },
-      { lineNumber: 9, endLineNumber: 14, isCollapsed: true },
+      { lineNumber: 2, endLineNumber: 6, isCollapsed: false, childToggleAction: null },
+      { lineNumber: 9, endLineNumber: 14, isCollapsed: true, childToggleAction: null },
     ]);
 
-    registerInlineFoldControls(editor);
+    const registration = registerInlineFoldControls(editor);
     await flushAsync();
 
     expect(addContentWidgetMock).toHaveBeenCalledTimes(2);
@@ -124,15 +128,17 @@ describe('inlineFoldControls', () => {
       'output-inline-fold-control:2',
       'output-inline-fold-control:9',
     ]);
+
+    registration.dispose();
   });
 
   it('keeps widgets inside the editor content layer so horizontal scroll moves with code', async () => {
     const { editor, widgets } = createEditor();
     getVisibleFoldStartLinesMock.mockResolvedValue([
-      { lineNumber: 2, endLineNumber: 6, isCollapsed: false },
+      { lineNumber: 2, endLineNumber: 6, isCollapsed: false, childToggleAction: null },
     ]);
 
-    registerInlineFoldControls(editor);
+    const registration = registerInlineFoldControls(editor);
     await flushAsync();
 
     const widget = widgets.get('output-inline-fold-control:2');
@@ -141,26 +147,30 @@ describe('inlineFoldControls', () => {
     }
 
     expect(widget.allowEditorOverflow).toBe(false);
+
+    registration.dispose();
   });
 
   it('does not create widgets when there are no visible fold starts', async () => {
     const { editor, widgets, addContentWidgetMock } = createEditor();
     getVisibleFoldStartLinesMock.mockResolvedValue([]);
 
-    registerInlineFoldControls(editor);
+    const registration = registerInlineFoldControls(editor);
     await flushAsync();
 
     expect(addContentWidgetMock).not.toHaveBeenCalled();
     expect(widgets.size).toBe(0);
+
+    registration.dispose();
   });
 
   it('clicking a widget toggles fold through the shared folding path', async () => {
     const { editor, widgets } = createEditor();
     getVisibleFoldStartLinesMock.mockResolvedValue([
-      { lineNumber: 4, endLineNumber: 8, isCollapsed: false },
+      { lineNumber: 4, endLineNumber: 8, isCollapsed: false, childToggleAction: null },
     ]);
 
-    registerInlineFoldControls(editor);
+    const registration = registerInlineFoldControls(editor);
     await flushAsync();
 
     const widget = widgets.get('output-inline-fold-control:4');
@@ -176,15 +186,89 @@ describe('inlineFoldControls', () => {
     fireEvent.click(button);
 
     expect(toggleFoldStartMock).toHaveBeenCalledWith(editor, 4);
+
+    registration.dispose();
+  });
+
+  it('ctrl-clicking a widget updates only direct child fold state', async () => {
+    const { editor, widgets } = createEditor();
+    getVisibleFoldStartLinesMock.mockResolvedValue([
+      { lineNumber: 4, endLineNumber: 8, isCollapsed: false, childToggleAction: 'expand' },
+    ]);
+
+    const registration = registerInlineFoldControls(editor);
+    await flushAsync();
+
+    const widget = widgets.get('output-inline-fold-control:4');
+    if (!widget) {
+      throw new Error('Expected inline fold widget');
+    }
+
+    const button = widget.getDomNode().querySelector('button');
+    if (!button) {
+      throw new Error('Expected inline fold button');
+    }
+
+    fireEvent.click(button, { ctrlKey: true });
+    await flushAsync();
+
+    expect(applyFoldStartChildrenActionMock).toHaveBeenCalledWith(editor, 4, 'expand');
+    expect(toggleFoldStartMock).not.toHaveBeenCalled();
+
+    registration.dispose();
+  });
+
+  it('renders the child action separately when ctrl is held', async () => {
+    const { editor, widgets } = createEditor();
+    getVisibleFoldStartLinesMock.mockResolvedValue([
+      { lineNumber: 2, endLineNumber: 6, isCollapsed: false, childToggleAction: 'expand' },
+    ]);
+
+    const registration = registerInlineFoldControls(editor);
+    await flushAsync();
+
+    const widget = widgets.get('output-inline-fold-control:2');
+    if (!widget) {
+      throw new Error('Expected inline fold widget');
+    }
+
+    const button = widget.getDomNode().querySelector('button');
+    if (!button) {
+      throw new Error('Expected inline fold button');
+    }
+
+    expect(button).toHaveAttribute('data-ctrl-hint', 'false');
+    expect(button).toHaveAttribute('data-fold-action', 'collapse');
+    expect(button).toHaveAttribute('data-fold-action-scope', 'self');
+    expect(button).toHaveAttribute('aria-expanded', 'true');
+    expect(button).toHaveTextContent('-');
+    fireEvent.keyDown(window, { ctrlKey: true });
+    expect(button).toHaveAttribute('data-ctrl-hint', 'true');
+    expect(button).toHaveAttribute('data-fold-action', 'expand');
+    expect(button).toHaveAttribute('data-fold-action-scope', 'children');
+    expect(button).not.toHaveAttribute('aria-expanded');
+    expect(button).toHaveTextContent('+');
+    fireEvent.keyUp(window, { ctrlKey: false });
+    expect(button).toHaveAttribute('data-ctrl-hint', 'false');
+    expect(button).toHaveAttribute('data-fold-action', 'collapse');
+    expect(button).toHaveAttribute('data-fold-action-scope', 'self');
+    expect(button).toHaveAttribute('aria-expanded', 'true');
+    expect(button).toHaveTextContent('-');
+
+    registration.dispose();
   });
 
   it('refreshes widget state after hidden-area changes', async () => {
     const { editor, widgets, listeners, layoutContentWidgetMock } = createEditor();
     getVisibleFoldStartLinesMock
-      .mockResolvedValueOnce([{ lineNumber: 2, endLineNumber: 6, isCollapsed: false }])
-      .mockResolvedValueOnce([{ lineNumber: 2, endLineNumber: 6, isCollapsed: true }]);
+      .mockResolvedValueOnce([
+        { lineNumber: 2, endLineNumber: 6, isCollapsed: false, childToggleAction: null },
+      ])
+      .mockResolvedValueOnce([
+        { lineNumber: 2, endLineNumber: 6, isCollapsed: true, childToggleAction: null },
+      ]);
 
-    registerInlineFoldControls(editor);
+    const registration = registerInlineFoldControls(editor);
     await flushAsync();
 
     const widget = widgets.get('output-inline-fold-control:2');
@@ -206,12 +290,14 @@ describe('inlineFoldControls', () => {
     expect(button).toHaveTextContent('+');
     expect(button).toHaveAttribute('aria-expanded', 'false');
     expect(layoutContentWidgetMock).toHaveBeenCalled();
+
+    registration.dispose();
   });
 
   it('disposes listeners and widgets cleanly', async () => {
     const { editor, widgets, disposeSpies, removeContentWidgetMock } = createEditor();
     getVisibleFoldStartLinesMock.mockResolvedValue([
-      { lineNumber: 3, endLineNumber: 7, isCollapsed: false },
+      { lineNumber: 3, endLineNumber: 7, isCollapsed: false, childToggleAction: null },
     ]);
 
     const registration = registerInlineFoldControls(editor);

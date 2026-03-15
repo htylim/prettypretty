@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { editor as MonacoEditor } from 'monaco-editor';
 import {
+  applyFoldStartChildrenAction,
   findOwningFoldStartLine,
   findSmallestEnclosingFoldRange,
   getVisibleFoldStartLines,
@@ -117,8 +118,8 @@ describe('monacoFolding', () => {
     });
 
     await expect(getVisibleFoldStartLines(editor)).resolves.toEqual([
-      { lineNumber: 2, endLineNumber: 6, isCollapsed: false },
-      { lineNumber: 8, endLineNumber: 12, isCollapsed: true },
+      { lineNumber: 2, endLineNumber: 6, isCollapsed: false, childToggleAction: null },
+      { lineNumber: 8, endLineNumber: 12, isCollapsed: true, childToggleAction: null },
     ]);
     expect(getFoldingModelMock).toHaveBeenCalledTimes(1);
   });
@@ -134,7 +135,7 @@ describe('monacoFolding', () => {
     });
 
     await expect(getVisibleFoldStartLines(editor, 1)).resolves.toEqual([
-      { lineNumber: 6, endLineNumber: 10, isCollapsed: false },
+      { lineNumber: 6, endLineNumber: 10, isCollapsed: false, childToggleAction: null },
     ]);
   });
 
@@ -200,5 +201,58 @@ describe('monacoFolding', () => {
       }),
     ]);
     expect(toggleFoldStart(editor, 7)).toBe(false);
+  });
+
+  it('derives child toggle actions from immediate child fold state', async () => {
+    const { editor } = createEditor({
+      regions: [
+        { startLineNumber: 1, endLineNumber: 12 },
+        { startLineNumber: 2, endLineNumber: 6, parentIndex: 0, isCollapsed: false },
+        { startLineNumber: 3, endLineNumber: 5, parentIndex: 1, isCollapsed: true },
+        { startLineNumber: 8, endLineNumber: 10, parentIndex: 0, isCollapsed: true },
+      ],
+      contributionMode: 'async',
+    });
+
+    await expect(getVisibleFoldStartLines(editor)).resolves.toEqual([
+      { lineNumber: 1, endLineNumber: 12, isCollapsed: false, childToggleAction: 'collapse' },
+      { lineNumber: 2, endLineNumber: 6, isCollapsed: false, childToggleAction: 'expand' },
+      { lineNumber: 3, endLineNumber: 5, isCollapsed: true, childToggleAction: null },
+      { lineNumber: 8, endLineNumber: 10, isCollapsed: true, childToggleAction: null },
+    ]);
+  });
+
+  it('applies an explicit collapse action to immediate child fold regions only', async () => {
+    const { editor, toggleCollapseStateMock } = createEditor({
+      regions: [
+        { startLineNumber: 1, endLineNumber: 12 },
+        { startLineNumber: 2, endLineNumber: 6, parentIndex: 0 },
+        { startLineNumber: 3, endLineNumber: 5, parentIndex: 1 },
+        { startLineNumber: 8, endLineNumber: 10, parentIndex: 0, isCollapsed: true },
+      ],
+      contributionMode: 'async',
+    });
+
+    await expect(applyFoldStartChildrenAction(editor, 1, 'collapse')).resolves.toBe(true);
+    expect(toggleCollapseStateMock).toHaveBeenCalledWith([
+      expect.objectContaining({
+        startLineNumber: 2,
+        endLineNumber: 6,
+      }),
+    ]);
+  });
+
+  it('treats child fold actions as a no-op when direct children already match', async () => {
+    const { editor, toggleCollapseStateMock } = createEditor({
+      regions: [
+        { startLineNumber: 2, endLineNumber: 10 },
+        { startLineNumber: 3, endLineNumber: 6, parentIndex: 0, isCollapsed: false },
+        { startLineNumber: 7, endLineNumber: 9, parentIndex: 0, isCollapsed: false },
+      ],
+      contributionMode: 'async',
+    });
+
+    await expect(applyFoldStartChildrenAction(editor, 2, 'expand')).resolves.toBe(false);
+    expect(toggleCollapseStateMock).not.toHaveBeenCalled();
   });
 });

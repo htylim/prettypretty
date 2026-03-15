@@ -22,6 +22,8 @@ Do not add routine status updates, implementation history, or one-time decisions
 - Do not stop at model-position anchoring for inline Monaco controls; tune vertical offset and post-line spacing against Monaco line metrics or the control will sit low in the line and crowd folded placeholder text.
 - Do not assume one horizontal offset works for both inline fold states; expanded controls can sit tighter to code, while collapsed controls may need extra right-side clearance from Monaco placeholder text.
 - Do not implement inline Monaco fold affordances with injected text; use content widgets so copied/saved output and syntax highlighting stay untouched.
+- Do not derive direct-child fold actions from rendered text or visible indentation; use Monaco region parent indexes so immediate-child toggles stay correct even when the parent block itself is folded.
+- Do not derive ctrl-mode child-fold affordance from the parent block state; resolve the child action from direct-child fold states so the control switches to `expand children` only when all direct children are already collapsed.
 - Do not treat bubbled paste events from Monaco find/replace widgets as shell-level ingest; allow widget-local paste or search can overwrite the active document.
 - Do not key output fold/view state to transient UI state; persist/restore by deterministic document identity.
 - Do not reuse a derived pane's old Monaco view-state key when replacing it with a new extracted block; regenerate the derived-pane key or the pane can reopen pre-folded instead of expanded.

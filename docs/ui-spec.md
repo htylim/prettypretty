@@ -92,6 +92,13 @@
 - Input mode keeps Monaco fold controls in the gutter.
 - Output mode hides Monaco gutter fold controls and renders inline fold buttons anchored to visible Monaco fold-start lines.
 - Output inline fold buttons are UI controls, not code text; they sit after the rendered line content, move with horizontal and vertical scroll, and disappear when Monaco reports no fold regions.
+- Output inline fold button interaction:
+  - plain click toggles only the clicked fold block,
+  - literal `Ctrl+click` on the button applies a separate direct-child action to the clicked block's immediate child foldable regions without toggling the clicked block itself,
+  - direct-child action rule:
+    - if at least one immediate child foldable block is expanded, the button enters `collapse children`,
+    - if all immediate child foldable blocks are collapsed, the button enters `expand children`,
+  - holding literal `Ctrl` adds a subtle downward cue inside every visible inline fold button without changing the button footprint.
 - Output mode minimap is enabled for document-level navigation.
 - Output mode search uses Monaco native find widget (triggered by the platform primary modifier plus `F` in output mode).
 - Paste inside Monaco find/replace inputs stays local to that widget and must not trigger app-level ingest/prettify flow.
@@ -114,7 +121,7 @@
   - remain mounted off-screen so fold/search/view state survives viewport navigation.
 - Every pane shows a custom Monaco decoration highlight for its direct child selection; highlights are not native Monaco/browser text selections and do not change copy/save output text.
 - Repeating `Ctrl+click` on a pane replaces only that pane's direct child and truncates all descendants to the right.
-- Output-pane modifier-click fold toggling is removed in this scope. Output folding remains available through inline fold controls and toolbar fold actions. Input-pane modifier-click folding remains unchanged.
+- Output-pane modifier-click fold toggling is removed in this scope. Output folding remains available through inline fold controls and toolbar fold actions, and inline fold buttons additionally support literal `Ctrl+click` for immediate-child fold state changes. Input-pane modifier-click folding remains unchanged.
 - Output `Expand`, `Collapse`, and `Cmd+F` target the active visible output pane. Split-open, split-pop, viewport navigation, and normal click focus all retarget that active pane. `Save` and `Copy` remain rooted to the full root output text even when derived panes are open.
 - Output split navigation shortcuts:
   - literal `Ctrl+Left` / `Ctrl+Right`: move the split viewport one pane left/right in output mode,

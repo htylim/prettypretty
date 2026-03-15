@@ -122,7 +122,9 @@
   - muted default color using panel/border tokens,
   - stronger text/border contrast on hover,
   - visible `:focus-visible` ring using `--focus-ring`,
-  - explicit expand/collapse glyphs (`+` / `-` in current scope).
+  - explicit expand/collapse glyphs (`+` / `-` in current scope),
+  - when literal `Ctrl` is held, show a tiny downward cue inside the existing button box without changing the button's dimensions,
+  - while literal `Ctrl` is held, the button glyph reflects the current direct-child action (`-` when any direct child block is expanded, `+` only when all direct child blocks are already collapsed).
 - Bracket pair colorization must define at least six depth colors before repeating.
 - Search in output mode should use Monaco's native find widget (no custom decoration class for search matches).
 
