@@ -19,6 +19,7 @@ const createProps = (
   canPopSplit: false,
   canNavigateSplitLeft: false,
   canNavigateSplitRight: false,
+  visibleOutputPanePosition: null,
   onNew: vi.fn(),
   onPaneModeChange: vi.fn(),
   onCollapseAll: vi.fn(),
@@ -344,5 +345,25 @@ describe('Toolbar', () => {
     expect(onPopSplit).toHaveBeenCalledTimes(1);
     expect(onNavigateSplitLeft).toHaveBeenCalledTimes(1);
     expect(onNavigateSplitRight).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders the split position label only when a visible output-pane position is provided', () => {
+    const { rerender } = render(<Toolbar {...createProps({ paneMode: 'output' })} />);
+
+    expect(screen.queryByTestId('toolbar-splits-position')).not.toBeInTheDocument();
+
+    rerender(
+      <Toolbar
+        {...createProps({
+          paneMode: 'output',
+          visibleOutputPanePosition: {
+            current: 2,
+            total: 3,
+          },
+        })}
+      />,
+    );
+
+    expect(screen.getByTestId('toolbar-splits-position')).toHaveTextContent('2 of 3');
   });
 });

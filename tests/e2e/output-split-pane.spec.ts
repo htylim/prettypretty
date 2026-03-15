@@ -421,6 +421,16 @@ const openInitialSplit = async (page: Page): Promise<void> => {
     .toContain('"branch": {');
 };
 
+const expectToolbarSplitPosition = async (page: Page, label: string | null): Promise<void> => {
+  const indicator = page.locator('[data-testid="toolbar-splits-position"]');
+  if (label === null) {
+    await expect(indicator).toHaveCount(0);
+    return;
+  }
+
+  await expect(indicator).toHaveText(label);
+};
+
 const openRecursiveSplitChain = async (page: Page): Promise<void> => {
   await openInitialSplit(page);
   await ctrlClickOutputLine(page, 'output-editor-pane-1', '"branch"');
@@ -436,12 +446,19 @@ test('opens recursive output splits, snaps the viewport, and pops the rightmost 
   const page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
   await resetPreferences(page);
+  await expectToolbarSplitPosition(page, null);
 
-  await openRecursiveSplitChain(page);
+  await openInitialSplit(page);
+  await expectToolbarSplitPosition(page, '1 of 1');
+
+  await ctrlClickOutputLine(page, 'output-editor-pane-1', '"branch"');
+  await page.waitForTimeout(SPLIT_SETTLE_MS);
+  await expectToolbarSplitPosition(page, '2 of 2');
   await expectPaneStripViewport(page, { paneCount: 3, leftVisiblePaneIndex: 1 });
 
   await ctrlClickOutputLine(page, 'output-editor-pane-2', '"twig"');
   await page.waitForTimeout(SPLIT_SETTLE_MS);
+  await expectToolbarSplitPosition(page, '3 of 3');
   await expectPaneStripViewport(page, { paneCount: 4, leftVisiblePaneIndex: 2 });
   await expect
     .poll(async () => (await readVisibleLineTexts(page, 'output-editor-pane-3')).join('\n'))
@@ -452,10 +469,12 @@ test('opens recursive output splits, snaps the viewport, and pops the rightmost 
 
   await page.keyboard.press('Escape');
   await expect(page.locator('[data-testid="output-editor-pane-3"]')).toHaveCount(0);
+  await expectToolbarSplitPosition(page, '2 of 2');
   await expectPaneStripViewport(page, { paneCount: 3, leftVisiblePaneIndex: 1 });
 
   await page.getByRole('button', { name: 'Pop split' }).click();
   await expect(page.locator('[data-testid="output-editor-pane-2"]')).toHaveCount(0);
+  await expectToolbarSplitPosition(page, '1 of 1');
   await expectPaneStripViewport(page, { paneCount: 2, leftVisiblePaneIndex: 0 });
   await expect(page.getByRole('button', { name: 'Navigate splits left' })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Navigate splits right' })).toBeDisabled();
@@ -509,15 +528,18 @@ test('preserves off-screen pane state and supports toolbar, keyboard, and wheel 
 
   await ctrlClickOutputLine(page, 'output-editor-pane-2', '"twig"');
   await page.waitForTimeout(SPLIT_SETTLE_MS);
+  await expectToolbarSplitPosition(page, '3 of 3');
   await expectPaneStripViewport(page, { paneCount: 4, leftVisiblePaneIndex: 2 });
 
   await page.getByRole('button', { name: 'Navigate splits left' }).click();
+  await expectToolbarSplitPosition(page, '2 of 3');
   await expectPaneStripViewport(page, { paneCount: 4, leftVisiblePaneIndex: 1 });
   await expect
     .poll(async () => await readVisibleLineNumbers(page, 'output-editor-pane-1'))
     .toEqual(['2']);
 
   await page.keyboard.press('Control+ArrowRight');
+  await expectToolbarSplitPosition(page, '3 of 3');
   await expectPaneStripViewport(page, { paneCount: 4, leftVisiblePaneIndex: 2 });
   await page.getByRole('button', { name: 'Collapse', exact: true }).click();
   await expect
@@ -525,6 +547,7 @@ test('preserves off-screen pane state and supports toolbar, keyboard, and wheel 
     .toEqual(['4']);
 
   await dispatchCtrlWheelOnStrip(page, { deltaY: -140 });
+  await expectToolbarSplitPosition(page, '2 of 3');
   await expectPaneStripViewport(page, { paneCount: 4, leftVisiblePaneIndex: 1 });
   await page.getByRole('button', { name: 'Expand', exact: true }).click();
   await expect
@@ -534,6 +557,7 @@ test('preserves off-screen pane state and supports toolbar, keyboard, and wheel 
   await ctrlClickOutputLine(page, 'output-editor-pane-1', '"alt"');
   await page.waitForTimeout(SPLIT_SETTLE_MS);
   await expect(page.locator('[data-testid="output-editor-pane-3"]')).toHaveCount(0);
+  await expectToolbarSplitPosition(page, '2 of 2');
   await expectPaneStripViewport(page, { paneCount: 3, leftVisiblePaneIndex: 1 });
   await expect
     .poll(async () => (await readVisibleLineTexts(page, 'output-editor-pane-2')).join('\n'))

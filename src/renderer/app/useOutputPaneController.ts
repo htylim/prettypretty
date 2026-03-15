@@ -9,6 +9,7 @@ import {
   closeRightmostOutputPane,
   createOutputPaneChainState,
   focusOutputPane,
+  getOutputPaneViewportPosition,
   getOutputPaneSourceHighlight,
   getRightmostVisibleOutputPaneId,
   getRootOutputPaneViewStateKey,
@@ -68,6 +69,10 @@ export type UseOutputPaneControllerResult = {
   outputPanes: OutputPaneViewModel[];
   activeOutputPaneId: string;
   leftVisiblePaneIndex: number;
+  visibleOutputPanePosition: {
+    current: number;
+    total: number;
+  };
   hasDerivedOutputPane: boolean;
   canNavigateOutputPaneLeft: boolean;
   canNavigateOutputPaneRight: boolean;
@@ -273,6 +278,7 @@ export const useOutputPaneController = ({
     outputPanes,
     activeOutputPaneId: outputPaneChainState.activePaneId,
     leftVisiblePaneIndex: outputPaneChainState.leftVisiblePaneIndex,
+    visibleOutputPanePosition: getOutputPaneViewportPosition(outputPaneChainState),
     hasDerivedOutputPane: hasDerivedOutputPane(outputPaneChainState),
     canNavigateOutputPaneLeft: canNavigateOutputPaneViewportLeft(outputPaneChainState),
     canNavigateOutputPaneRight: canNavigateOutputPaneViewportRight(outputPaneChainState),

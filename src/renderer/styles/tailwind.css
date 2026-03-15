@@ -100,6 +100,15 @@ body {
   border-left: 1px solid var(--line);
 }
 
+.toolbar-split-position {
+  min-width: 52px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1;
+  text-align: center;
+  user-select: none;
+}
+
 .dropdown {
   position: relative;
 }

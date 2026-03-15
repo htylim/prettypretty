@@ -116,6 +116,10 @@ describe('useOutputPaneController', () => {
       'output-editor-pane-1',
       'output-editor-pane-2',
     ]);
+    expect(ref.current?.getController().visibleOutputPanePosition).toEqual({
+      current: 2,
+      total: 2,
+    });
     expect(ref.current?.getController().leftVisiblePaneIndex).toBe(1);
     expect(ref.current?.getController().canNavigateOutputPaneLeft).toBe(true);
     expect(ref.current?.getController().canNavigateOutputPaneRight).toBe(false);
@@ -125,6 +129,10 @@ describe('useOutputPaneController', () => {
     });
 
     expect(ref.current?.getController().leftVisiblePaneIndex).toBe(0);
+    expect(ref.current?.getController().visibleOutputPanePosition).toEqual({
+      current: 1,
+      total: 2,
+    });
     expect(ref.current?.getController().canNavigateOutputPaneLeft).toBe(false);
     expect(ref.current?.getController().canNavigateOutputPaneRight).toBe(true);
   });

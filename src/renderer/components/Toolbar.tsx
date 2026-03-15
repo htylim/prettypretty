@@ -22,6 +22,10 @@ type ToolbarProps = {
   canPopSplit: boolean;
   canNavigateSplitLeft: boolean;
   canNavigateSplitRight: boolean;
+  visibleOutputPanePosition: {
+    current: number;
+    total: number;
+  } | null;
   onNew: () => void;
   onPaneModeChange: (nextMode: PaneMode) => void;
   onCollapseAll: () => void;
@@ -72,6 +76,7 @@ export const Toolbar = ({
   canPopSplit,
   canNavigateSplitLeft,
   canNavigateSplitRight,
+  visibleOutputPanePosition,
   onNew,
   onPaneModeChange,
   onCollapseAll,
@@ -197,6 +202,15 @@ export const Toolbar = ({
           >
             <VscArrowLeft />
           </button>
+          {visibleOutputPanePosition ? (
+            <span
+              aria-live="polite"
+              className="toolbar-split-position"
+              data-testid="toolbar-splits-position"
+            >
+              {visibleOutputPanePosition.current} of {visibleOutputPanePosition.total}
+            </span>
+          ) : null}
           <button
             aria-label="Navigate splits right"
             className={`${buttonClass} btn-icon`}

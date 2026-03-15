@@ -124,6 +124,7 @@
 - Repeating `Ctrl+click` on a pane replaces only that pane's direct child and truncates all descendants to the right.
 - Output-pane modifier-click fold toggling is removed in this scope. Output folding remains available through inline fold controls and toolbar fold actions, with one inline button that switches between self-toggle and immediate-child fold state changes while literal `Ctrl` is held. Input-pane modifier-click folding remains unchanged.
 - Output `Expand`, `Collapse`, and `Cmd+F` target the active visible output pane. Split-open, split-pop, viewport navigation, and normal click focus all retarget that active pane. `Save` and `Copy` remain rooted to the full root output text even when derived panes are open.
+- Toolbar split navigation shows a centered `x of y` label between the left/right buttons only while an output pane is visible. The label reports snapped viewport positions, not mounted pane count: root-only and root-plus-first-derived both show `1 of 1`, opening the second/third derived panes yields `2 of 2` and `3 of 3`, and moving one step left from the end yields `2 of 3`.
 - Output split navigation shortcuts:
   - literal `Ctrl+Left` / `Ctrl+Right`: move the split viewport one pane left/right in output mode,
   - literal `Ctrl+Wheel` / `Ctrl+trackpad scroll`: move the split viewport by snapped pane steps in output mode,

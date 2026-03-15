@@ -4,6 +4,7 @@ import {
   canNavigateOutputPaneViewportRight,
   closeRightmostOutputPane,
   createOutputPaneChainState,
+  getOutputPaneViewportPosition,
   getOutputPaneSourceHighlight,
   openOrReplaceDerivedOutputPane,
   shiftOutputPaneViewport,
@@ -56,6 +57,36 @@ const createRecursiveChain = () => {
 };
 
 describe('outputPaneDomain', () => {
+  it('reports snapped viewport positions for toolbar split labels', () => {
+    const rootOnly = createOutputPaneChainState();
+    expect(getOutputPaneViewportPosition(rootOnly)).toEqual({
+      current: 1,
+      total: 1,
+    });
+
+    const withChild = openOrReplaceDerivedOutputPane(rootOnly, 'output-root-pane', rootSelection);
+    expect(getOutputPaneViewportPosition(withChild)).toEqual({
+      current: 1,
+      total: 1,
+    });
+
+    const withGrandchild = openOrReplaceDerivedOutputPane(
+      withChild,
+      'output-pane-1',
+      childSelection,
+    );
+    expect(getOutputPaneViewportPosition(withGrandchild)).toEqual({
+      current: 2,
+      total: 2,
+    });
+
+    const navigatedLeft = shiftOutputPaneViewport(withGrandchild, -1);
+    expect(getOutputPaneViewportPosition(navigatedLeft)).toEqual({
+      current: 1,
+      total: 2,
+    });
+  });
+
   it('opens recursive child panes and targets the parent-child viewport pair', () => {
     const withChild = openOrReplaceDerivedOutputPane(
       createOutputPaneChainState(),

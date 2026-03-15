@@ -189,6 +189,7 @@ describe('useAppController', () => {
       paneId: 'output-root-pane',
       testId: 'output-editor',
     });
+    expect(controller?.visibleOutputPanePosition).toBeNull();
     expect(controller?.hasDerivedOutputPane).toBe(false);
     expect(controller?.fallbackAgentId).toBe('codex');
     expect(controller?.fallbackWarningLineThreshold).toBe(300);
@@ -249,6 +250,11 @@ describe('useAppController', () => {
     });
     rerender(createElement(ControllerHarness, { inputEditorRef, ref }));
 
+    expect(ref.current?.getController().visibleOutputPanePosition).toEqual({
+      current: 1,
+      total: 1,
+    });
+
     ref.current?.getController().onOutputPaneHandleChange('output-root-pane', rootHandle);
     ref.current?.getController().onCollapseAll();
     ref.current?.getController().onExpandAll();
@@ -268,6 +274,10 @@ describe('useAppController', () => {
 
     expect(ref.current?.getController().outputPanes).toHaveLength(2);
     expect(ref.current?.getController().hasDerivedOutputPane).toBe(true);
+    expect(ref.current?.getController().visibleOutputPanePosition).toEqual({
+      current: 1,
+      total: 1,
+    });
     expect(ref.current?.getController().outputPanes[1]).toMatchObject({
       documentId: ref.current?.getController().outputDocumentId,
       value: '{\n  "hello": true\n}',
@@ -306,6 +316,10 @@ describe('useAppController', () => {
     });
 
     expect(ref.current?.getController().outputPanes).toHaveLength(1);
+    expect(ref.current?.getController().visibleOutputPanePosition).toEqual({
+      current: 1,
+      total: 1,
+    });
     expect(ref.current?.getController().hasDerivedOutputPane).toBe(false);
   });
 

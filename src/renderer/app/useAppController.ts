@@ -40,6 +40,10 @@ export type UseAppControllerResult = {
   outputPanes: ReturnType<typeof useOutputPaneController>['outputPanes'];
   activeOutputPaneId: string;
   outputLeftVisiblePaneIndex: number;
+  visibleOutputPanePosition: {
+    current: number;
+    total: number;
+  } | null;
   outputPaneFocusRequest: ReturnType<typeof useOutputPaneController>['outputPaneFocusRequest'];
   fallbackWaitState: FallbackWaitState | null;
   fallbackWarningLineThreshold: number;
@@ -216,6 +220,7 @@ export const useAppController = ({
     outputPanes,
     activeOutputPaneId,
     leftVisiblePaneIndex: outputLeftVisiblePaneIndex,
+    visibleOutputPanePosition: rawVisibleOutputPanePosition,
     hasDerivedOutputPane: hasVisibleDerivedOutputPane,
     canNavigateOutputPaneLeft,
     canNavigateOutputPaneRight,
@@ -453,6 +458,7 @@ export const useAppController = ({
     outputPanes,
     activeOutputPaneId,
     outputLeftVisiblePaneIndex,
+    visibleOutputPanePosition: isOutputMode && hasContent ? rawVisibleOutputPanePosition : null,
     outputPaneFocusRequest,
     fallbackWaitState,
     fallbackWarningLineThreshold,

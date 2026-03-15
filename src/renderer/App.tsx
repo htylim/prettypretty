@@ -29,6 +29,7 @@ export const App = () => {
           canPopSplit={controller.hasDerivedOutputPane}
           canNavigateSplitLeft={controller.canNavigateOutputPaneLeft}
           canNavigateSplitRight={controller.canNavigateOutputPaneRight}
+          visibleOutputPanePosition={controller.visibleOutputPanePosition}
           onNew={controller.onNew}
           onPaneModeChange={controller.onPaneModeChange}
           onCollapseAll={controller.onCollapseAll}

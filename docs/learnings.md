@@ -97,6 +97,7 @@ Do not add routine status updates, implementation history, or one-time decisions
 - Do not let an outer pane-strip scroller compete with Monaco pane scrolling; reserve strip movement for explicit split-modifier gestures and keep viewport movement snapped to whole-pane steps.
 - Do not rely on native `scrollLeft` tweening for split-pane viewport animation while Monaco panes mount or focus shifts; browser scroll/layout behavior can collapse the move into a jump. Animate a dedicated pane track and hand off pane focus only after the viewport transition finishes.
 - Do not truncate a derived-pane chain in controller state just because the current UI only shows one extra pane; keep the full chain and let the pane strip handle overflow so horizontal multi-pane work stays incremental.
+- Do not derive toolbar split-position labels from mounted pane count; define them from snapped viewport positions (`leftVisiblePaneIndex + 1` over `max(1, paneCount - 1)`) or root-only and first-derived states will overcount.
 - Do not let a renderer log viewer append forever after reading a bounded main-session log; keep renderer retention capped too or long sessions become memory leaks.
 - Do not center editor-shell states with `height: 100%` when a responsive layout can switch the parent to `min-height`; use flex growth on the shell and child panes so centered content stays centered after resize.
 - Do not hide required local quality gates behind `pre-push` when the workflow expects commit-time feedback; run blocking validation in `pre-commit` or failures surface too late.

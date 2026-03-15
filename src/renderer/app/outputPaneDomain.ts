@@ -91,6 +91,18 @@ export const getRightmostVisibleOutputPaneId = (
   );
 };
 
+export const getOutputPaneViewportPosition = (
+  state: Pick<OutputPaneChainState, 'derivedPanes' | 'leftVisiblePaneIndex'>,
+): {
+  current: number;
+  total: number;
+} => {
+  return {
+    current: state.leftVisiblePaneIndex + 1,
+    total: Math.max(1, getOutputPaneCount(state) - 1),
+  };
+};
+
 export const canNavigateOutputPaneViewportLeft = (
   state: Pick<OutputPaneChainState, 'derivedPanes' | 'leftVisiblePaneIndex'>,
 ): boolean => {
