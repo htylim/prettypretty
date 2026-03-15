@@ -67,8 +67,8 @@ Establish a production-grade baseline for `prettypretty` so feature development 
 - No numeric coverage threshold.
 - Coverage report always generated.
 - `test:pairing` enforces test files for renderer modules/components.
-- `pre-commit`: lint-staged.
-- `pre-push`: `pnpm check` + `pnpm test:e2e`.
+- `pre-commit`: `lint-staged` + `pnpm check` + `pnpm test:e2e`.
+- `pre-push`: no-op.
 
 ## Verification Checklist
 

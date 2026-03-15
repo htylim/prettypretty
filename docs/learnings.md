@@ -90,3 +90,4 @@ Do not add routine status updates, implementation history, or one-time decisions
 - Do not truncate a derived-pane chain in controller state just because the current UI only shows one extra pane; keep the full chain and let the pane strip handle overflow so horizontal multi-pane work stays incremental.
 - Do not let a renderer log viewer append forever after reading a bounded main-session log; keep renderer retention capped too or long sessions become memory leaks.
 - Do not center editor-shell states with `height: 100%` when a responsive layout can switch the parent to `min-height`; use flex growth on the shell and child panes so centered content stays centered after resize.
+- Do not hide required local quality gates behind `pre-push` when the workflow expects commit-time feedback; run blocking validation in `pre-commit` or failures surface too late.

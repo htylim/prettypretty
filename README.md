@@ -59,8 +59,8 @@ pnpm icon:generate
 - No numeric coverage threshold.
 - Coverage reports are generated for visibility.
 - Every renderer module/component must have a corresponding unit test file.
-- `pre-commit`: `lint-staged`
-- `pre-push`: `pnpm check` + `pnpm test:e2e`
+- `pre-commit`: `lint-staged` + `pnpm check` + `pnpm test:e2e`
+- `pre-push`: no-op
 
 ## Security Baseline
 

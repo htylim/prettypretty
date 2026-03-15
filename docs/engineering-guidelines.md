@@ -32,5 +32,5 @@
 
 ## Hooks
 
-- `pre-commit`: lint/format staged files.
-- `pre-push`: full local quality gate + e2e.
+- `pre-commit`: lint/format staged files, full local quality gate, and e2e.
+- `pre-push`: no-op.
