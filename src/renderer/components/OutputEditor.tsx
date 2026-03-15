@@ -1,17 +1,19 @@
 import Editor, { type OnMount } from '@monaco-editor/react';
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
-import type { IRange, editor as MonacoEditor } from 'monaco-editor';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
+import type { editor as MonacoEditor } from 'monaco-editor';
 import type { IndentSize } from '../../shared/preferences';
 import type { ThemeMode } from '../../shared/types';
 import type { OutputPaneSelection, OutputPaneSourceRange } from '../app/outputPaneDomain';
 import { setCollapseStateForFoldStart } from '../editor/monacoFolding';
-import { configureMonaco } from '../output/configureMonaco';
 import { detectOutputLanguage } from '../output/detectOutputLanguage';
 import {
-  PRETTYPRETTY_DARK_THEME,
-  PRETTYPRETTY_LIGHT_THEME,
-  registerMonacoThemes,
-} from '../output/monacoThemes';
+  prepareMonacoEditorRuntime,
+  releaseSharedEditorModel,
+  restoreEditorViewState,
+  retainSharedEditorModel,
+  saveEditorViewState,
+} from '../output/monacoEditorRuntime';
+import { PRETTYPRETTY_DARK_THEME, PRETTYPRETTY_LIGHT_THEME } from '../output/monacoThemes';
 import { applyOutputViewRange } from '../output/outputViewRange';
 import { registerInlineFoldControls } from '../output/inlineFoldControls';
 import { getOutputEditorOptions } from '../output/outputEditorConfig';
@@ -35,53 +37,6 @@ type OutputEditorProps = {
   onSplitSelection?: ((selection: OutputPaneSelection) => void) | undefined;
   onFocus?: (() => void) | undefined;
   testId?: string | undefined;
-};
-
-const viewStateByKey = new Map<string, MonacoEditor.ICodeEditorViewState | null>();
-const modelReferenceCounts = new Map<string, number>();
-let monacoModule: typeof import('monaco-editor') | null = null;
-
-const retainModel = (modelPath: string): void => {
-  modelReferenceCounts.set(modelPath, (modelReferenceCounts.get(modelPath) ?? 0) + 1);
-};
-
-const releaseModel = (modelPath: string): void => {
-  const currentReferenceCount = modelReferenceCounts.get(modelPath) ?? 0;
-  if (currentReferenceCount <= 1) {
-    modelReferenceCounts.delete(modelPath);
-    globalThis.queueMicrotask(() => {
-      if ((modelReferenceCounts.get(modelPath) ?? 0) > 0) {
-        return;
-      }
-
-      const model = monacoModule?.editor.getModel(monacoModule.Uri.parse(modelPath));
-      model?.dispose();
-    });
-    return;
-  }
-
-  modelReferenceCounts.set(modelPath, currentReferenceCount - 1);
-};
-
-const restoreViewState = (
-  editor: MonacoEditor.IStandaloneCodeEditor,
-  viewStateKey: string,
-  viewRangeSource: object,
-): void => {
-  const savedViewState = viewStateByKey.get(viewStateKey) ?? null;
-  if (savedViewState) {
-    editor.restoreViewState(savedViewState);
-    return;
-  }
-
-  (
-    editor as MonacoEditor.IStandaloneCodeEditor & {
-      setHiddenAreas?: (ranges: IRange[], source?: unknown, forceUpdate?: boolean) => void;
-    }
-  ).setHiddenAreas?.([], viewRangeSource, true);
-  editor.setScrollTop(0);
-  editor.setScrollLeft(0);
-  editor.setPosition({ lineNumber: 1, column: 1 });
 };
 
 const registerCtrlClickSplitSelection = (
@@ -153,8 +108,9 @@ export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
     const language = useMemo(() => detectOutputLanguage(value), [value]);
     const theme = themeMode === 'dark' ? PRETTYPRETTY_DARK_THEME : PRETTYPRETTY_LIGHT_THEME;
     const modelPath = useMemo(() => `output://source/${documentId}`, [documentId]);
-
-    configureMonaco();
+    const handleBeforeMount = useCallback((monaco: typeof import('monaco-editor')): void => {
+      prepareMonacoEditorRuntime(monaco);
+    }, []);
 
     const saveCurrentViewState = (): void => {
       const editor = editorRef.current;
@@ -162,7 +118,7 @@ export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
         return;
       }
 
-      viewStateByKey.set(currentViewStateKeyRef.current, editor.saveViewState());
+      saveEditorViewState(currentViewStateKeyRef.current, editor);
     };
 
     useEffect(() => {
@@ -175,7 +131,9 @@ export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
       currentViewStateKeyRef.current = viewStateKey;
       sourceViewRangeRef.current = viewRange;
       activeViewRangeRef.current = viewRange;
-      restoreViewState(editor, viewStateKey, viewRangeSourceRef.current);
+      restoreEditorViewState(viewStateKey, editor, {
+        hiddenAreaResetSource: viewRangeSourceRef.current,
+      });
       applyOutputViewRange(editor, activeViewRangeRef.current, viewRangeSourceRef.current);
     }, [viewRange, viewStateKey]);
 
@@ -208,9 +166,9 @@ export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
     }, [onFocus]);
 
     useEffect(() => {
-      retainModel(modelPath);
+      retainSharedEditorModel(modelPath);
       return () => {
-        releaseModel(modelPath);
+        releaseSharedEditorModel(modelPath);
       };
     }, [modelPath]);
 
@@ -225,7 +183,7 @@ export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
         splitSelectionDecorationsRef.current = null;
 
         if (editor) {
-          viewStateByKey.set(currentViewStateKeyRef.current, editor.saveViewState());
+          saveEditorViewState(currentViewStateKeyRef.current, editor);
         }
         editorRef.current = null;
       },
@@ -287,12 +245,12 @@ export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
     );
 
     const handleMount: OnMount = (editor, monaco) => {
-      monacoModule = monaco;
       editorRef.current = editor;
       currentViewStateKeyRef.current = viewStateKey;
-      registerMonacoThemes(monaco);
-      monaco.editor.setTheme(theme);
-      restoreViewState(editor, viewStateKey, viewRangeSourceRef.current);
+      void monaco;
+      restoreEditorViewState(viewStateKey, editor, {
+        hiddenAreaResetSource: viewRangeSourceRef.current,
+      });
       splitSelectionDecorationsRef.current = createSplitSelectionDecorations(editor);
       splitSelectionDecorationsRef.current.update(highlightRange);
       applyOutputViewRange(editor, viewRange, viewRangeSourceRef.current);
@@ -333,6 +291,7 @@ export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
         }}
       >
         <Editor
+          beforeMount={handleBeforeMount}
           height="100%"
           keepCurrentModel
           language={language}

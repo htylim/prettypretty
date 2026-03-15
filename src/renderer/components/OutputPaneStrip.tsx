@@ -33,6 +33,7 @@ export const OutputPaneStrip = ({
   onPaneSplitSelection,
 }: OutputPaneStripProps) => {
   const isSplit = panes.length > 1;
+  const paneWidth = isSplit ? '50%' : '100%';
 
   const createHandleRef = (paneId: string): RefCallback<OutputEditorHandle> => {
     return (handle) => {
@@ -43,6 +44,8 @@ export const OutputPaneStrip = ({
   return (
     <div
       className="output-pane-strip"
+      data-overflowing={panes.length > 2 ? 'true' : 'false'}
+      data-pane-count={String(panes.length)}
       data-testid="output-pane-strip"
       data-split={isSplit ? 'true' : 'false'}
     >
@@ -51,7 +54,7 @@ export const OutputPaneStrip = ({
           className="output-pane-strip-item"
           data-testid={`output-pane-${pane.paneId}`}
           key={pane.paneId}
-          style={{ flexBasis: isSplit ? '50%' : '100%' }}
+          style={{ flexBasis: paneWidth }}
         >
           <OutputEditor
             ref={createHandleRef(pane.paneId)}

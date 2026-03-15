@@ -98,14 +98,6 @@ export const focusOutputPane = (
   };
 };
 
-export const resetOutputPaneChain = (state: OutputPaneChainState): OutputPaneChainState => {
-  if (!hasDerivedOutputPane(state) && state.activePaneId === ROOT_OUTPUT_PANE_ID) {
-    return state;
-  }
-
-  return createOutputPaneChainState();
-};
-
 export const closeRightmostOutputPane = (state: OutputPaneChainState): OutputPaneChainState => {
   if (!hasDerivedOutputPane(state)) {
     return state;

@@ -17,6 +17,7 @@ export type UsePreferencesFlowResult = {
   fallbackAgentId: string | null;
   fallbackAgentOptions: FallbackAgentOption[];
   fallbackWarningLineThreshold: number;
+  invalidateHydratedPreferences: () => void;
   persistThemeMode: (nextThemeMode: ThemeMode) => Promise<void>;
   persistFallbackAgentId: (nextFallbackAgentId: string | null) => Promise<void>;
 };
@@ -45,9 +46,14 @@ export const usePreferencesFlow = ({
 }: UsePreferencesFlowOptions): UsePreferencesFlowResult => {
   const latestThemeRequestIdRef = useRef(0);
   const latestFallbackAgentRequestIdRef = useRef(0);
+  const hydrationVersionRef = useRef(0);
   const [fallbackAgentId, setFallbackAgentId] = useState<string | null>(null);
   const [fallbackAgentOptions, setFallbackAgentOptions] = useState<FallbackAgentOption[]>([]);
   const [fallbackWarningLineThreshold, setFallbackWarningLineThreshold] = useState(300);
+
+  const invalidateHydratedPreferences = useCallback((): void => {
+    hydrationVersionRef.current += 1;
+  }, []);
 
   // Keep the one-time hydration write path in one helper so startup and future
   // preference shape changes do not drift.
@@ -69,6 +75,7 @@ export const usePreferencesFlow = ({
         return;
       }
 
+      invalidateHydratedPreferences();
       setThemeMode(nextThemeMode);
 
       const api = getWindowApi();
@@ -92,7 +99,7 @@ export const usePreferencesFlow = ({
         reportRendererError('Failed to persist theme preferences', error);
       }
     },
-    [getWindowApi, setThemeMode, themeMode],
+    [getWindowApi, invalidateHydratedPreferences, setThemeMode, themeMode],
   );
 
   const persistFallbackAgentId = useCallback(
@@ -102,6 +109,7 @@ export const usePreferencesFlow = ({
         return;
       }
 
+      invalidateHydratedPreferences();
       setFallbackAgentId(nextFallbackAgentId);
 
       const api = getWindowApi();
@@ -128,7 +136,7 @@ export const usePreferencesFlow = ({
         reportRendererError('Failed to persist fallback agent preferences', error);
       }
     },
-    [fallbackAgentId, getWindowApi],
+    [fallbackAgentId, getWindowApi, invalidateHydratedPreferences],
   );
 
   useEffect(() => {
@@ -140,9 +148,11 @@ export const usePreferencesFlow = ({
     }
 
     const loadPreferences = async (): Promise<void> => {
+      const hydrationVersion = hydrationVersionRef.current;
+
       try {
         const preferences = await api.preferences.getAll();
-        if (!isCancelled) {
+        if (!isCancelled && hydrationVersion === hydrationVersionRef.current) {
           applyHydratedPreferences(preferences);
         }
       } catch (error) {
@@ -161,6 +171,7 @@ export const usePreferencesFlow = ({
     fallbackAgentId,
     fallbackAgentOptions,
     fallbackWarningLineThreshold,
+    invalidateHydratedPreferences,
     persistThemeMode,
     persistFallbackAgentId,
   };

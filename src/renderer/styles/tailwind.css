@@ -352,15 +352,18 @@ body {
   flex: 1 1 auto;
   min-height: 0;
   width: 100%;
+  overscroll-behavior-x: contain;
   overflow-x: auto;
   overflow-y: hidden;
+  scroll-snap-type: x proximity;
 }
 
 .output-pane-strip-item {
   display: flex;
-  flex: 1 0 auto;
+  flex: 0 0 auto;
   min-width: 0;
   min-height: 0;
+  scroll-snap-align: start;
 }
 
 .output-pane-strip-item + .output-pane-strip-item {

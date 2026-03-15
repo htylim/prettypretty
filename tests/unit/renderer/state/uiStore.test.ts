@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { useUiStore } from '../../../../src/renderer/state/uiStore';
 
 describe('uiStore', () => {
-  it('toggles pane and theme modes', () => {
+  it('updates pane and theme modes through explicit setters', () => {
     useUiStore.setState({
       paneMode: 'input',
       themeMode: 'light',
@@ -11,8 +11,8 @@ describe('uiStore', () => {
       ingestNotice: null,
     });
 
-    useUiStore.getState().togglePaneMode();
-    useUiStore.getState().toggleThemeMode();
+    useUiStore.getState().setPaneMode('output');
+    useUiStore.getState().setThemeMode('dark');
 
     expect(useUiStore.getState().paneMode).toBe('output');
     expect(useUiStore.getState().themeMode).toBe('dark');

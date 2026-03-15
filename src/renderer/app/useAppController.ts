@@ -1,29 +1,15 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import type { IndentSize } from '../../shared/preferences';
 import type { TelemetryEventName } from '../../shared/telemetry';
 import type { PaneMode, ThemeMode } from '../../shared/types';
 import type { WindowApi } from '../../shared/window-api';
-import type { OutputPaneViewModel } from '../components/OutputPaneStrip';
 import type { InputEditorHandle } from '../components/InputEditor';
-import type { OutputEditorHandle } from '../components/OutputEditor';
 import { useUiStore } from '../state/uiStore';
 import type { FallbackAgentOption, FallbackWaitState, IngestSource } from './appDomain';
-import { getOutputDocumentId } from './appDomain';
-import {
-  closeRightmostOutputPane,
-  createOutputPaneChainState,
-  focusOutputPane,
-  getLastVisibleOutputPaneId,
-  getOutputPaneSourceHighlight,
-  getRootOutputPaneViewStateKey,
-  hasDerivedOutputPane,
-  openOrReplaceDerivedOutputPane,
-  ROOT_OUTPUT_PANE_ID,
-  type OutputPaneSelection,
-} from './outputPaneDomain';
 import { reportRendererError } from './reportRendererError';
 import { useKeyboardShortcuts } from './useKeyboardShortcuts';
+import { useOutputPaneController } from './useOutputPaneController';
 import { usePreferencesFlow } from './usePreferencesFlow';
 import { usePrettifierFlow } from './usePrettifierFlow';
 
@@ -31,45 +17,6 @@ type TelemetryMeta = Record<string, string | number | boolean | null>;
 
 type UseAppControllerOptions = {
   inputEditorRef: RefObject<InputEditorHandle | null>;
-};
-
-type OutputPaneChainSnapshot = {
-  scopeKey: string;
-  chainState: ReturnType<typeof createOutputPaneChainState>;
-};
-
-type OutputPaneChainAction =
-  | {
-      type: 'mutate';
-      scopeKey: string;
-      mutator: (
-        state: ReturnType<typeof createOutputPaneChainState>,
-      ) => ReturnType<typeof createOutputPaneChainState>;
-    }
-  | {
-      type: 'replace';
-      scopeKey: string;
-      chainState: ReturnType<typeof createOutputPaneChainState>;
-    };
-
-const outputPaneChainReducer = (
-  snapshot: OutputPaneChainSnapshot,
-  action: OutputPaneChainAction,
-): OutputPaneChainSnapshot => {
-  if (action.type === 'replace') {
-    return {
-      scopeKey: action.scopeKey,
-      chainState: action.chainState,
-    };
-  }
-
-  const baseState =
-    snapshot.scopeKey === action.scopeKey ? snapshot.chainState : createOutputPaneChainState();
-
-  return {
-    scopeKey: action.scopeKey,
-    chainState: action.mutator(baseState),
-  };
 };
 
 export type FallbackModalState =
@@ -89,7 +36,7 @@ export type UseAppControllerResult = {
   ingestNotice: string | null;
   outputText: string;
   outputDocumentId: string;
-  outputPanes: OutputPaneViewModel[];
+  outputPanes: ReturnType<typeof useOutputPaneController>['outputPanes'];
   fallbackWaitState: FallbackWaitState | null;
   fallbackWarningLineThreshold: number;
   fallbackModalState: FallbackModalState | null;
@@ -112,9 +59,11 @@ export type UseAppControllerResult = {
   onIngestInput: (value: string, source: IngestSource) => void;
   onDismissIngestNotice: () => void;
   onOpenFile: () => Promise<void>;
-  onOutputPaneHandleChange: (paneId: string, handle: OutputEditorHandle | null) => void;
+  onOutputPaneHandleChange: ReturnType<typeof useOutputPaneController>['onOutputPaneHandleChange'];
   onOutputPaneFocus: (paneId: string) => void;
-  onOutputPaneSplitSelection: (paneId: string, selection: OutputPaneSelection) => void;
+  onOutputPaneSplitSelection: ReturnType<
+    typeof useOutputPaneController
+  >['onOutputPaneSplitSelection'];
   onCancelFallback: () => void;
   onConfirmFallback: () => void;
   onSelectFallbackAgent: (agentId: string) => void;
@@ -136,8 +85,6 @@ export const useAppController = ({
   const latestIndentSizeRequestIdRef = useRef(0);
   const fallbackConfirmationResolverRef = useRef<((accepted: boolean) => void) | null>(null);
   const fallbackAgentSelectionResolverRef = useRef<((agentId: string | null) => void) | null>(null);
-  const outputPaneHandlesRef = useRef(new Map<string, OutputEditorHandle>());
-  const activeOutputPaneIdRef = useRef(ROOT_OUTPUT_PANE_ID);
   const paneMode = useUiStore((state) => state.paneMode);
   const themeMode = useUiStore((state) => state.themeMode);
   const indentSize = useUiStore((state) => state.indentSize);
@@ -150,10 +97,6 @@ export const useAppController = ({
   const setInputText = useUiStore((state) => state.setInputText);
   const setIngestNotice = useUiStore((state) => state.setIngestNotice);
   const [fallbackModalState, setFallbackModalState] = useState<FallbackModalState | null>(null);
-  const [outputPaneChainSnapshot, dispatchOutputPaneChain] = useReducer(outputPaneChainReducer, {
-    scopeKey: 'hidden:initial',
-    chainState: createOutputPaneChainState(),
-  });
 
   const logTelemetry = useCallback(
     async (name: TelemetryEventName, meta: TelemetryMeta): Promise<void> => {
@@ -175,6 +118,7 @@ export const useAppController = ({
     fallbackAgentId,
     fallbackAgentOptions,
     fallbackWarningLineThreshold,
+    invalidateHydratedPreferences,
     persistThemeMode,
     persistFallbackAgentId,
   } = usePreferencesFlow({
@@ -263,106 +207,22 @@ export const useAppController = ({
     requestFallbackAgentSelection,
     logTelemetry,
   });
-
-  const outputDocumentId = useMemo(() => getOutputDocumentId(outputText), [outputText]);
+  const {
+    outputDocumentId,
+    outputPanes,
+    hasDerivedOutputPane: hasVisibleDerivedOutputPane,
+    getActiveOutputPaneHandle,
+    onOutputPaneHandleChange: registerOutputPaneHandle,
+    onOutputPaneFocus: focusVisibleOutputPane,
+    onOutputPaneSplitSelection: openDerivedOutputPane,
+    onCloseOutputPane: closeDerivedOutputPane,
+    resetOutputPanes,
+  } = useOutputPaneController({
+    paneMode,
+    outputText,
+  });
   const hasContent = inputText.trim().length > 0;
   const isOutputMode = paneMode === 'output';
-  const outputPaneScopeKey = isOutputMode
-    ? `output:${outputDocumentId}`
-    : `hidden:${outputDocumentId}`;
-  const outputPaneChainState =
-    isOutputMode && outputPaneChainSnapshot.scopeKey === outputPaneScopeKey
-      ? outputPaneChainSnapshot.chainState
-      : createOutputPaneChainState();
-  const hasVisibleDerivedOutputPane = hasDerivedOutputPane(outputPaneChainState);
-  const activeOutputPaneId = outputPaneChainState.activePaneId;
-  const outputPanes = useMemo<OutputPaneViewModel[]>(() => {
-    const rootPane: OutputPaneViewModel = {
-      paneId: ROOT_OUTPUT_PANE_ID,
-      documentId: outputDocumentId,
-      viewStateKey: getRootOutputPaneViewStateKey(outputDocumentId),
-      value: outputText,
-      viewRange: null,
-      sourceHighlightRange: getOutputPaneSourceHighlight(outputPaneChainState, ROOT_OUTPUT_PANE_ID),
-      isSplitSelectionEnabled: true,
-      testId: 'output-editor',
-    };
-
-    return [
-      rootPane,
-      ...outputPaneChainState.derivedPanes.slice(0, 1).map((pane, index) => ({
-        paneId: pane.paneId,
-        documentId: outputDocumentId,
-        viewStateKey: pane.viewStateKey,
-        value: outputText,
-        viewRange: pane.sourceRange,
-        sourceHighlightRange: getOutputPaneSourceHighlight(outputPaneChainState, pane.paneId),
-        isSplitSelectionEnabled: false,
-        testId: `output-editor-pane-${index + 1}`,
-      })),
-    ];
-  }, [outputDocumentId, outputPaneChainState, outputText]);
-
-  const getActiveOutputPaneHandle = useCallback((): OutputEditorHandle | null => {
-    const activeHandle = outputPaneHandlesRef.current.get(activeOutputPaneIdRef.current) ?? null;
-    if (activeHandle) {
-      return activeHandle;
-    }
-
-    const lastVisiblePaneId = getLastVisibleOutputPaneId(outputPaneChainState);
-    return outputPaneHandlesRef.current.get(lastVisiblePaneId) ?? null;
-  }, [outputPaneChainState]);
-
-  const registerOutputPaneHandle = useCallback(
-    (paneId: string, handle: OutputEditorHandle | null): void => {
-      if (handle) {
-        outputPaneHandlesRef.current.set(paneId, handle);
-        return;
-      }
-
-      outputPaneHandlesRef.current.delete(paneId);
-    },
-    [],
-  );
-
-  const mutateOutputPaneChain = useCallback(
-    (
-      mutator: (
-        state: ReturnType<typeof createOutputPaneChainState>,
-      ) => ReturnType<typeof createOutputPaneChainState>,
-    ): void => {
-      dispatchOutputPaneChain({
-        type: 'mutate',
-        scopeKey: outputPaneScopeKey,
-        mutator,
-      });
-    },
-    [outputPaneScopeKey],
-  );
-
-  const focusVisibleOutputPane = useCallback(
-    (paneId: string): void => {
-      activeOutputPaneIdRef.current = paneId;
-      mutateOutputPaneChain((state) => focusOutputPane(state, paneId));
-    },
-    [mutateOutputPaneChain],
-  );
-
-  const openDerivedOutputPane = useCallback(
-    (paneId: string, selection: OutputPaneSelection): void => {
-      mutateOutputPaneChain((state) => {
-        const nextState = openOrReplaceDerivedOutputPane(state, paneId, selection);
-        const nextActivePaneId = getLastVisibleOutputPaneId(nextState);
-        activeOutputPaneIdRef.current = nextActivePaneId;
-        return focusOutputPane(nextState, nextActivePaneId);
-      });
-    },
-    [mutateOutputPaneChain],
-  );
-
-  const closeDerivedOutputPane = useCallback((): void => {
-    mutateOutputPaneChain((state) => closeRightmostOutputPane(state));
-  }, [mutateOutputPaneChain]);
 
   const openFile = useCallback(async (): Promise<void> => {
     const api = getWindowApi();
@@ -397,14 +257,9 @@ export const useAppController = ({
   const resetCurrentWindow = useCallback((): void => {
     cancelPendingFallbackPrompts();
     resetPrettifierState();
-    outputPaneHandlesRef.current.clear();
-    dispatchOutputPaneChain({
-      type: 'replace',
-      scopeKey: outputPaneScopeKey,
-      chainState: createOutputPaneChainState(),
-    });
+    resetOutputPanes();
     reset();
-  }, [cancelPendingFallbackPrompts, outputPaneScopeKey, reset, resetPrettifierState]);
+  }, [cancelPendingFallbackPrompts, reset, resetOutputPanes, resetPrettifierState]);
 
   const openNewWindow = useCallback((): void => {
     const api = getWindowApi();
@@ -430,6 +285,7 @@ export const useAppController = ({
         nextIndentSize,
       });
 
+      invalidateHydratedPreferences();
       setIndentSize(nextIndentSize);
 
       const api = getWindowApi();
@@ -468,6 +324,7 @@ export const useAppController = ({
       reindentOutputIfPrettified,
       restoreOutputFromSnapshot,
       setIndentSize,
+      invalidateHydratedPreferences,
     ],
   );
 
@@ -532,10 +389,6 @@ export const useAppController = ({
   }, [getActiveOutputPaneHandle, inputEditorRef, paneMode]);
 
   useEffect(() => {
-    activeOutputPaneIdRef.current = activeOutputPaneId;
-  }, [activeOutputPaneId]);
-
-  useEffect(() => {
     document.documentElement.dataset.theme = themeMode;
   }, [themeMode]);
 
@@ -557,14 +410,6 @@ export const useAppController = ({
       resetCurrentWindow();
     });
   }, [resetCurrentWindow]);
-
-  useEffect(() => {
-    dispatchOutputPaneChain({
-      type: 'replace',
-      scopeKey: outputPaneScopeKey,
-      chainState: createOutputPaneChainState(),
-    });
-  }, [outputPaneScopeKey]);
 
   useKeyboardShortcuts({
     isOutputMode,

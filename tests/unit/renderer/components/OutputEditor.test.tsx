@@ -9,8 +9,11 @@ import {
 } from '../../../../src/renderer/components/OutputEditor';
 
 const {
-  configureMonacoMock,
-  registerMonacoThemesMock,
+  prepareMonacoEditorRuntimeMock,
+  retainSharedEditorModelMock,
+  releaseSharedEditorModelMock,
+  restoreEditorViewStateMock,
+  saveEditorViewStateMock,
   getOutputEditorOptionsMock,
   registerInlineFoldControlsMock,
   setCollapseStateForFoldStartMock,
@@ -22,15 +25,9 @@ const {
   unfoldRunMock,
   findRunMock,
   focusMock,
-  restoreViewStateMock,
-  saveViewStateMock,
   setScrollTopMock,
   setScrollLeftMock,
   setPositionMock,
-  setHiddenAreasMock,
-  getModelByPathMock,
-  disposeModelMock,
-  uriParseMock,
   getActionMock,
   inlineControlsDisposeMock,
   splitSelectionDecorationUpdateMock,
@@ -40,8 +37,11 @@ const {
   hiddenAreasDisposeMock,
   focusWidgetDisposeMock,
 } = vi.hoisted(() => ({
-  configureMonacoMock: vi.fn(),
-  registerMonacoThemesMock: vi.fn(),
+  prepareMonacoEditorRuntimeMock: vi.fn(),
+  retainSharedEditorModelMock: vi.fn(),
+  releaseSharedEditorModelMock: vi.fn(),
+  restoreEditorViewStateMock: vi.fn(),
+  saveEditorViewStateMock: vi.fn(),
   getOutputEditorOptionsMock: vi.fn(() => ({
     readOnly: true,
     lineNumbers: 'on',
@@ -66,15 +66,9 @@ const {
   unfoldRunMock: vi.fn(async () => undefined),
   findRunMock: vi.fn(async () => undefined),
   focusMock: vi.fn(),
-  restoreViewStateMock: vi.fn(),
-  saveViewStateMock: vi.fn(),
   setScrollTopMock: vi.fn(),
   setScrollLeftMock: vi.fn(),
   setPositionMock: vi.fn(),
-  setHiddenAreasMock: vi.fn(),
-  getModelByPathMock: vi.fn(),
-  disposeModelMock: vi.fn(),
-  uriParseMock: vi.fn((path: string) => path),
   getActionMock: vi.fn(),
   inlineControlsDisposeMock: vi.fn(),
   splitSelectionDecorationUpdateMock: vi.fn(),
@@ -85,8 +79,12 @@ const {
   focusWidgetDisposeMock: vi.fn(),
 }));
 
-vi.mock('../../../../src/renderer/output/configureMonaco', () => ({
-  configureMonaco: configureMonacoMock,
+vi.mock('../../../../src/renderer/output/monacoEditorRuntime', () => ({
+  prepareMonacoEditorRuntime: prepareMonacoEditorRuntimeMock,
+  retainSharedEditorModel: retainSharedEditorModelMock,
+  releaseSharedEditorModel: releaseSharedEditorModelMock,
+  restoreEditorViewState: restoreEditorViewStateMock,
+  saveEditorViewState: saveEditorViewStateMock,
 }));
 
 vi.mock('../../../../src/renderer/editor/monacoFolding', () => ({
@@ -100,7 +98,6 @@ vi.mock('../../../../src/renderer/editor/monacoFolding', () => ({
 vi.mock('../../../../src/renderer/output/monacoThemes', () => ({
   PRETTYPRETTY_LIGHT_THEME: 'prettypretty-light',
   PRETTYPRETTY_DARK_THEME: 'prettypretty-dark',
-  registerMonacoThemes: registerMonacoThemesMock,
 }));
 
 vi.mock('../../../../src/renderer/output/outputEditorConfig', () => ({
@@ -132,6 +129,7 @@ type MonacoRenderProps = {
   path?: string;
   keepCurrentModel?: boolean;
   saveViewState?: boolean;
+  beforeMount?: (monaco: typeof import('monaco-editor')) => void;
   onMount?: (
     editor: MonacoEditor.IStandaloneCodeEditor,
     monaco: typeof import('monaco-editor'),
@@ -186,14 +184,11 @@ const editorMock = {
   },
   saveViewState: () => {
     const state = { token: `view-state-${viewStateCounter++}` };
-    saveViewStateMock(state);
     return state as unknown as MonacoEditor.ICodeEditorViewState;
   },
-  restoreViewState: restoreViewStateMock,
   setScrollTop: setScrollTopMock,
   setScrollLeft: setScrollLeftMock,
   setPosition: setPositionMock,
-  setHiddenAreas: setHiddenAreasMock,
   focus: focusMock,
   onMouseDown: (listener: NonNullable<typeof splitMouseDownListener>): { dispose: () => void } => {
     mouseDownListeners.push(listener);
@@ -215,22 +210,14 @@ const editorMock = {
   getModel: vi.fn(() => null),
 } as unknown as MonacoEditor.IStandaloneCodeEditor;
 
-const monacoMock = {
-  Uri: {
-    parse: uriParseMock,
-  },
-  editor: {
-    defineTheme: vi.fn(),
-    setTheme: vi.fn(),
-    getModel: getModelByPathMock,
-  },
-} as unknown as typeof import('monaco-editor');
+const monacoMock = {} as unknown as typeof import('monaco-editor');
 
 vi.mock('@monaco-editor/react', async () => {
   const React = await import('react');
 
-  const MockEditor = ({ onMount, onUnmount, value, ...rest }: MonacoRenderProps) => {
+  const MockEditor = ({ beforeMount, onMount, onUnmount, value, ...rest }: MonacoRenderProps) => {
     editorRenderSpy({
+      beforeMount,
       onMount,
       onUnmount,
       value,
@@ -238,11 +225,12 @@ vi.mock('@monaco-editor/react', async () => {
     });
 
     React.useEffect(() => {
+      beforeMount?.(monacoMock);
       onMount?.(editorMock, monacoMock);
       return () => {
         onUnmount?.(editorMock, monacoMock);
       };
-    }, [onMount, onUnmount]);
+    }, [beforeMount, onMount, onUnmount]);
 
     return React.createElement('div', { 'data-testid': 'monaco-editor-mock' }, value);
   };
@@ -267,8 +255,11 @@ describe('OutputEditor', () => {
     mouseDownListeners = [];
     splitMouseDownListener = null;
     focusWidgetListener = null;
-    configureMonacoMock.mockClear();
-    registerMonacoThemesMock.mockClear();
+    prepareMonacoEditorRuntimeMock.mockClear();
+    retainSharedEditorModelMock.mockClear();
+    releaseSharedEditorModelMock.mockClear();
+    restoreEditorViewStateMock.mockClear();
+    saveEditorViewStateMock.mockClear();
     getOutputEditorOptionsMock.mockClear();
     registerInlineFoldControlsMock.mockClear();
     createSplitSelectionDecorationsMock.mockClear();
@@ -278,17 +269,9 @@ describe('OutputEditor', () => {
     unfoldRunMock.mockClear();
     findRunMock.mockClear();
     focusMock.mockClear();
-    restoreViewStateMock.mockClear();
-    saveViewStateMock.mockClear();
     setScrollTopMock.mockClear();
     setScrollLeftMock.mockClear();
     setPositionMock.mockClear();
-    setHiddenAreasMock.mockClear();
-    getModelByPathMock.mockReset().mockReturnValue({
-      dispose: disposeModelMock,
-    });
-    disposeModelMock.mockClear();
-    uriParseMock.mockClear();
     getActionMock.mockClear();
     inlineControlsDisposeMock.mockClear();
     setCollapseStateForFoldStartMock.mockClear();
@@ -304,8 +287,8 @@ describe('OutputEditor', () => {
   it('renders Monaco in read-only mode with line numbers and a pane-specific model path', () => {
     render(<OutputEditor {...createProps()} />);
 
-    expect(configureMonacoMock).toHaveBeenCalledTimes(1);
-    expect(registerMonacoThemesMock).toHaveBeenCalledTimes(1);
+    expect(prepareMonacoEditorRuntimeMock).toHaveBeenCalledWith(monacoMock);
+    expect(retainSharedEditorModelMock).toHaveBeenCalledWith('output://source/doc-1');
     expect(getOutputEditorOptionsMock).toHaveBeenCalledTimes(1);
     expect(getOutputEditorOptionsMock).toHaveBeenCalledWith(2);
 
@@ -379,7 +362,7 @@ describe('OutputEditor', () => {
     expect(getActionMock).not.toHaveBeenCalledWith('editor.unfoldAll');
   });
 
-  it('persists and restores view state by pane-specific view-state key', () => {
+  it('delegates pane-specific view-state save and restore to the Monaco runtime manager', () => {
     const firstRender = render(
       <OutputEditor
         {...createProps({
@@ -409,10 +392,14 @@ describe('OutputEditor', () => {
       />,
     );
 
-    const restoredStates = restoreViewStateMock.mock.calls.map(
-      (args) => args[0] as { token?: string },
+    expect(saveEditorViewStateMock).toHaveBeenCalledWith('output-root-pane:shared-doc', editorMock);
+    expect(restoreEditorViewStateMock).toHaveBeenCalledWith(
+      'output-root-pane:shared-doc',
+      editorMock,
+      expect.objectContaining({
+        hiddenAreaResetSource: expect.any(Object),
+      }),
     );
-    expect(restoredStates.some((state) => state?.token === 'view-state-0')).toBe(true);
   });
 
   it('registers inline fold controls for every pane and split gesture only when enabled', async () => {
@@ -521,6 +508,7 @@ describe('OutputEditor', () => {
 
     unmount();
 
+    expect(releaseSharedEditorModelMock).toHaveBeenCalledWith('output://source/doc-1');
     expect(inlineControlsDisposeMock).toHaveBeenCalledTimes(1);
     expect(focusMouseDownDisposeMock).toHaveBeenCalledTimes(1);
     expect(splitMouseDownDisposeMock).toHaveBeenCalledTimes(1);

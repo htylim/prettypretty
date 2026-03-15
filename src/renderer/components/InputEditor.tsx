@@ -1,16 +1,12 @@
 import Editor, { type OnMount } from '@monaco-editor/react';
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
 import type { editor as MonacoEditor } from 'monaco-editor';
 import type { IndentSize } from '../../shared/preferences';
 import type { ThemeMode } from '../../shared/types';
-import { configureMonaco } from '../output/configureMonaco';
 import { detectOutputLanguage } from '../output/detectOutputLanguage';
-import { registerCmdClickFoldToggle } from '../output/indentBlockFolding';
-import {
-  PRETTYPRETTY_DARK_THEME,
-  PRETTYPRETTY_LIGHT_THEME,
-  registerMonacoThemes,
-} from '../output/monacoThemes';
+import { registerPrimaryModifierFoldToggle } from '../output/indentBlockFolding';
+import { prepareMonacoEditorRuntime } from '../output/monacoEditorRuntime';
+import { PRETTYPRETTY_DARK_THEME, PRETTYPRETTY_LIGHT_THEME } from '../output/monacoThemes';
 import { getInputEditorOptions } from '../output/outputEditorConfig';
 
 type InputEditorProps = {
@@ -32,8 +28,9 @@ export const InputEditor = forwardRef<InputEditorHandle, InputEditorProps>(
     const options = useMemo(() => getInputEditorOptions(indentSize), [indentSize]);
     const language = useMemo(() => detectOutputLanguage(value), [value]);
     const theme = themeMode === 'dark' ? PRETTYPRETTY_DARK_THEME : PRETTYPRETTY_LIGHT_THEME;
-
-    configureMonaco();
+    const handleBeforeMount = useCallback((monaco: typeof import('monaco-editor')): void => {
+      prepareMonacoEditorRuntime(monaco);
+    }, []);
 
     useImperativeHandle(
       ref,
@@ -61,14 +58,14 @@ export const InputEditor = forwardRef<InputEditorHandle, InputEditorProps>(
 
     const handleMount: OnMount = (editor, monaco) => {
       editorRef.current = editor;
-      registerMonacoThemes(monaco);
-      monaco.editor.setTheme(theme);
-      interactionDisposablesRef.current = [registerCmdClickFoldToggle(editor)];
+      void monaco;
+      interactionDisposablesRef.current = [registerPrimaryModifierFoldToggle(editor)];
     };
 
     return (
       <div className="input-editor" data-testid="input-editor">
         <Editor
+          beforeMount={handleBeforeMount}
           height="100%"
           language={language}
           onChange={(nextValue) => onChange(nextValue ?? '')}

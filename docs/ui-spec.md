@@ -35,13 +35,13 @@
 - `Expand`/`Collapse` are wired to unfold-all/fold-all actions on the currently active editor (input or output).
 - `Save` and `Copy`: always visible; disabled in input mode and enabled in output mode.
 - Keyboard shortcuts:
-  - `Cmd+N`: open a new blank document window.
-  - `Cmd+Shift+N`: reset only the current/focused document window to the initial empty state.
-  - `Cmd+I`: switch to `Input`.
-  - `Cmd+O`: switch to `Output` only when output mode is available (same enable/disable rule as `Output` segment).
-  - `Cmd+S`: trigger `Save` only in output mode.
-  - `Cmd+Shift+C`: trigger `Copy` only in output mode.
-  - `Cmd+F`: open Monaco find widget in output mode, regardless of current DOM focus.
+  - `Cmd+N` on macOS / `Ctrl+N` on Windows/Linux: open a new blank document window.
+  - `Cmd+Shift+N` on macOS / `Ctrl+Shift+N` on Windows/Linux: reset only the current/focused document window to the initial empty state.
+  - `Cmd+I` on macOS / `Ctrl+I` on Windows/Linux: switch to `Input`.
+  - `Cmd+O` on macOS / `Ctrl+O` on Windows/Linux: switch to `Output` only when output mode is available (same enable/disable rule as `Output` segment).
+  - `Cmd+S` on macOS / `Ctrl+S` on Windows/Linux: trigger `Save` only in output mode.
+  - `Cmd+Shift+C` on macOS / `Ctrl+Shift+C` on Windows/Linux: trigger `Copy` only in output mode.
+  - `Cmd+F` on macOS / `Ctrl+F` on Windows/Linux: open Monaco find widget in output mode, regardless of current DOM focus.
 - Toolbar action visual treatment follows the design-style button pattern.
 - Theme mode control on the right: segmented `Light/Dark` toggle with explicit active segment.
 - Theme preference persistence: selected theme is stored through preload/main preferences APIs and restored on next app launch.
@@ -91,7 +91,7 @@
 - Output mode hides Monaco gutter fold controls and renders inline fold buttons anchored to visible Monaco fold-start lines.
 - Output inline fold buttons are UI controls, not code text; they sit after the rendered line content, move with horizontal and vertical scroll, and disappear when Monaco reports no fold regions.
 - Output mode minimap is enabled for document-level navigation.
-- Output mode search uses Monaco native find widget (triggered by `Cmd+F` in output mode).
+- Output mode search uses Monaco native find widget (triggered by the platform primary modifier plus `F` in output mode).
 - Paste inside Monaco find/replace inputs stays local to that widget and must not trigger app-level ingest/prettify flow.
 - Output mode fold/view state persists for the current document identity during the app session.
 - Output mode supports a structural split gesture in stage one:
@@ -99,6 +99,7 @@
   - clicking a folded fold-start line resolves that folded block from the model, not the visible placeholder text,
   - clicking a line with no enclosing foldable block is a no-op.
 - Stage one output split layout supports root pane `A` plus one derived pane `B` in a persistent `50/50` horizontal split.
+- The output pane strip keeps the full derived-pane chain mounted; once the chain grows beyond two panes, the strip extends horizontally with overflow instead of truncating pane state in the controller.
 - Derived pane `B`:
   - renders the same Monaco source model as pane `A`, but as a filtered view of the selected block,
   - stays read-only and uses the same syntax/theme/minimap/line-number/fold-control configuration as pane `A`,

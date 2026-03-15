@@ -8,40 +8,35 @@ import {
 } from '../../../../src/renderer/components/InputEditor';
 
 const {
-  configureMonacoMock,
-  registerMonacoThemesMock,
+  prepareMonacoEditorRuntimeMock,
   getInputEditorOptionsMock,
-  registerCmdClickFoldToggleMock,
+  registerPrimaryModifierFoldToggleMock,
   editorRenderSpy,
-  setThemeMock,
   foldRunMock,
   unfoldRunMock,
   getActionMock,
   foldToggleDisposeMock,
 } = vi.hoisted(() => ({
-  configureMonacoMock: vi.fn(),
-  registerMonacoThemesMock: vi.fn(),
+  prepareMonacoEditorRuntimeMock: vi.fn(),
   getInputEditorOptionsMock: vi.fn(() => ({
     readOnly: false,
     lineNumbers: 'on',
   })),
-  registerCmdClickFoldToggleMock: vi.fn(() => ({ dispose: foldToggleDisposeMock })),
+  registerPrimaryModifierFoldToggleMock: vi.fn(() => ({ dispose: foldToggleDisposeMock })),
   editorRenderSpy: vi.fn(),
-  setThemeMock: vi.fn(),
   foldRunMock: vi.fn(async () => undefined),
   unfoldRunMock: vi.fn(async () => undefined),
   getActionMock: vi.fn(),
   foldToggleDisposeMock: vi.fn(),
 }));
 
-vi.mock('../../../../src/renderer/output/configureMonaco', () => ({
-  configureMonaco: configureMonacoMock,
+vi.mock('../../../../src/renderer/output/monacoEditorRuntime', () => ({
+  prepareMonacoEditorRuntime: prepareMonacoEditorRuntimeMock,
 }));
 
 vi.mock('../../../../src/renderer/output/monacoThemes', () => ({
   PRETTYPRETTY_LIGHT_THEME: 'prettypretty-light',
   PRETTYPRETTY_DARK_THEME: 'prettypretty-dark',
-  registerMonacoThemes: registerMonacoThemesMock,
 }));
 
 vi.mock('../../../../src/renderer/output/outputEditorConfig', () => ({
@@ -49,7 +44,7 @@ vi.mock('../../../../src/renderer/output/outputEditorConfig', () => ({
 }));
 
 vi.mock('../../../../src/renderer/output/indentBlockFolding', () => ({
-  registerCmdClickFoldToggle: registerCmdClickFoldToggleMock,
+  registerPrimaryModifierFoldToggle: registerPrimaryModifierFoldToggleMock,
 }));
 
 type MonacoRenderProps = {
@@ -57,6 +52,7 @@ type MonacoRenderProps = {
   theme?: string;
   language?: string;
   options?: Record<string, unknown>;
+  beforeMount?: (monaco: typeof import('monaco-editor')) => void;
   onMount?: (
     editor: MonacoEditor.IStandaloneCodeEditor,
     monaco: typeof import('monaco-editor'),
@@ -64,11 +60,7 @@ type MonacoRenderProps = {
   onChange?: (value: string | undefined) => void;
 };
 
-const monacoMock = {
-  editor: {
-    setTheme: setThemeMock,
-  },
-} as unknown as typeof import('monaco-editor');
+const monacoMock = {} as unknown as typeof import('monaco-editor');
 
 const editorMock = {
   getAction: (id: string): { run: () => Promise<void> } | undefined => {
@@ -88,8 +80,9 @@ const editorMock = {
 vi.mock('@monaco-editor/react', async () => {
   const React = await import('react');
 
-  const MockEditor = ({ onMount, onChange, value, ...rest }: MonacoRenderProps) => {
+  const MockEditor = ({ beforeMount, onMount, onChange, value, ...rest }: MonacoRenderProps) => {
     editorRenderSpy({
+      beforeMount,
       onMount,
       onChange,
       value,
@@ -97,8 +90,9 @@ vi.mock('@monaco-editor/react', async () => {
     });
 
     React.useEffect(() => {
+      beforeMount?.(monacoMock);
       onMount?.(editorMock, monacoMock);
-    }, [onMount]);
+    }, [beforeMount, onMount]);
 
     return React.createElement(
       'button',
@@ -116,12 +110,10 @@ vi.mock('@monaco-editor/react', async () => {
 
 describe('InputEditor', () => {
   beforeEach(() => {
-    configureMonacoMock.mockClear();
-    registerMonacoThemesMock.mockClear();
+    prepareMonacoEditorRuntimeMock.mockClear();
     getInputEditorOptionsMock.mockClear();
-    registerCmdClickFoldToggleMock.mockClear();
+    registerPrimaryModifierFoldToggleMock.mockClear();
     editorRenderSpy.mockClear();
-    setThemeMock.mockClear();
     foldRunMock.mockClear();
     unfoldRunMock.mockClear();
     getActionMock.mockClear();
@@ -131,11 +123,9 @@ describe('InputEditor', () => {
   it('renders Monaco with shared options seam in editable mode', () => {
     render(<InputEditor themeMode="light" indentSize={2} value={'{"a":1}'} onChange={vi.fn()} />);
 
-    expect(configureMonacoMock).toHaveBeenCalledTimes(1);
-    expect(registerMonacoThemesMock).toHaveBeenCalledTimes(1);
+    expect(prepareMonacoEditorRuntimeMock).toHaveBeenCalledWith(monacoMock);
     expect(getInputEditorOptionsMock).toHaveBeenCalledTimes(1);
     expect(getInputEditorOptionsMock).toHaveBeenCalledWith(2);
-    expect(setThemeMock).toHaveBeenCalledWith('prettypretty-light');
 
     const lastRender = editorRenderSpy.mock.calls.at(-1)?.[0] as MonacoRenderProps;
     expect(lastRender.options?.readOnly).toBe(false);
@@ -186,7 +176,7 @@ describe('InputEditor', () => {
   it('registers shared fold toggle wiring on mount', () => {
     render(<InputEditor themeMode="light" indentSize={2} value="alpha" onChange={vi.fn()} />);
 
-    expect(registerCmdClickFoldToggleMock).toHaveBeenCalledWith(editorMock);
+    expect(registerPrimaryModifierFoldToggleMock).toHaveBeenCalledWith(editorMock);
   });
 
   it('disposes fold listener on unmount', () => {

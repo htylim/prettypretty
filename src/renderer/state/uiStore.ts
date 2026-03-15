@@ -9,9 +9,7 @@ type UiState = {
   inputText: string;
   ingestNotice: string | null;
   setPaneMode: (mode: PaneMode) => void;
-  togglePaneMode: () => void;
   setThemeMode: (mode: ThemeMode) => void;
-  toggleThemeMode: () => void;
   setIndentSize: (size: IndentSize) => void;
   setInputText: (text: string) => void;
   setIngestNotice: (notice: string | null) => void;
@@ -25,11 +23,7 @@ export const useUiStore = create<UiState>((set) => ({
   inputText: '',
   ingestNotice: null,
   setPaneMode: (mode) => set({ paneMode: mode }),
-  togglePaneMode: () =>
-    set((state) => ({ paneMode: state.paneMode === 'input' ? 'output' : 'input' })),
   setThemeMode: (mode) => set({ themeMode: mode }),
-  toggleThemeMode: () =>
-    set((state) => ({ themeMode: state.themeMode === 'light' ? 'dark' : 'light' })),
   setIndentSize: (size) => set({ indentSize: size }),
   setInputText: (text) => set({ inputText: text }),
   setIngestNotice: (notice) => set({ ingestNotice: notice }),

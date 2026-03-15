@@ -98,6 +98,7 @@ describe('useAppController', () => {
       fallbackAgentId: 'codex',
       fallbackAgentOptions: [{ id: 'codex', name: 'Codex', enabled: true }],
       fallbackWarningLineThreshold: 300,
+      invalidateHydratedPreferences: vi.fn(),
       persistThemeMode: vi.fn().mockResolvedValue(undefined),
       persistFallbackAgentId: vi.fn().mockResolvedValue(undefined),
     });
@@ -207,6 +208,9 @@ describe('useAppController', () => {
     expect(
       usePreferencesFlowMock.mock.results[0]?.value.persistFallbackAgentId,
     ).toHaveBeenCalledWith(null);
+    expect(
+      usePreferencesFlowMock.mock.results[0]?.value.invalidateHydratedPreferences,
+    ).toHaveBeenCalledTimes(1);
     expect(usePrettifierFlowMock.mock.results[0]?.value.ingestInputText).toHaveBeenCalledWith(
       '{"next":1}',
       'paste',

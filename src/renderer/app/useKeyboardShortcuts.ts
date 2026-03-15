@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import type { PaneMode } from '../../shared/types';
+import { hasPrimaryModifier } from './primaryModifier';
 
 type UseKeyboardShortcutsOptions = {
   isOutputMode: boolean;
@@ -30,7 +31,7 @@ export const useKeyboardShortcuts = ({
         return;
       }
 
-      if (!event.metaKey || event.ctrlKey || event.altKey) {
+      if (!hasPrimaryModifier(event)) {
         return;
       }
 

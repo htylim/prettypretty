@@ -5,7 +5,6 @@ import {
   focusOutputPane,
   getOutputPaneSourceHighlight,
   openOrReplaceDerivedOutputPane,
-  resetOutputPaneChain,
 } from '../../../../src/renderer/app/outputPaneDomain';
 
 const rootSelection = {
@@ -84,7 +83,7 @@ describe('outputPaneDomain', () => {
     );
   });
 
-  it('closes the rightmost pane, exposes parent highlights, and resets cleanly', () => {
+  it('closes the rightmost pane and exposes parent highlights', () => {
     const withChild = openOrReplaceDerivedOutputPane(
       createOutputPaneChainState(),
       'output-root-pane',
@@ -99,9 +98,5 @@ describe('outputPaneDomain', () => {
     const closed = closeRightmostOutputPane(focusOutputPane(withChild, 'output-pane-1'));
     expect(closed.derivedPanes).toHaveLength(0);
     expect(closed.activePaneId).toBe('output-root-pane');
-
-    const reset = resetOutputPaneChain(withChild);
-    expect(reset.derivedPanes).toEqual([]);
-    expect(reset.activePaneId).toBe('output-root-pane');
   });
 });

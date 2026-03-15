@@ -227,12 +227,18 @@ describe('usePreferencesFlow', () => {
       expect(ref.current?.getThemeMode()).toBe('light');
     });
 
-    const firstPersist = ref.current?.persistThemeMode('dark');
+    let firstPersist: Promise<void> | undefined;
+    await act(async () => {
+      firstPersist = ref.current?.persistThemeMode('dark');
+    });
     await waitFor(() => {
       expect(ref.current?.getThemeMode()).toBe('dark');
     });
 
-    const secondPersist = ref.current?.persistThemeMode('light');
+    let secondPersist: Promise<void> | undefined;
+    await act(async () => {
+      secondPersist = ref.current?.persistThemeMode('light');
+    });
     await waitFor(() => {
       expect(update).toHaveBeenCalledTimes(2);
     });
@@ -249,6 +255,41 @@ describe('usePreferencesFlow', () => {
 
     expect(update).toHaveBeenCalledTimes(2);
     expect(ref.current?.getThemeMode()).toBe('light');
+  });
+
+  it('ignores stale startup hydration after a newer preference mutation', async () => {
+    const getAllDeferred = createDeferred<Preferences>();
+    const getAll = vi.fn().mockReturnValue(getAllDeferred.promise);
+    const update = vi.fn().mockResolvedValue(createPreferences({ themeMode: 'dark' }));
+    const api = createWindowApi(getAll, update);
+    const ref = { current: null as HarnessHandle | null };
+
+    render(createElement(PreferencesHarness, { api, ref }));
+
+    await waitFor(() => {
+      expect(getAll).toHaveBeenCalledTimes(1);
+    });
+
+    await act(async () => {
+      await ref.current?.persistThemeMode('dark');
+    });
+
+    await act(async () => {
+      getAllDeferred.resolve(
+        createPreferences({
+          themeMode: 'light',
+          indentSize: 6,
+          fallbackWarningLineThreshold: 420,
+          fallbackAgentId: 'amp',
+        }),
+      );
+      await Promise.resolve();
+    });
+
+    expect(ref.current?.getThemeMode()).toBe('dark');
+    expect(ref.current?.getIndentSize()).toBe(2);
+    expect(ref.current?.getFallbackWarningLineThreshold()).toBe(300);
+    expect(ref.current?.getFallbackAgentId()).toBeNull();
   });
 
   it('keeps optimistic theme update when preload bridge is unavailable', async () => {

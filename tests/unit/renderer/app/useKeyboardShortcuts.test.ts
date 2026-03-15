@@ -1,7 +1,18 @@
 import { fireEvent, render } from '@testing-library/react';
 import { createElement } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useKeyboardShortcuts } from '../../../../src/renderer/app/useKeyboardShortcuts';
+
+const { hasPrimaryModifierMock } = vi.hoisted(() => ({
+  hasPrimaryModifierMock: vi.fn(
+    (event: { metaKey?: boolean; ctrlKey?: boolean; altKey?: boolean }) =>
+      Boolean(event.metaKey) && !event.ctrlKey && !event.altKey,
+  ),
+}));
+
+vi.mock('../../../../src/renderer/app/primaryModifier', () => ({
+  hasPrimaryModifier: hasPrimaryModifierMock,
+}));
 
 type HarnessProps = {
   isOutputMode: boolean;
@@ -33,6 +44,10 @@ const createDefaults = () => ({
 });
 
 describe('useKeyboardShortcuts', () => {
+  beforeEach(() => {
+    hasPrimaryModifierMock.mockClear();
+  });
+
   it('runs copy shortcut only in output mode with Cmd+Shift+C', () => {
     const defaults = createDefaults();
     const { rerender } = render(createElement(KeyboardHarness, defaults));

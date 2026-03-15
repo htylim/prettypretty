@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isJsonSerializableValue } from '../../../../src/renderer/prettifier/jsonSerializableGuard';
+import { isJsonSerializableValue } from '../../../../src/shared/localPrettifier';
 
 describe('isJsonSerializableValue', () => {
   it('accepts nested plain objects and arrays with finite numbers', () => {

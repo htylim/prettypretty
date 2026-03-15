@@ -60,6 +60,7 @@ describe('OutputPaneStrip', () => {
     );
 
     expect(screen.getByTestId('output-pane-strip')).toHaveAttribute('data-split', 'false');
+    expect(screen.getByTestId('output-pane-strip')).toHaveAttribute('data-pane-count', '1');
     expect(screen.getAllByTestId(paneItemPattern)).toHaveLength(1);
     expect(screen.getByTestId('output-pane-output-root-pane')).toHaveStyle({ flexBasis: '100%' });
     expect(screen.getByTestId('output-editor')).toHaveTextContent('"root": true');
@@ -95,6 +96,7 @@ describe('OutputPaneStrip', () => {
     );
 
     expect(screen.getByTestId('output-pane-strip')).toHaveAttribute('data-split', 'true');
+    expect(screen.getByTestId('output-pane-strip')).toHaveAttribute('data-pane-count', '2');
     expect(screen.getAllByTestId(paneItemPattern)).toHaveLength(2);
     expect(screen.getByTestId('output-pane-output-root-pane')).toHaveStyle({ flexBasis: '50%' });
     expect(screen.getByTestId('output-pane-output-pane-1')).toHaveStyle({ flexBasis: '50%' });
@@ -102,7 +104,7 @@ describe('OutputPaneStrip', () => {
     expect(screen.getByTestId('output-editor-pane-1')).toHaveAttribute('data-view-end', '5');
   });
 
-  it('replaces pane B content in place and removes it cleanly when closed', () => {
+  it('keeps every derived pane mounted in the horizontal strip and removes them cleanly', () => {
     const { rerender } = render(
       <OutputPaneStrip
         indentSize={2}
@@ -126,12 +128,29 @@ describe('OutputPaneStrip', () => {
             isSplitSelectionEnabled: false,
             testId: 'output-editor-pane-1',
           },
+          {
+            paneId: 'output-pane-2',
+            documentId: 'root-doc',
+            viewStateKey: 'output-pane-2:selection-1',
+            value: '{\n  "root": true,\n  "grandchild": true\n}',
+            viewRange: {
+              startLineNumber: 7,
+              startColumn: 1,
+              endLineNumber: 9,
+              endColumn: 2,
+            },
+            sourceHighlightRange: null,
+            isSplitSelectionEnabled: false,
+            testId: 'output-editor-pane-2',
+          },
         ]}
         themeMode="light"
       />,
     );
 
     expect(screen.getByTestId('output-editor-pane-1')).toHaveAttribute('data-view-start', '3');
+    expect(screen.getByTestId('output-editor-pane-2')).toHaveAttribute('data-view-start', '7');
+    expect(screen.getByTestId('output-pane-strip')).toHaveAttribute('data-overflowing', 'true');
 
     rerender(
       <OutputPaneStrip
@@ -156,12 +175,28 @@ describe('OutputPaneStrip', () => {
             isSplitSelectionEnabled: false,
             testId: 'output-editor-pane-1',
           },
+          {
+            paneId: 'output-pane-2',
+            documentId: 'root-doc',
+            viewStateKey: 'output-pane-2:selection-2',
+            value: '{\n  "root": true,\n  "grandchild-replacement": true\n}',
+            viewRange: {
+              startLineNumber: 11,
+              startColumn: 1,
+              endLineNumber: 13,
+              endColumn: 2,
+            },
+            sourceHighlightRange: null,
+            isSplitSelectionEnabled: false,
+            testId: 'output-editor-pane-2',
+          },
         ]}
         themeMode="light"
       />,
     );
 
     expect(screen.getByTestId('output-editor-pane-1')).toHaveAttribute('data-view-start', '7');
+    expect(screen.getByTestId('output-editor-pane-2')).toHaveAttribute('data-view-start', '11');
 
     rerender(
       <OutputPaneStrip
@@ -175,6 +210,7 @@ describe('OutputPaneStrip', () => {
     );
 
     expect(screen.queryByTestId('output-editor-pane-1')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('output-editor-pane-2')).not.toBeInTheDocument();
     expect(screen.getAllByTestId(paneItemPattern)).toHaveLength(1);
   });
 });

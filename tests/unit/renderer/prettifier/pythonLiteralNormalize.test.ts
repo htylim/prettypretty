@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizePythonLiterals } from '../../../../src/renderer/prettifier/pythonLiteralNormalize';
+import { normalizePythonLiterals } from '../../../../src/shared/localPrettifier';
 
 describe('normalizePythonLiterals', () => {
   it('normalizes True/False/None tokens outside strings', () => {

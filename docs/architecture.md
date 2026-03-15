@@ -18,9 +18,11 @@
 
 - `src/renderer/App.tsx` is a thin composition shell only.
 - `src/renderer/app/useAppController.ts` owns renderer orchestration and UI wiring.
+- `src/renderer/app/useOutputPaneController.ts` owns output-pane chain state, active-pane routing, and reset rules independently from the broader app controller.
 - `src/renderer/app/usePrettifierFlow.ts` owns prettifier execution flow, request-id race guards, fallback wait/progress state, and request-scoped fallback cancellation.
 - `src/renderer/app/usePreferencesFlow.ts` owns preferences hydration and optimistic persistence sequencing for theme/fallback agent.
 - `src/renderer/app/useKeyboardShortcuts.ts` owns keyboard shortcut bindings and mode gating.
+- `src/renderer/app/primaryModifier.ts` centralizes platform-aware primary-modifier detection for renderer shortcuts and Monaco input gestures.
 - `src/renderer/app/appDomain.ts` contains pure helper functions/constants shared by renderer controller hooks.
 - `src/renderer/app/outputPaneDomain.ts` owns pure derived-pane chain mutations, source-highlight lookup, and active-pane normalization for output split behavior.
 - `src/renderer/app/reportRendererError.ts` provides a single renderer-side error reporting path.
@@ -32,9 +34,10 @@
 - `src/renderer/output/indentBlockFolding.ts` remains the modifier-click registration seam, but it now delegates fold targeting and toggling to `monacoFolding.ts` instead of inferring fold ranges from indentation.
 - `src/renderer/output/structuralSplitSelection.ts` resolves the smallest enclosing foldable block from Monaco model data and returns the exact source range for derived output panes.
 - `src/renderer/output/outputViewRange.ts` owns pane-local hidden-area application so derived panes can render filtered views over the shared root Monaco model without mutating source text or fold state in sibling panes.
+- `src/renderer/output/monacoEditorRuntime.ts` owns Monaco runtime preparation, bounded pane view-state caching, and shared-model reference counting so editor instances do not manage those globals inline.
 - `src/renderer/output/splitSelectionDecorations.ts` owns the Monaco decoration collection for source-pane split highlights.
-- `src/renderer/components/OutputPaneStrip.tsx` renders the ordered horizontal output pane strip and mounts multiple `OutputEditor` instances safely.
-- Output-pane editors share one Monaco source model per root output document. Root-pane view state persists by root document identity; derived-pane view-state keys are still regenerated when a new source range replaces a pane so the derived pane reopens expanded with pane-local fold state.
+- `src/renderer/components/OutputPaneStrip.tsx` renders the ordered horizontal output pane strip and mounts every pane in the current chain, relying on horizontal overflow instead of truncating the chain in the controller.
+- Output-pane editors share one Monaco source model per root output document. Root-pane view state persists by root document identity, derived-pane keys are regenerated when a selection changes, and the runtime manager caps cached view-state entries so pane replacement cannot grow that cache without bound.
 
 ## Runtime Flow
 
@@ -64,6 +67,7 @@
   - `preferences:update`
   - `preferences:reset`
 - Toolbar preferences (`themeMode`, `indentSize`, `fallbackAgentId`) use optimistic renderer updates with request-id sequencing and rollback on failed persistence.
+- Startup hydration is invalidated whenever a newer optimistic preference mutation begins, so a slow `preferences:get-all` response cannot overwrite a more recent local selection.
 - `fallbackWarningLineThreshold` is hydrated from preferences and consumed by renderer prettifier orchestration to gate large fallback runs; current scope does not expose a toolbar write path for this value.
 - Store writes are serialized and atomic (temp file + flush + rename).
 - Invalid/corrupt preferences files are rolled to `preferences.corrupt.<timestamp>.json` and replaced with defaults.
@@ -121,5 +125,5 @@
 - Fallback execution enforces timeout and output-size caps and classifies failures into typed statuses.
 - Any fallback failure degrades to passthrough output instead of throwing into renderer.
 - Empty open-file/drop content stays in input mode and shows an inline notice (`File has no content.`).
-- Output split state stays renderer-window local inside `useAppController`, resets on root-output invalidation / output-mode exit / window reset, and never changes the root output text used by save/copy.
+- Output split state stays renderer-window local inside `useOutputPaneController`, resets on root-output invalidation / output-mode exit / window reset, and never changes the root output text used by save/copy.
 - Toolbar fold/find routing uses controller-managed `activePaneId` plus registered output-editor handles, so visible pane focus is independent from pane content identity.

@@ -1,24 +1,32 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { editor as MonacoEditor } from 'monaco-editor';
-import { registerCmdClickFoldToggle } from '../../../../src/renderer/output/indentBlockFolding';
+import { registerPrimaryModifierFoldToggle } from '../../../../src/renderer/output/indentBlockFolding';
 
-const { findOwningFoldStartLineMock, toggleFoldStartMock } = vi.hoisted(() => ({
-  findOwningFoldStartLineMock: vi.fn(),
-  toggleFoldStartMock: vi.fn(),
-}));
+const { findOwningFoldStartLineMock, toggleFoldStartMock, hasPrimaryModifierMock } = vi.hoisted(
+  () => ({
+    findOwningFoldStartLineMock: vi.fn(),
+    toggleFoldStartMock: vi.fn(),
+    hasPrimaryModifierMock: vi.fn(),
+  }),
+);
 
 vi.mock('../../../../src/renderer/editor/monacoFolding', () => ({
   findOwningFoldStartLine: findOwningFoldStartLineMock,
   toggleFoldStart: toggleFoldStartMock,
 }));
 
+vi.mock('../../../../src/renderer/app/primaryModifier', () => ({
+  hasPrimaryModifier: hasPrimaryModifierMock,
+}));
+
 describe('indentBlockFolding', () => {
   beforeEach(() => {
     findOwningFoldStartLineMock.mockReset();
     toggleFoldStartMock.mockReset();
+    hasPrimaryModifierMock.mockReset();
   });
 
-  it('toggles fold on Cmd+click only when a Monaco fold owner exists', () => {
+  it('toggles fold on primary-modifier click only when a Monaco fold owner exists', () => {
     const onMouseDownMock = vi.fn();
     const editor = {
       onMouseDown: (handler: (event: MonacoEditor.IEditorMouseEvent) => void) => {
@@ -28,8 +36,9 @@ describe('indentBlockFolding', () => {
     } as unknown as MonacoEditor.IStandaloneCodeEditor;
 
     findOwningFoldStartLineMock.mockReturnValue(2);
+    hasPrimaryModifierMock.mockReturnValue(false);
 
-    registerCmdClickFoldToggle(editor);
+    registerPrimaryModifierFoldToggle(editor);
 
     const handleMouseDown = onMouseDownMock.mock.calls[0]?.[0] as
       | ((event: MonacoEditor.IEditorMouseEvent) => void)
@@ -55,6 +64,7 @@ describe('indentBlockFolding', () => {
 
     const preventDefault = vi.fn();
     const stopPropagation = vi.fn();
+    hasPrimaryModifierMock.mockReturnValue(true);
     handleMouseDown({
       target: { position: { lineNumber: 3, column: 6 } },
       event: {
@@ -81,8 +91,9 @@ describe('indentBlockFolding', () => {
     } as unknown as MonacoEditor.IStandaloneCodeEditor;
 
     findOwningFoldStartLineMock.mockReturnValue(null);
+    hasPrimaryModifierMock.mockReturnValue(true);
 
-    registerCmdClickFoldToggle(editor);
+    registerPrimaryModifierFoldToggle(editor);
 
     const handleMouseDown = onMouseDownMock.mock.calls[0]?.[0] as
       | ((event: MonacoEditor.IEditorMouseEvent) => void)

@@ -27,6 +27,12 @@ let onPrettifierProgressListener: ((event: { requestId: number; line: string }) 
   null;
 let onResetCurrentWindowListener: (() => void) | null = null;
 
+const getPrimaryModifierEventInit = (): { ctrlKey?: boolean; metaKey?: boolean } => {
+  return /mac|iphone|ipad|ipod/iu.test(window.navigator.platform)
+    ? { metaKey: true }
+    : { ctrlKey: true };
+};
+
 const emitPrettifierProgress = (event: { requestId: number; line: string }): void => {
   onPrettifierProgressListener?.(event);
 };
@@ -1005,6 +1011,8 @@ describe('App', () => {
   });
 
   it('supports command shortcuts for pane switching, save/copy, new window, and reset', async () => {
+    const primaryModifierEventInit = getPrimaryModifierEventInit();
+
     act(() => {
       useUiStore.setState({
         paneMode: 'output',
@@ -1015,25 +1023,25 @@ describe('App', () => {
 
     await renderApp();
 
-    fireEvent.keyDown(window, { key: 'i', metaKey: true });
+    fireEvent.keyDown(window, { key: 'i', ...primaryModifierEventInit });
     expect(screen.getByTestId('pane-segment-input')).toHaveAttribute('aria-pressed', 'true');
 
-    fireEvent.keyDown(window, { key: 'o', metaKey: true });
+    fireEvent.keyDown(window, { key: 'o', ...primaryModifierEventInit });
     expect(screen.getByTestId('pane-segment-output')).toHaveAttribute('aria-pressed', 'true');
 
-    fireEvent.keyDown(window, { key: 's', metaKey: true });
-    fireEvent.keyDown(window, { key: 'c', metaKey: true, shiftKey: true });
-    fireEvent.keyDown(window, { key: 'f', metaKey: true });
+    fireEvent.keyDown(window, { key: 's', ...primaryModifierEventInit });
+    fireEvent.keyDown(window, { key: 'c', shiftKey: true, ...primaryModifierEventInit });
+    fireEvent.keyDown(window, { key: 'f', ...primaryModifierEventInit });
 
     expect(saveMock).toHaveBeenCalledTimes(1);
     expect(copyMock).toHaveBeenCalledTimes(1);
     expect(openFindMock).toHaveBeenCalledTimes(1);
 
-    fireEvent.keyDown(window, { key: 'n', metaKey: true });
+    fireEvent.keyDown(window, { key: 'n', ...primaryModifierEventInit });
     expect(openWindowMock).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId('pane-segment-output')).toHaveAttribute('aria-pressed', 'true');
 
-    fireEvent.keyDown(window, { key: 'n', metaKey: true, shiftKey: true });
+    fireEvent.keyDown(window, { key: 'n', shiftKey: true, ...primaryModifierEventInit });
     expect(screen.getByTestId('pane-segment-input')).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByTestId('pane-segment-output')).toHaveAttribute('aria-pressed', 'false');
   });
