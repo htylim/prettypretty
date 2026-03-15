@@ -1,4 +1,4 @@
-import { _electron as electron, expect, test, type Page } from '@playwright/test';
+import { _electron as electron, expect, test, type Locator, type Page } from '@playwright/test';
 import { join } from 'node:path';
 
 type RectSnapshot = {
@@ -15,7 +15,9 @@ type BrowserRect = Omit<RectSnapshot, 'centerY'>;
 
 type BrowserElement = {
   textContent?: string | null;
+  parentElement?: BrowserElement | null;
   getBoundingClientRect: () => BrowserRect;
+  getAttribute: (name: string) => string | null;
   querySelector: (selector: string) => BrowserElement | null;
   querySelectorAll: (selector: string) => BrowserElement[];
 };
@@ -71,6 +73,7 @@ const readInlineFoldControlGeometry = async (
 ): Promise<{
   line: RectSnapshot | null;
   lineText: RectSnapshot | null;
+  preview: RectSnapshot | null;
   self: RectSnapshot | null;
 }> =>
   page.evaluate(
@@ -87,6 +90,7 @@ const readInlineFoldControlGeometry = async (
           self: null,
           line: null,
           lineText: null,
+          preview: null,
         };
       }
 
@@ -115,15 +119,17 @@ const readInlineFoldControlGeometry = async (
       if (line && lineRange) {
         lineRange.selectNodeContents(line);
       }
+      const control = editor.querySelector(
+        `[data-testid="output-inline-fold-control"][data-line-number="${targetLineNumber}"]`,
+      );
 
       return {
-        self: toRect(
-          editor
-            .querySelector(
-              `[data-testid="output-inline-fold-control"][data-line-number="${targetLineNumber}"]`,
-            )
+        preview: toRect(
+          control?.parentElement
+            ?.querySelector('[data-testid="output-inline-fold-preview"]')
             ?.getBoundingClientRect() ?? null,
         ),
+        self: toRect(control?.getBoundingClientRect() ?? null),
         line: toRect(line?.getBoundingClientRect() ?? null),
         lineText: toRect(lineRange?.getBoundingClientRect() ?? null),
       };
@@ -145,6 +151,50 @@ const expectInlineFoldControlsAnchored = async (
   expect(geometry.self.left).toBeGreaterThan(geometry.lineText.right - 4);
   expect(geometry.self.left - geometry.lineText.right).toBeLessThan(64);
 };
+
+const expectCollapsedPreviewVerticallyAligned = async (
+  page: Page,
+  lineNumber: number,
+  lineText: string,
+): Promise<void> => {
+  const geometry = await readInlineFoldControlGeometry(page, lineNumber, lineText);
+  if (!geometry.preview || !geometry.line) {
+    throw new Error('Expected collapsed preview geometry');
+  }
+
+  expect(Math.abs(geometry.preview.centerY - geometry.line.centerY)).toBeLessThan(6);
+};
+
+const expectSourceLineVisible = async (editor: Locator, text: string): Promise<void> => {
+  await expect(editor.locator('.view-line').filter({ hasText: text }).first()).toBeVisible();
+};
+
+const expectSourceLineHidden = async (editor: Locator, text: string): Promise<void> => {
+  await expect(editor.locator('.view-line').filter({ hasText: text })).toHaveCount(0);
+};
+
+const readCollapsedFoldPreview = async (
+  page: Page,
+  lineNumber: number,
+): Promise<{ text: string | null; title: string | null }> =>
+  page.evaluate((targetLineNumber) => {
+    const runtime = globalThis as unknown as {
+      document?: {
+        querySelector: (selector: string) => BrowserElement | null;
+      };
+    };
+    const button = runtime.document?.querySelector(
+      `[data-testid="output-inline-fold-control"][data-line-number="${targetLineNumber}"]`,
+    );
+    const preview = button?.parentElement?.querySelector(
+      '[data-testid="output-inline-fold-preview"]',
+    ) as BrowserElement | null;
+
+    return {
+      text: preview?.textContent ?? null,
+      title: preview?.getAttribute('title') ?? null,
+    };
+  }, lineNumber);
 
 test('launches app and renders main window', async () => {
   const app = await electron.launch({
@@ -173,6 +223,7 @@ test('renders Monaco output editor and keeps collapse/expand stable in output mo
   const expandButton = page.getByRole('button', { name: 'Expand', exact: true });
   await expect(collapseButton).toBeEnabled();
   await expect(expandButton).toBeEnabled();
+  await expectSourceLineVisible(page.getByTestId('output-editor'), '"leaf": 3');
 
   await collapseButton.click();
   await expandButton.click();
@@ -183,16 +234,49 @@ test('renders Monaco output editor and keeps collapse/expand stable in output mo
     .filter({ hasText: '"nested"' })
     .first();
   await expect(nestedLine).toBeVisible();
-  await expect(page.getByTestId('output-editor')).toContainText('"leaf": 3');
+  await expectSourceLineVisible(page.getByTestId('output-editor'), '"leaf": 3');
 
   await page
     .getByRole('button', { name: /Collapse folded block at line/ })
     .first()
     .click();
-  await expect(page.getByTestId('output-editor')).not.toContainText('"leaf": 3');
+  await expectSourceLineHidden(page.getByTestId('output-editor'), '"leaf": 3');
 
   await expandButton.click();
-  await expect(page.getByTestId('output-editor')).toContainText('"leaf": 3');
+  await expectSourceLineVisible(page.getByTestId('output-editor'), '"leaf": 3');
+
+  await resetPreferences(page);
+  await app.close();
+});
+
+test('shows a truncated preview overlay for collapsed output blocks', async () => {
+  const app = await electron.launch({
+    args: [join(process.cwd(), 'out/main/index.js')],
+  });
+
+  const page = await app.firstWindow();
+  await page.waitForLoadState('domcontentloaded');
+  await resetPreferences(page);
+  await dispatchPaste(
+    page,
+    '{"products":{"1001356":{"sku":"1001356","account_id":"QWNjb3VudDo2NzY4NQ==","warehouse_id":"V2FyZWhvdXNlOjgzOTM5"}}}',
+  );
+
+  const outputEditor = page.getByTestId('output-editor');
+  const productControl = outputEditor.locator(
+    '[data-testid="output-inline-fold-control"][data-line-number="3"]',
+  );
+
+  await expect(productControl).toBeVisible();
+  await productControl.click();
+  await expect(productControl).toHaveAttribute('aria-label', 'Expand folded block at line 3');
+  await expectCollapsedPreviewVerticallyAligned(page, 3, '"1001356"');
+
+  const preview = await readCollapsedFoldPreview(page, 3);
+  expect(preview.text).toBe('"sku": "1001356", "account_id": "QWNjb3VudDo2NzY4NQ==", ...');
+  expect(preview.title).toBe(
+    '"sku": "1001356", "account_id": "QWNjb3VudDo2NzY4NQ==", "warehouse_id": "V2FyZWhvdXNlOjgzOTM5"',
+  );
 
   await resetPreferences(page);
   await app.close();
@@ -224,14 +308,14 @@ test('renders inline output fold controls and hides gutter fold controls', async
   ).toHaveAttribute('aria-label', 'Collapse folded block at line 3');
 
   await inlineControl.click();
-  await expect(outputEditor).not.toContainText('"leaf": 3');
+  await expectSourceLineHidden(outputEditor, '"leaf": 3');
 
   const expandInlineControl = page
     .getByRole('button', { name: /Expand folded block at line/ })
     .first();
   await expect(expandInlineControl).toBeVisible();
   await expandInlineControl.click();
-  await expect(outputEditor).toContainText('"leaf": 3');
+  await expectSourceLineVisible(outputEditor, '"leaf": 3');
 
   await resetPreferences(page);
   await app.close();
@@ -261,28 +345,28 @@ test('holding Ctrl switches the inline fold control to direct-child behavior', a
   await expect(topControl).toHaveAttribute('aria-label', 'Collapse direct child blocks at line 3');
 
   await topControl.click();
-  await expect(outputEditor).toContainText('"d": {');
-  await expect(outputEditor).toContainText('"f": {');
-  await expect(outputEditor).not.toContainText('"e": {}');
-  await expect(outputEditor).not.toContainText('"g": 2');
+  await expectSourceLineVisible(outputEditor, '"d": {');
+  await expectSourceLineVisible(outputEditor, '"f": {');
+  await expectSourceLineHidden(outputEditor, '"e": {}');
+  await expectSourceLineHidden(outputEditor, '"g": 2');
 
   await expect(topControl).toHaveAttribute('data-fold-action', 'expand');
   await expect(topControl).toHaveAttribute('aria-label', 'Expand direct child blocks at line 3');
   await page.keyboard.up('Control');
 
   await topControl.click();
-  await expect(outputEditor).not.toContainText('"a": 1');
+  await expectSourceLineHidden(outputEditor, '"a": 1');
   await expect(topControl).toHaveAttribute('aria-label', 'Expand folded block at line 3');
 
   await page.keyboard.down('Control');
   await expect(topControl).toHaveAttribute('aria-label', 'Expand direct child blocks at line 3');
   await topControl.click();
-  await expect(outputEditor).not.toContainText('"a": 1');
+  await expectSourceLineHidden(outputEditor, '"a": 1');
   await page.keyboard.up('Control');
 
   await topControl.click();
-  await expect(outputEditor).toContainText('"e": {}');
-  await expect(outputEditor).toContainText('"g": 2');
+  await expectSourceLineVisible(outputEditor, '"e": {}');
+  await expectSourceLineVisible(outputEditor, '"g": 2');
 
   await resetPreferences(page);
   await app.close();
@@ -308,7 +392,7 @@ test('keeps the inline fold button anchored to the fold-start line across mode c
 
   await page.keyboard.down('Control');
   await topControl.click();
-  await expect(outputEditor).not.toContainText('"e": {}');
+  await expectSourceLineHidden(outputEditor, '"e": {}');
   await expectInlineFoldControlsAnchored(page, 3, '"top"');
   await page.keyboard.up('Control');
 
@@ -359,15 +443,16 @@ test('keeps inline fold controls aligned with Monaco TypeScript folding', async 
 
   const inlineControl = page.getByRole('button', { name: /Collapse folded block at line/ }).first();
   await expect(inlineControl).toBeVisible();
+  await expectSourceLineVisible(outputEditor, 'name: string;');
 
   await inlineControl.click();
-  await expect(outputEditor).not.toContainText('name: string;');
+  await expectSourceLineHidden(outputEditor, 'name: string;');
 
   const expandInlineControl = page
     .getByRole('button', { name: /Expand folded block at line/ })
     .first();
   await expandInlineControl.click();
-  await expect(outputEditor).toContainText('name: string;');
+  await expectSourceLineVisible(outputEditor, 'name: string;');
 
   await resetPreferences(page);
   await app.close();

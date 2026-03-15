@@ -9,10 +9,19 @@ import {
 
 const INLINE_FOLD_CONTROL_OVERSCAN_LINES = 2;
 const CONTENT_WIDGET_POSITION_PREFERENCE_EXACT = 0;
+const COLLAPSED_FOLD_PREVIEW_MAX_LENGTH = 60;
+const COLLAPSED_FOLD_PREVIEW_MAX_LINES = 4;
+const COLLAPSED_FOLD_PREVIEW_ELLIPSIS = ' ...';
+const COLLAPSED_FOLD_PREVIEW_SKIP_LINE_PATTERN = /^[()[\]{}]+,?$/;
 
 type FoldWidget = MonacoEditor.IContentWidget & {
   dispose: () => void;
   update: (foldStart: FoldStart) => void;
+};
+
+type FoldPreview = {
+  displayText: string;
+  fullText: string;
 };
 
 const getSelfToggleAction = (foldStart: FoldStart): FoldToggleAction =>
@@ -41,6 +50,66 @@ const createChildFoldControlLabel = (foldStart: FoldStart, action: FoldToggleAct
 
 const createDisabledChildFoldControlLabel = (foldStart: FoldStart): string =>
   `No direct child blocks at line ${foldStart.lineNumber}`;
+
+const normalizeFoldPreviewLine = (lineContent: string): string =>
+  lineContent.trim().replace(/\s+/g, ' ');
+
+const truncateFoldPreview = (previewText: string): string => {
+  if (previewText.length <= COLLAPSED_FOLD_PREVIEW_MAX_LENGTH) {
+    return previewText;
+  }
+
+  const hardLimit = Math.max(
+    1,
+    COLLAPSED_FOLD_PREVIEW_MAX_LENGTH - COLLAPSED_FOLD_PREVIEW_ELLIPSIS.length,
+  );
+  const softLimit = previewText.lastIndexOf(' ', hardLimit);
+  const shouldUseSoftLimit = softLimit >= Math.max(1, hardLimit - 16);
+  const cutIndex = shouldUseSoftLimit ? softLimit : hardLimit;
+  return `${previewText.slice(0, cutIndex).trimEnd()}${COLLAPSED_FOLD_PREVIEW_ELLIPSIS}`;
+};
+
+const createCollapsedFoldPreview = (
+  editor: MonacoEditor.IStandaloneCodeEditor,
+  foldStart: FoldStart,
+): FoldPreview | null => {
+  if (!foldStart.isCollapsed) {
+    return null;
+  }
+
+  const model = editor.getModel();
+  if (!model) {
+    return null;
+  }
+
+  const previewSegments: string[] = [];
+  for (
+    let lineNumber = foldStart.lineNumber + 1;
+    lineNumber <= foldStart.endLineNumber &&
+    previewSegments.length < COLLAPSED_FOLD_PREVIEW_MAX_LINES;
+    lineNumber += 1
+  ) {
+    const normalizedLine = normalizeFoldPreviewLine(model.getLineContent(lineNumber));
+    if (
+      normalizedLine.length === 0 ||
+      COLLAPSED_FOLD_PREVIEW_SKIP_LINE_PATTERN.test(normalizedLine)
+    ) {
+      continue;
+    }
+
+    previewSegments.push(normalizedLine);
+  }
+
+  if (previewSegments.length === 0) {
+    return null;
+  }
+
+  const fullText = previewSegments.join(' ');
+  return {
+    displayText: truncateFoldPreview(fullText),
+    fullText,
+  };
+};
 
 const stopContextMenu = (event: MouseEvent): void => {
   event.preventDefault();
@@ -96,6 +165,10 @@ const createFoldWidget = (
   domNode.className = 'output-inline-fold-control-widget';
   const buttonRow = document.createElement('div');
   buttonRow.className = 'output-inline-fold-control-row';
+  const preview = document.createElement('span');
+  preview.className = 'output-inline-fold-preview';
+  preview.setAttribute('data-testid', 'output-inline-fold-preview');
+  preview.setAttribute('aria-hidden', 'true');
   const runSelfToggleAction = (): void => {
     if (!toggleFoldStart(editor, foldStart.lineNumber)) {
       return;
@@ -133,12 +206,14 @@ const createFoldWidget = (
   });
 
   buttonRow.append(controlButton);
+  buttonRow.append(preview);
   domNode.append(buttonRow);
 
   const updateButton = (): void => {
     const isCtrlModifierActive = getIsCtrlModifierActive();
     const selfAction = getSelfToggleAction(foldStart);
     controlButton.setAttribute('data-line-number', String(foldStart.lineNumber));
+    buttonRow.setAttribute('data-fold-state', foldStart.isCollapsed ? 'collapsed' : 'expanded');
 
     if (!isCtrlModifierActive) {
       controlButton.disabled = false;
@@ -177,6 +252,22 @@ const createFoldWidget = (
     controlButton.title = createChildFoldControlLabel(foldStart, childAction);
   };
 
+  const updatePreview = (): void => {
+    const foldPreview = createCollapsedFoldPreview(editor, foldStart);
+    if (!foldPreview) {
+      preview.hidden = true;
+      preview.textContent = '';
+      preview.removeAttribute('title');
+      buttonRow.setAttribute('data-fold-preview-visible', 'false');
+      return;
+    }
+
+    preview.hidden = false;
+    preview.textContent = foldPreview.displayText;
+    preview.title = foldPreview.fullText;
+    buttonRow.setAttribute('data-fold-preview-visible', 'true');
+  };
+
   const widget: FoldWidget = {
     // Monaco's exact-position overflowing content widgets ignore horizontal scroll.
     // Keep fold controls inside the scrollable content layer so they stay code-anchored.
@@ -201,6 +292,7 @@ const createFoldWidget = (
     update: (nextFoldStart) => {
       foldStart = nextFoldStart;
       updateButton();
+      updatePreview();
       editor.layoutContentWidget(widget);
     },
     dispose: () => {
@@ -209,6 +301,7 @@ const createFoldWidget = (
   };
 
   updateButton();
+  updatePreview();
   return widget;
 };
 

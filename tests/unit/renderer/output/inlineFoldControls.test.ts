@@ -21,7 +21,9 @@ const flushAsync = async (): Promise<void> => {
   await Promise.resolve();
 };
 
-const createEditor = (): {
+const createEditor = (
+  lineContentByNumber: Record<number, string> = {},
+): {
   editor: MonacoEditor.IStandaloneCodeEditor;
   widgets: Map<string, MonacoEditor.IContentWidget>;
   listeners: Record<string, (() => void) | null>;
@@ -61,6 +63,7 @@ const createEditor = (): {
     getModel: () =>
       ({
         getLineMaxColumn: (lineNumber: number) => lineNumber + 10,
+        getLineContent: (lineNumber: number) => lineContentByNumber[lineNumber] ?? '',
       }) as MonacoEditor.ITextModel,
     addContentWidget: addContentWidgetMock,
     removeContentWidget: removeContentWidgetMock,
@@ -190,6 +193,67 @@ describe('inlineFoldControls', () => {
     registration.dispose();
   });
 
+  it('renders a collapsed preview overlay from the top block content', async () => {
+    const { editor, widgets } = createEditor({
+      3: '    "sku": "1001356",',
+      4: '    "account_id": "QWNjb3VudDo2NzY4NQ==",',
+      5: '    "vendors": {',
+    });
+    getVisibleFoldStartLinesMock.mockResolvedValue([
+      { lineNumber: 2, endLineNumber: 6, isCollapsed: true, childToggleAction: null },
+    ]);
+
+    const registration = registerInlineFoldControls(editor);
+    await flushAsync();
+
+    const widget = widgets.get('output-inline-fold-control:2');
+    if (!widget) {
+      throw new Error('Expected inline fold widget');
+    }
+
+    const preview = widget.getDomNode().querySelector('[data-testid="output-inline-fold-preview"]');
+    if (!preview) {
+      throw new Error('Expected inline fold preview');
+    }
+
+    expect(preview).toHaveTextContent(
+      '"sku": "1001356", "account_id": "QWNjb3VudDo2NzY4NQ==", ...',
+    );
+    expect(preview).toHaveAttribute(
+      'title',
+      '"sku": "1001356", "account_id": "QWNjb3VudDo2NzY4NQ==", "vendors": {',
+    );
+
+    registration.dispose();
+  });
+
+  it('hides the preview overlay for expanded folds', async () => {
+    const { editor, widgets } = createEditor({
+      3: '    "sku": "1001356",',
+    });
+    getVisibleFoldStartLinesMock.mockResolvedValue([
+      { lineNumber: 2, endLineNumber: 6, isCollapsed: false, childToggleAction: null },
+    ]);
+
+    const registration = registerInlineFoldControls(editor);
+    await flushAsync();
+
+    const widget = widgets.get('output-inline-fold-control:2');
+    if (!widget) {
+      throw new Error('Expected inline fold widget');
+    }
+
+    const preview = widget.getDomNode().querySelector('[data-testid="output-inline-fold-preview"]');
+    if (!preview) {
+      throw new Error('Expected inline fold preview');
+    }
+
+    expect(preview).toHaveProperty('hidden', true);
+    expect(preview).toHaveTextContent('');
+
+    registration.dispose();
+  });
+
   it('uses the same button for direct child fold state when Ctrl is held', async () => {
     const { editor, widgets } = createEditor();
     getVisibleFoldStartLinesMock.mockResolvedValue([
@@ -313,7 +377,10 @@ describe('inlineFoldControls', () => {
   });
 
   it('refreshes widget state after hidden-area changes', async () => {
-    const { editor, widgets, listeners, layoutContentWidgetMock } = createEditor();
+    const { editor, widgets, listeners, layoutContentWidgetMock } = createEditor({
+      3: '    "nested": {',
+      4: '      "leaf": 3',
+    });
     getVisibleFoldStartLinesMock
       .mockResolvedValueOnce([
         { lineNumber: 2, endLineNumber: 6, isCollapsed: false, childToggleAction: null },
@@ -334,13 +401,19 @@ describe('inlineFoldControls', () => {
     if (!button) {
       throw new Error('Expected inline fold button');
     }
+    const preview = widget.getDomNode().querySelector('[data-testid="output-inline-fold-preview"]');
+    if (!preview) {
+      throw new Error('Expected inline fold preview');
+    }
 
     expect(button).toHaveAttribute('aria-expanded', 'true');
+    expect(preview).toHaveProperty('hidden', true);
 
     listeners.hiddenAreas?.();
     await flushAsync();
 
     expect(button).toHaveAttribute('aria-expanded', 'false');
+    expect(preview).toHaveTextContent('"nested": { "leaf": 3');
     expect(layoutContentWidgetMock).toHaveBeenCalled();
 
     registration.dispose();

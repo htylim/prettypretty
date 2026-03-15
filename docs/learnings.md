@@ -21,6 +21,7 @@ Do not add routine status updates, implementation history, or one-time decisions
 - Do not use Monaco exact-position content widgets with `allowEditorOverflow` for code-anchored controls that must follow horizontal scroll; Monaco does not subtract `scrollLeft` in that path, so the control appears pinned while text moves.
 - Do not stop at model-position anchoring for inline Monaco controls; tune vertical offset and post-line spacing against Monaco line metrics or the control will sit low in the line and crowd folded placeholder text.
 - Do not assume one horizontal offset works for both inline fold states; expanded controls can sit tighter to code, while collapsed controls may need extra right-side clearance from Monaco placeholder text.
+- Do not build collapsed fold previews from syntax-specific parsing or the rendered placeholder text; derive them from the Monaco model lines inside the folded region so the overlay stays language-agnostic and source-accurate.
 - Do not implement inline Monaco fold affordances with injected text; use content widgets so copied/saved output and syntax highlighting stay untouched.
 - Do not rely on the Monaco content-widget root node for flex row layout; Monaco injects an inline `display: block` host style, so multi-control inline widgets need a nested row container.
 - Do not derive direct-child fold actions from rendered text or visible indentation; use Monaco region parent indexes so immediate-child toggles stay correct even when the parent block itself is folded.

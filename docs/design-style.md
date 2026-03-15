@@ -127,6 +127,11 @@
   - while literal `Ctrl` is held, restyle that same button into direct-child mode with the subtle downward cue,
   - in direct-child mode the glyph reflects the current direct-child action (`-` when any direct child block is expanded, `+` only when all direct child blocks are already collapsed),
   - if no immediate child foldable regions exist, keep the button visible but disabled while `Ctrl` is held.
+- Output collapsed-preview styling:
+  - reuse the same inline widget as the fold button instead of creating a second anchoring layer,
+  - show only while the owning fold region is collapsed,
+  - render after the button with muted token-derived color, italic text, and no pointer hit target,
+  - derive preview copy from the first meaningful lines inside the folded region and cap the rendered string to about `60` characters with trailing `...` when needed.
 - Bracket pair colorization must define at least six depth colors before repeating.
 - Search in output mode should use Monaco's native find widget (no custom decoration class for search matches).
 

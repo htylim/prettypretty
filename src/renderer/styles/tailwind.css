@@ -406,18 +406,23 @@ body {
 
 .output-inline-fold-control-widget {
   height: 23px;
+  display: flex;
+  align-items: center;
 }
 
 .output-inline-fold-control-row {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   height: 23px;
-  padding-top: 1px;
   padding-left: 18px;
-  transform: translateY(-4px);
+  transform: translateY(-1px);
   user-select: none;
   white-space: nowrap;
+}
+
+.output-inline-fold-control-row[data-fold-state='collapsed'] {
+  padding-left: 22px;
 }
 
 .output-inline-fold-control {
@@ -460,6 +465,26 @@ body {
   outline: 1px solid var(--focus-ring);
   outline-offset: -1px;
   color: var(--text);
+}
+
+.output-inline-fold-preview {
+  display: block;
+  align-self: center;
+  max-width: min(420px, 42vw);
+  overflow: hidden;
+  color: color-mix(in oklab, var(--muted) 88%, var(--line));
+  font-family: var(--font-code);
+  font-size: 0.8rem;
+  font-style: italic;
+  line-height: 1.15;
+  letter-spacing: 0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.output-inline-fold-control-row[data-fold-preview-visible='false'] .output-inline-fold-preview {
+  display: none;
 }
 
 .fallback-wait-screen {

@@ -15,6 +15,7 @@
   - it is not inserted as readable code text,
   - it does not cover any token,
   - it uses a muted control treatment distinct from syntax colors.
+- When a fold-start line is collapsed, the same anchored widget shows a subtle preview of the top content inside the folded block.
 - The control scrolls with the code horizontally and vertically.
 - Only Monaco fold-start lines render controls. If Monaco exposes no fold regions for the current output, no inline controls render.
 - The control state is obvious:
@@ -88,6 +89,11 @@ The exact glyph can change, but the code-anchored position and non-code visual t
   - use border/background colors from UI tokens, not syntax-token colors,
   - use `+` for collapsed and `-` for expanded, or an equivalent equally explicit icon pair,
   - increase contrast on hover/focus without making the control look like code text.
+- Collapsed preview styling:
+  - render in the same widget row as the button so it stays anchored to the fold-start line,
+  - use muted italic text distinct from source tokens,
+  - derive copy from the first meaningful lines inside the folded range,
+  - cap the rendered preview to about `60` characters and append `...` when truncated.
 - Control accessibility:
   - render a button or button-equivalent element with an accessible name,
   - expose collapsed/expanded state through semantics such as `aria-expanded`,
@@ -164,6 +170,7 @@ Reference note for implementation agents: any code in this spec is intent-only, 
 - [ ] Input editor keeps the current gutter-fold affordance.
 - [ ] Line numbers remain visible in output mode.
 - [ ] Clicking an inline control collapses and expands the correct block.
+- [ ] Collapsed output blocks show a subtle top-of-block preview overlay that is not part of the source text.
 - [ ] Toolbar `Expand` / `Collapse` remain functional and keep inline control state synchronized.
 - [ ] Existing primary-modifier click fold toggle remains functional in both panes and uses the same fold-target resolution as inline controls.
 - [ ] Non-foldable output content shows no inline fold controls.

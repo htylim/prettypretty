@@ -92,6 +92,10 @@
 - Input mode keeps Monaco fold controls in the gutter.
 - Output mode hides Monaco gutter fold controls and renders inline fold buttons anchored to visible Monaco fold-start lines.
 - Output inline fold buttons are UI controls, not code text; they sit after the rendered line content, move with horizontal and vertical scroll, and disappear when Monaco reports no fold regions.
+- When an output block is collapsed, that same inline fold widget also shows a subtle preview overlay of the top content inside the block:
+  - preview text is anchored to the folded line, not injected into the Monaco model,
+  - preview styling stays visually subordinate to real code (muted + italic),
+  - preview text is capped to roughly `60` characters and ends with `...` when truncated.
 - Output inline fold button interaction:
   - without modifiers, the button toggles only the clicked fold block,
   - while literal `Ctrl` is held, that same button applies the direct-child action to the clicked block's immediate child foldable regions without toggling the clicked block itself,
