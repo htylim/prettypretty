@@ -34,6 +34,9 @@ const loadPreloadApi = async () => {
       initialThemeMode: string | null;
       openWindow: () => Promise<void>;
       onResetCurrentWindow: (listener: () => void) => () => void;
+      onNavigationCommand: (
+        listener: (command: 'browser-backward' | 'browser-forward') => void,
+      ) => () => void;
     };
     logs: { onLine: (listener: (line: string) => void) => () => void };
     prettifier: {
@@ -95,6 +98,23 @@ describe('preload bridge', () => {
 
     unsubscribe();
     expect(removeListenerMock).toHaveBeenCalledWith('app:reset-current-window', wrappedListener);
+  });
+
+  it('wires app.onNavigationCommand subscription and cleanup through ipcRenderer', async () => {
+    const api = await loadPreloadApi();
+    const navigationListener = vi.fn();
+
+    const unsubscribe = api.app.onNavigationCommand(navigationListener);
+    const wrappedListener = onMock.mock.calls[0]?.[1] as
+      | ((event: unknown, command: 'browser-backward' | 'browser-forward') => void)
+      | undefined;
+    wrappedListener?.({}, 'browser-forward');
+
+    expect(onMock).toHaveBeenCalledWith('app:navigation-command', expect.any(Function));
+    expect(navigationListener).toHaveBeenCalledWith('browser-forward');
+
+    unsubscribe();
+    expect(removeListenerMock).toHaveBeenCalledWith('app:navigation-command', wrappedListener);
   });
 
   it('wires logs.onLine subscription and cleanup through ipcRenderer', async () => {

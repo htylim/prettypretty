@@ -3,15 +3,16 @@ import type { RefObject } from 'react';
 import type { IndentSize } from '../../shared/preferences';
 import type { TelemetryEventName } from '../../shared/telemetry';
 import type { PaneMode, ThemeMode } from '../../shared/types';
-import type { WindowApi } from '../../shared/window-api';
 import type { InputEditorHandle } from '../components/InputEditor';
 import { useUiStore } from '../state/uiStore';
 import type { FallbackAgentOption, FallbackWaitState, IngestSource } from './appDomain';
 import { reportRendererError } from './reportRendererError';
 import { useKeyboardShortcuts } from './useKeyboardShortcuts';
+import { useMouseNavigationShortcuts } from './useMouseNavigationShortcuts';
 import { useOutputPaneController } from './useOutputPaneController';
 import { usePreferencesFlow } from './usePreferencesFlow';
 import { usePrettifierFlow } from './usePrettifierFlow';
+import { getWindowApi } from './windowApi';
 
 type TelemetryMeta = Record<string, string | number | boolean | null>;
 
@@ -75,11 +76,6 @@ export type UseAppControllerResult = {
   onCancelFallback: () => void;
   onConfirmFallback: () => void;
   onSelectFallbackAgent: (agentId: string) => void;
-};
-
-const getWindowApi = (): WindowApi | null => {
-  const candidate = (window as Window & { prettypretty?: WindowApi }).prettypretty;
-  return candidate ?? null;
 };
 
 /**
@@ -440,6 +436,10 @@ export const useAppController = ({
     openFind: () => {
       getActiveOutputPaneHandle()?.openFind();
     },
+  });
+  useMouseNavigationShortcuts({
+    isOutputMode,
+    navigateOutputPaneViewport,
   });
 
   return {

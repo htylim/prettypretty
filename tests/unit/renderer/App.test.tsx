@@ -216,6 +216,7 @@ beforeEach(() => {
         getInfo: vi.fn().mockResolvedValue({ name: 'prettypretty', version: '0.1.0' }),
         openWindow: openWindowMock,
         onResetCurrentWindow: appOnResetCurrentWindowMock,
+        onNavigationCommand: vi.fn().mockImplementation(() => vi.fn()),
         initialThemeMode: null,
       },
       preferences: {

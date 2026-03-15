@@ -10,6 +10,7 @@ import { useAppController } from '../../../../src/renderer/app/useAppController'
 const usePrettifierFlowMock = vi.fn();
 const usePreferencesFlowMock = vi.fn();
 const useKeyboardShortcutsMock = vi.fn();
+const useMouseNavigationShortcutsMock = vi.fn();
 const openWindowMock = vi.fn();
 const dialogOpenFileMock = vi.fn();
 const fileSaveMock = vi.fn();
@@ -29,6 +30,10 @@ vi.mock('../../../../src/renderer/app/usePreferencesFlow', () => ({
 
 vi.mock('../../../../src/renderer/app/useKeyboardShortcuts', () => ({
   useKeyboardShortcuts: (options: unknown) => useKeyboardShortcutsMock(options),
+}));
+
+vi.mock('../../../../src/renderer/app/useMouseNavigationShortcuts', () => ({
+  useMouseNavigationShortcuts: (options: unknown) => useMouseNavigationShortcutsMock(options),
 }));
 
 type HarnessHandle = {
@@ -80,6 +85,7 @@ describe('useAppController', () => {
     usePrettifierFlowMock.mockReset();
     usePreferencesFlowMock.mockReset();
     useKeyboardShortcutsMock.mockReset();
+    useMouseNavigationShortcutsMock.mockReset();
 
     usePrettifierFlowMock.mockReturnValue({
       outputText: '{\n  "hello": true\n}',
@@ -135,6 +141,7 @@ describe('useAppController', () => {
             onResetCurrentWindowListener = listener;
             return resetCurrentWindowUnsubscribeMock;
           },
+          onNavigationCommand: vi.fn().mockImplementation(() => vi.fn()),
           initialThemeMode: null,
         },
         logs: {

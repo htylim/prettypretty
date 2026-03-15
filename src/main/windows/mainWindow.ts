@@ -7,6 +7,7 @@ import {
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { IPCChannels } from '../../shared/ipc-contracts';
 import type { ThemeMode } from '../../shared/types';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -18,6 +19,21 @@ const MAIN_WINDOW_WIDTH = 1280;
 const MAIN_WINDOW_HEIGHT = 840;
 const WINDOW_STAGGER_OFFSET = 32;
 const mainWindows = new WeakSet<BrowserWindow>();
+const isBrowserNavigationCommand = (
+  command: string,
+): command is 'browser-backward' | 'browser-forward' => {
+  return command === 'browser-backward' || command === 'browser-forward';
+};
+
+const isSwipeDirection = (direction: string): direction is 'left' | 'right' => {
+  return direction === 'left' || direction === 'right';
+};
+
+const getBrowserNavigationCommandForSwipe = (
+  direction: 'left' | 'right',
+): 'browser-backward' | 'browser-forward' => {
+  return direction === 'left' ? 'browser-backward' : 'browser-forward';
+};
 
 const getMainWindowBackgroundColor = (themeMode: ThemeMode): string => {
   return themeMode === 'dark' ? '#121316' : '#f5f1eb';
@@ -110,6 +126,25 @@ export const createMainWindow = async (
 
   const win = new BrowserWindow(windowOptions);
   mainWindows.add(win);
+  win.on?.('app-command', (event, command) => {
+    if (!isBrowserNavigationCommand(command)) {
+      return;
+    }
+
+    event.preventDefault();
+    win.webContents.send(IPCChannels.appNavigationCommand, command);
+  });
+  win.on?.('swipe', (event, direction) => {
+    if (!isSwipeDirection(direction)) {
+      return;
+    }
+
+    event.preventDefault();
+    win.webContents.send(
+      IPCChannels.appNavigationCommand,
+      getBrowserNavigationCommandForSwipe(direction),
+    );
+  });
 
   if (process.env.ELECTRON_RENDERER_URL) {
     await win.loadURL(process.env.ELECTRON_RENDERER_URL);

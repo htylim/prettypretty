@@ -133,6 +133,35 @@ describe('useKeyboardShortcuts', () => {
     expect(defaults.navigateOutputPaneViewport).toHaveBeenNthCalledWith(2, 1);
   });
 
+  it('routes browser-style back and forward shortcuts to split navigation in output mode', () => {
+    const defaults = createDefaults();
+    const { rerender } = render(createElement(KeyboardHarness, defaults));
+
+    fireEvent.keyDown(window, { key: '[', metaKey: true });
+    fireEvent.keyDown(window, { key: ']', metaKey: true });
+    fireEvent.keyDown(window, { key: 'ArrowLeft', altKey: true });
+    fireEvent.keyDown(window, { key: 'ArrowRight', altKey: true });
+    expect(defaults.navigateOutputPaneViewport).not.toHaveBeenCalled();
+
+    rerender(
+      createElement(KeyboardHarness, {
+        ...defaults,
+        isOutputMode: true,
+        paneMode: 'output',
+      }),
+    );
+
+    fireEvent.keyDown(window, { key: '[', metaKey: true });
+    fireEvent.keyDown(window, { key: ']', metaKey: true });
+    fireEvent.keyDown(window, { key: 'ArrowLeft', altKey: true });
+    fireEvent.keyDown(window, { key: 'ArrowRight', altKey: true });
+
+    expect(defaults.navigateOutputPaneViewport).toHaveBeenNthCalledWith(1, -1);
+    expect(defaults.navigateOutputPaneViewport).toHaveBeenNthCalledWith(2, 1);
+    expect(defaults.navigateOutputPaneViewport).toHaveBeenNthCalledWith(3, -1);
+    expect(defaults.navigateOutputPaneViewport).toHaveBeenNthCalledWith(4, 1);
+  });
+
   it('pops splits on Escape only when output mode is active and the event is not consumed', () => {
     const defaults = createDefaults();
     const { rerender } = render(createElement(KeyboardHarness, defaults));

@@ -136,6 +136,7 @@ const createAppApi = () => ({
   getInfo: vi.fn(),
   openWindow: vi.fn(),
   onResetCurrentWindow: vi.fn().mockImplementation(() => vi.fn()),
+  onNavigationCommand: vi.fn().mockImplementation(() => vi.fn()),
   initialThemeMode: null,
 });
 

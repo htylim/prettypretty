@@ -19,6 +19,7 @@ export const IPCChannels = {
   appGetInfo: 'app:get-info',
   appOpenWindow: 'app:open-window',
   appResetCurrentWindow: 'app:reset-current-window',
+  appNavigationCommand: 'app:navigation-command',
   logsGetHistory: 'logs:get-history',
   logsLineAppended: 'logs:line-appended',
   preferencesGetAll: 'preferences:get-all',

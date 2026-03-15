@@ -21,8 +21,10 @@
 - `src/renderer/app/useOutputPaneController.ts` owns output-pane chain state, pane-strip viewport state (`leftVisiblePaneIndex`), active-pane routing, focus handoff, and reset rules independently from the broader app controller.
 - `src/renderer/app/usePrettifierFlow.ts` owns prettifier execution flow, request-id race guards, fallback wait/progress state, and request-scoped fallback cancellation.
 - `src/renderer/app/usePreferencesFlow.ts` owns preferences hydration and optimistic persistence sequencing for theme/fallback agent.
-- `src/renderer/app/useKeyboardShortcuts.ts` owns keyboard shortcut bindings and mode gating, including literal-`Ctrl` split navigation/pop shortcuts in output mode.
+- `src/renderer/app/useKeyboardShortcuts.ts` owns keyboard shortcut bindings and mode gating, including split navigation/pop shortcuts in output mode for literal `Ctrl+Arrow`, browser-style `primary+[ / primary+]`, and `Alt+Arrow` navigation equivalents.
+- `src/renderer/app/useMouseNavigationShortcuts.ts` owns output-pane navigation bindings for side-button mice, consuming preload-native browser navigation commands and DOM button-`3`/`4` fallback events without double-triggering.
 - `src/renderer/app/primaryModifier.ts` centralizes platform-aware primary-modifier detection for renderer shortcuts and Monaco input gestures.
+- `src/renderer/app/windowApi.ts` centralizes safe access to the typed preload bridge from renderer hooks.
 - `src/renderer/app/appDomain.ts` contains pure helper functions/constants shared by renderer controller hooks.
 - `src/renderer/app/outputPaneDomain.ts` owns pure derived-pane chain mutations, descendant truncation, viewport-step math, source-highlight lookup, and active-pane normalization for output split behavior.
 - `src/renderer/app/reportRendererError.ts` provides a single renderer-side error reporting path.
@@ -47,11 +49,12 @@
 4. Main process resolves persisted preferences each time a document window is created and passes `themeMode` into `BrowserWindow` (`backgroundColor` + `additionalArguments`) in `src/main/windows/mainWindow.ts`.
 5. Startup creates one document window; later document windows can be created from the File menu or renderer IPC without reusing renderer state from an existing window, and new document windows cascade from the originating document window bounds captured at command dispatch with a bounded offset inside the active display work area.
 6. Main process identifies document windows separately from the optional log window and can send focused-window reset events only to document renderers.
-7. Preload script exposes `window.prettypretty`, including window-creation and reset-subscription APIs.
-8. Renderer calls preload APIs for open/save/copy/window/info/preferences/prettifier/telemetry.
-9. Main-process IPC handlers parent open/save dialogs to the invoking `BrowserWindow` so multi-window dialog ownership stays scoped correctly.
-10. App lifetime is tied to Electron's `window-all-closed` event: closing a non-last window only removes that window, and closing the final remaining window exits the app.
-11. Main-process shutdown paths (`before-quit`, `will-quit`, `window-all-closed`) terminate any active fallback agent children before exit so agent CLIs do not outlive the app.
+7. `src/main/windows/mainWindow.ts` forwards native BrowserWindow browser-navigation events to the renderer over the preload bridge, using `app-command` on Windows/Linux and `swipe` on macOS so split-pane navigation can bind to mouse side buttons and swipe-driven history gestures.
+8. Preload script exposes `window.prettypretty`, including window-creation, reset-subscription, and browser-navigation-command subscription APIs.
+9. Renderer calls preload APIs for open/save/copy/window/info/preferences/prettifier/telemetry.
+10. Main-process IPC handlers parent open/save dialogs to the invoking `BrowserWindow` so multi-window dialog ownership stays scoped correctly.
+11. App lifetime is tied to Electron's `window-all-closed` event: closing a non-last window only removes that window, and closing the final remaining window exits the app.
+12. Main-process shutdown paths (`before-quit`, `will-quit`, `window-all-closed`) terminate any active fallback agent children before exit so agent CLIs do not outlive the app.
 
 ## Preferences Data Flow
 
@@ -80,6 +83,7 @@
 - IPC channels are explicit and typed.
 - Main-process IPC handlers validate payloads at the boundary (including primitive channels such as save/copy text) and reject invalid payloads with `ipc.validation.error` telemetry.
 - Renderer-side window commands (`app:open-window`) and main-to-renderer reset signals (`app:reset-current-window`) stay inside the preload bridge; renderer code still has no direct Electron access.
+- Native browser navigation mouse commands also stay inside the preload bridge; renderer receives typed `browser-backward` / `browser-forward` events instead of direct Electron objects.
 
 ## Logging
 

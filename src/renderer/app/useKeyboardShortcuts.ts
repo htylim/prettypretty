@@ -62,6 +62,28 @@ export const useKeyboardShortcuts = ({
         }
       }
 
+      const isBrowserBackShortcut =
+        isOutputMode &&
+        !event.shiftKey &&
+        ((hasPrimaryModifier(event) && event.key === '[') ||
+          (event.altKey && !event.metaKey && !event.ctrlKey && event.key === 'ArrowLeft'));
+      if (isBrowserBackShortcut) {
+        event.preventDefault();
+        navigateOutputPaneViewport(-1);
+        return;
+      }
+
+      const isBrowserForwardShortcut =
+        isOutputMode &&
+        !event.shiftKey &&
+        ((hasPrimaryModifier(event) && event.key === ']') ||
+          (event.altKey && !event.metaKey && !event.ctrlKey && event.key === 'ArrowRight'));
+      if (isBrowserForwardShortcut) {
+        event.preventDefault();
+        navigateOutputPaneViewport(1);
+        return;
+      }
+
       if (!hasPrimaryModifier(event)) {
         return;
       }

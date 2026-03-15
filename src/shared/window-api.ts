@@ -9,6 +9,8 @@ import type { Preferences, PreferencesPatch } from './preferences';
 import type { TelemetryEvent } from './telemetry';
 import type { ThemeMode } from './types';
 
+export type AppNavigationCommand = 'browser-backward' | 'browser-forward';
+
 export interface WindowApi {
   dialog: {
     openFile: () => Promise<OpenFileResult>;
@@ -23,6 +25,7 @@ export interface WindowApi {
     getInfo: () => Promise<AppInfo>;
     openWindow: () => Promise<void>;
     onResetCurrentWindow: (listener: () => void) => () => void;
+    onNavigationCommand: (listener: (command: AppNavigationCommand) => void) => () => void;
     initialThemeMode: ThemeMode | null;
   };
   logs: {

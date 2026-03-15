@@ -43,6 +43,20 @@ const api: WindowApi = {
         ipcRenderer.removeListener(IPCChannels.appResetCurrentWindow, wrappedListener);
       };
     },
+    onNavigationCommand: (listener) => {
+      const wrappedListener = (
+        _event: Electron.IpcRendererEvent,
+        command: 'browser-backward' | 'browser-forward',
+      ) => {
+        listener(command);
+      };
+
+      ipcRenderer.on(IPCChannels.appNavigationCommand, wrappedListener);
+
+      return () => {
+        ipcRenderer.removeListener(IPCChannels.appNavigationCommand, wrappedListener);
+      };
+    },
     initialThemeMode: getInitialThemeMode(),
   },
   logs: {

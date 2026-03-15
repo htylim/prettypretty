@@ -5,23 +5,31 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const {
   browserWindowConstructorMock,
   browserWindowGetFocusedWindowMock,
+  browserWindowOnMock,
   loadFileMock,
   loadURLMock,
   existsSyncMock,
   screenGetDisplayMatchingMock,
+  webContentsSendMock,
 } = vi.hoisted(() => {
   return {
     browserWindowConstructorMock: vi.fn(),
     browserWindowGetFocusedWindowMock: vi.fn(),
+    browserWindowOnMock: vi.fn(),
     loadFileMock: vi.fn(),
     loadURLMock: vi.fn(),
     existsSyncMock: vi.fn(),
     screenGetDisplayMatchingMock: vi.fn(),
+    webContentsSendMock: vi.fn(),
   };
 });
 
 vi.mock('electron', () => {
   class BrowserWindowMock {
+    webContents = {
+      send: webContentsSendMock,
+    };
+
     constructor(options: unknown) {
       browserWindowConstructorMock(options);
     }
@@ -32,6 +40,11 @@ vi.mock('electron', () => {
 
     async loadFile(path: string): Promise<void> {
       await loadFileMock(path);
+    }
+
+    on(eventName: string, listener: (...args: unknown[]) => void): this {
+      browserWindowOnMock(eventName, listener);
+      return this;
     }
   }
 
@@ -56,6 +69,8 @@ describe('createMainWindow', () => {
     vi.resetModules();
     browserWindowConstructorMock.mockReset();
     browserWindowGetFocusedWindowMock.mockReset().mockReturnValue(null);
+    browserWindowOnMock.mockReset();
+    webContentsSendMock.mockReset();
     loadFileMock.mockReset().mockResolvedValue(undefined);
     loadURLMock.mockReset().mockResolvedValue(undefined);
     existsSyncMock.mockReset().mockReturnValue(false);
@@ -88,6 +103,8 @@ describe('createMainWindow', () => {
       icon?: string;
     };
 
+    expect(browserWindowOnMock).toHaveBeenCalledWith('app-command', expect.any(Function));
+    expect(browserWindowOnMock).toHaveBeenCalledWith('swipe', expect.any(Function));
     expect(windowOptions.backgroundColor).toBe('#121316');
     expect(windowOptions.x).toBeUndefined();
     expect(windowOptions.y).toBeUndefined();
@@ -180,5 +197,58 @@ describe('createMainWindow', () => {
 
     expect(windowOptions.x).toBe(32);
     expect(windowOptions.y).toBe(32);
+  });
+
+  it('forwards browser back and forward app commands to the renderer bridge', async () => {
+    const { createMainWindow } = await import('../../../../src/main/windows/mainWindow');
+    await createMainWindow('light');
+
+    const appCommandListener = browserWindowOnMock.mock.calls.find(
+      ([eventName]) => eventName === 'app-command',
+    )?.[1] as ((event: { preventDefault: () => void }, command: string) => void) | undefined;
+
+    const preventDefaultMock = vi.fn();
+    appCommandListener?.({ preventDefault: preventDefaultMock }, 'browser-backward');
+    appCommandListener?.({ preventDefault: preventDefaultMock }, 'browser-forward');
+    appCommandListener?.({ preventDefault: preventDefaultMock }, 'media-play-pause');
+
+    expect(preventDefaultMock).toHaveBeenCalledTimes(2);
+    expect(webContentsSendMock).toHaveBeenNthCalledWith(
+      1,
+      'app:navigation-command',
+      'browser-backward',
+    );
+    expect(webContentsSendMock).toHaveBeenNthCalledWith(
+      2,
+      'app:navigation-command',
+      'browser-forward',
+    );
+  });
+
+  it('maps macOS swipe directions to browser navigation commands', async () => {
+    const { createMainWindow } = await import('../../../../src/main/windows/mainWindow');
+    await createMainWindow('light');
+
+    const swipeListener = browserWindowOnMock.mock.calls.find(
+      ([eventName]) => eventName === 'swipe',
+    )?.[1] as
+      | ((event: { preventDefault: () => void }, direction: 'left' | 'right') => void)
+      | undefined;
+
+    const preventDefaultMock = vi.fn();
+    swipeListener?.({ preventDefault: preventDefaultMock }, 'left');
+    swipeListener?.({ preventDefault: preventDefaultMock }, 'right');
+
+    expect(preventDefaultMock).toHaveBeenCalledTimes(2);
+    expect(webContentsSendMock).toHaveBeenNthCalledWith(
+      1,
+      'app:navigation-command',
+      'browser-backward',
+    );
+    expect(webContentsSendMock).toHaveBeenNthCalledWith(
+      2,
+      'app:navigation-command',
+      'browser-forward',
+    );
   });
 });
