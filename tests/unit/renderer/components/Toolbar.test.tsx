@@ -302,7 +302,6 @@ describe('Toolbar', () => {
     const leftButton = screen.getByRole('button', { name: 'Navigate splits left' });
     const rightButton = screen.getByRole('button', { name: 'Navigate splits right' });
 
-    expect(splitsGroup).toHaveTextContent('Splits');
     expect(popButton).toBeDisabled();
     expect(leftButton).toBeDisabled();
     expect(rightButton).toBeDisabled();

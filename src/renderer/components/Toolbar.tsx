@@ -186,7 +186,6 @@ export const Toolbar = ({
           data-testid="toolbar-splits-group"
           role="group"
         >
-          <span className="toolbar-split-label">Splits</span>
           <button
             aria-label="Pop split"
             className={`${buttonClass} btn-icon`}
