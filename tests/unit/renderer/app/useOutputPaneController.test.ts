@@ -129,7 +129,7 @@ describe('useOutputPaneController', () => {
     expect(ref.current?.getController().canNavigateOutputPaneRight).toBe(true);
   });
 
-  it('routes active-pane lookup through the focused pane handle and focuses navigated panes', () => {
+  it('routes active-pane lookup through the focused pane handle and emits explicit focus requests', () => {
     const ref = { current: null as HarnessHandle | null };
     render(
       createElement(OutputPaneHarness, {
@@ -157,11 +157,14 @@ describe('useOutputPaneController', () => {
       });
     });
 
+    expect(ref.current?.getController().outputPaneFocusRequest).toEqual({
+      paneId: 'output-pane-1',
+      sequence: 1,
+    });
+
     act(() => {
       ref.current?.getController().onOutputPaneHandleChange('output-pane-1', childHandle);
     });
-
-    expect(childHandle.focus).toHaveBeenCalledTimes(1);
 
     act(() => {
       ref.current?.getController().onOutputPaneSplitSelection('output-pane-1', {
@@ -174,19 +177,29 @@ describe('useOutputPaneController', () => {
       });
     });
 
+    expect(ref.current?.getController().outputPaneFocusRequest).toEqual({
+      paneId: 'output-pane-2',
+      sequence: 2,
+    });
+
     act(() => {
       ref.current?.getController().onOutputPaneHandleChange('output-pane-2', grandchildHandle);
     });
 
-    expect(grandchildHandle.focus).toHaveBeenCalledTimes(1);
     expect(ref.current?.getController().getActiveOutputPaneHandle()).toBe(grandchildHandle);
 
     act(() => {
       ref.current?.getController().onNavigateOutputPaneViewport(-1);
     });
 
-    expect(rootHandle.focus).toHaveBeenCalledTimes(1);
+    expect(ref.current?.getController().outputPaneFocusRequest).toEqual({
+      paneId: 'output-root-pane',
+      sequence: 3,
+    });
     expect(ref.current?.getController().getActiveOutputPaneHandle()).toBe(rootHandle);
+    expect(rootHandle.focus).not.toHaveBeenCalled();
+    expect(childHandle.focus).not.toHaveBeenCalled();
+    expect(grandchildHandle.focus).not.toHaveBeenCalled();
 
     act(() => {
       ref.current?.getController().onOutputPaneFocus('output-root-pane');

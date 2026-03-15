@@ -113,26 +113,67 @@ const readPaneStripState = async (
   paneCount: number;
   leftVisiblePaneIndex: number;
   paneWidth: number;
-  scrollLeft: number;
+  viewportOffset: number;
   snappedPaneIndex: number;
 }> => {
   return await page.evaluate(() => {
+    const parseViewportOffset = (transform: string | undefined): number => {
+      const translateMatch = transform?.match(/translate3d\((-?\d+(?:\.\d+)?)px/u);
+      if (translateMatch?.[1]) {
+        return Math.abs(Number(translateMatch[1]));
+      }
+
+      const matrixMatch = transform?.match(
+        /matrix\([^,]+,[^,]+,[^,]+,[^,]+,\s*(-?\d+(?:\.\d+)?)\s*,/u,
+      );
+      if (matrixMatch?.[1]) {
+        return Math.abs(Number(matrixMatch[1]));
+      }
+
+      const matrix3dMatch = transform?.match(/matrix3d\((?:[^,]+,\s*){12}(-?\d+(?:\.\d+)?)\s*,/u);
+      if (matrix3dMatch?.[1]) {
+        return Math.abs(Number(matrix3dMatch[1]));
+      }
+
+      return 0;
+    };
+    const readViewportOffset = (
+      track:
+        | {
+            ownerDocument?: {
+              defaultView?: {
+                getComputedStyle: (element: unknown) => { transform?: string };
+              } | null;
+            };
+          }
+        | null
+        | undefined,
+    ): number => {
+      const transform = track?.ownerDocument?.defaultView?.getComputedStyle(track).transform;
+      return parseViewportOffset(transform);
+    };
     const runtime = globalThis as unknown as {
       document?: {
         querySelector: (selector: string) => {
           dataset?: Record<string, string | undefined>;
           clientWidth?: number;
-          scrollLeft?: number;
+          getAttribute?: (name: string) => string | null;
+          ownerDocument?: {
+            defaultView?: {
+              getComputedStyle: (element: unknown) => { transform?: string };
+            } | null;
+          };
         } | null;
       };
     };
     const strip = runtime.document?.querySelector('[data-testid="output-pane-strip"]');
+    const track = runtime.document?.querySelector('[data-testid="output-pane-strip-track"]');
     if (!strip) {
       return {
         paneCount: 0,
         leftVisiblePaneIndex: 0,
         paneWidth: 0,
-        scrollLeft: 0,
+        viewportOffset: 0,
         snappedPaneIndex: 0,
       };
     }
@@ -141,14 +182,164 @@ const readPaneStripState = async (
     const leftVisiblePaneIndex = Number(strip.dataset?.leftVisiblePaneIndex ?? '0');
     const paneWidth =
       strip.dataset?.split === 'true' ? (strip.clientWidth ?? 0) / 2 : (strip.clientWidth ?? 0);
+    const viewportOffset = readViewportOffset(track);
     return {
       paneCount,
       leftVisiblePaneIndex,
       paneWidth,
-      scrollLeft: strip.scrollLeft ?? 0,
-      snappedPaneIndex: paneWidth > 0 ? Math.round((strip.scrollLeft ?? 0) / paneWidth) : 0,
+      viewportOffset,
+      snappedPaneIndex: paneWidth > 0 ? Math.round(viewportOffset / paneWidth) : 0,
     };
   });
+};
+
+const startPaneStripMotionCapture = async (page: Page): Promise<void> => {
+  await page.evaluate(() => {
+    const runtime = globalThis as unknown as {
+      __paneStripMotionCapture?: {
+        samples: number[];
+        isActive: boolean;
+      };
+      document?: {
+        querySelector: (selector: string) => {
+          ownerDocument?: {
+            defaultView?: {
+              getComputedStyle: (element: unknown) => { transform?: string };
+            } | null;
+          };
+        } | null;
+      };
+      requestAnimationFrame?: (callback: () => void) => number;
+    };
+    const track = runtime.document?.querySelector('[data-testid="output-pane-strip-track"]');
+    const readViewportOffset = (): number => {
+      const transform = track?.ownerDocument?.defaultView?.getComputedStyle(track).transform;
+      const translateMatch = transform?.match(/translate3d\((-?\d+(?:\.\d+)?)px/u);
+      if (translateMatch?.[1]) {
+        return Math.abs(Number(translateMatch[1]));
+      }
+
+      const matrixMatch = transform?.match(
+        /matrix\([^,]+,[^,]+,[^,]+,[^,]+,\s*(-?\d+(?:\.\d+)?)\s*,/u,
+      );
+      if (matrixMatch?.[1]) {
+        return Math.abs(Number(matrixMatch[1]));
+      }
+
+      const matrix3dMatch = transform?.match(/matrix3d\((?:[^,]+,\s*){12}(-?\d+(?:\.\d+)?)\s*,/u);
+      if (matrix3dMatch?.[1]) {
+        return Math.abs(Number(matrix3dMatch[1]));
+      }
+
+      return 0;
+    };
+    if (!track || typeof runtime.requestAnimationFrame !== 'function') {
+      runtime.__paneStripMotionCapture = {
+        samples: [],
+        isActive: false,
+      };
+      return;
+    }
+
+    const capture = {
+      samples: [readViewportOffset()],
+      isActive: true,
+    };
+    runtime.__paneStripMotionCapture = capture;
+
+    const sampleFrame = (): void => {
+      if (!capture.isActive) {
+        return;
+      }
+
+      capture.samples.push(readViewportOffset());
+      runtime.requestAnimationFrame?.(sampleFrame);
+    };
+
+    runtime.requestAnimationFrame(sampleFrame);
+  });
+};
+
+const stopPaneStripMotionCapture = async (
+  page: Page,
+): Promise<{
+  samples: number[];
+  finalViewportOffset: number;
+  paneWidth: number;
+}> => {
+  return await page.evaluate(() => {
+    const runtime = globalThis as unknown as {
+      __paneStripMotionCapture?: {
+        samples: number[];
+        isActive: boolean;
+      };
+      document?: {
+        querySelector: (selector: string) => {
+          clientWidth?: number;
+          dataset?: Record<string, string | undefined>;
+          ownerDocument?: {
+            defaultView?: {
+              getComputedStyle: (element: unknown) => { transform?: string };
+            } | null;
+          };
+        } | null;
+      };
+    };
+    const strip = runtime.document?.querySelector('[data-testid="output-pane-strip"]');
+    const track = runtime.document?.querySelector('[data-testid="output-pane-strip-track"]');
+    const capture = runtime.__paneStripMotionCapture;
+    if (!strip || !track || !capture) {
+      return {
+        samples: [],
+        finalViewportOffset: 0,
+        paneWidth: 0,
+      };
+    }
+
+    capture.isActive = false;
+    const transform = track.ownerDocument?.defaultView?.getComputedStyle(track).transform;
+    const translateMatch = transform?.match(/translate3d\((-?\d+(?:\.\d+)?)px/u);
+    const matrixMatch = transform?.match(
+      /matrix\([^,]+,[^,]+,[^,]+,[^,]+,\s*(-?\d+(?:\.\d+)?)\s*,/u,
+    );
+    const matrix3dMatch = transform?.match(/matrix3d\((?:[^,]+,\s*){12}(-?\d+(?:\.\d+)?)\s*,/u);
+    const finalViewportOffset = translateMatch?.[1]
+      ? Math.abs(Number(translateMatch[1]))
+      : matrixMatch?.[1]
+        ? Math.abs(Number(matrixMatch[1]))
+        : matrix3dMatch?.[1]
+          ? Math.abs(Number(matrix3dMatch[1]))
+          : 0;
+    const paneWidth =
+      strip.dataset?.split === 'true' ? (strip.clientWidth ?? 0) / 2 : (strip.clientWidth ?? 0);
+    const report = {
+      samples: [...capture.samples, finalViewportOffset],
+      finalViewportOffset,
+      paneWidth,
+    };
+    delete runtime.__paneStripMotionCapture;
+    return report;
+  });
+};
+
+const expectPaneStripMotion = (
+  report: {
+    samples: number[];
+    finalViewportOffset: number;
+    paneWidth: number;
+  },
+  expectedLeftVisiblePaneIndex: number,
+): void => {
+  const expectedViewportOffset = report.paneWidth * expectedLeftVisiblePaneIndex;
+  const minViewportOffset = Math.min(report.samples[0] ?? 0, expectedViewportOffset);
+  const maxViewportOffset = Math.max(report.samples[0] ?? 0, expectedViewportOffset);
+  const hasIntermediateSample = report.samples.some(
+    (sample) => sample > minViewportOffset + 1 && sample < maxViewportOffset - 1,
+  );
+
+  expect(report.finalViewportOffset).toBeCloseTo(expectedViewportOffset, 0);
+  expect(report.samples.length).toBeGreaterThan(3);
+  expect(hasIntermediateSample).toBe(true);
 };
 
 const expectPaneStripViewport = async (
@@ -161,7 +352,7 @@ const expectPaneStripViewport = async (
       const scrollAligned =
         state.paneWidth === 0
           ? true
-          : Math.abs(state.scrollLeft - expected.leftVisiblePaneIndex * state.paneWidth) < 2;
+          : Math.abs(state.viewportOffset - expected.leftVisiblePaneIndex * state.paneWidth) < 2;
       return {
         paneCount: state.paneCount,
         leftVisiblePaneIndex: state.leftVisiblePaneIndex,
@@ -214,7 +405,7 @@ const dispatchCtrlWheelOnStrip = async (
   }, delta);
 };
 
-const openRecursiveSplitChain = async (page: Page): Promise<void> => {
+const openInitialSplit = async (page: Page): Promise<void> => {
   await dispatchPaste(page, STRUCTURAL_SPLIT_FIXTURE);
   await expect(
     page
@@ -228,7 +419,10 @@ const openRecursiveSplitChain = async (page: Page): Promise<void> => {
   await expect
     .poll(async () => (await readVisibleLineTexts(page, 'output-editor-pane-1')).join('\n'))
     .toContain('"branch": {');
+};
 
+const openRecursiveSplitChain = async (page: Page): Promise<void> => {
+  await openInitialSplit(page);
   await ctrlClickOutputLine(page, 'output-editor-pane-1', '"branch"');
   await page.waitForTimeout(SPLIT_SETTLE_MS);
   await expectPaneStripViewport(page, { paneCount: 3, leftVisiblePaneIndex: 1 });
@@ -265,6 +459,36 @@ test('opens recursive output splits, snaps the viewport, and pops the rightmost 
   await expectPaneStripViewport(page, { paneCount: 2, leftVisiblePaneIndex: 0 });
   await expect(page.getByRole('button', { name: 'Navigate splits left' })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Navigate splits right' })).toBeDisabled();
+
+  await resetPreferences(page);
+  await app.close();
+});
+
+test('animates pane-strip movement during split-open and keyboard navigation', async () => {
+  const app = await launchApp();
+  const page = await app.firstWindow();
+  await page.waitForLoadState('domcontentloaded');
+  await resetPreferences(page);
+
+  await openInitialSplit(page);
+
+  await startPaneStripMotionCapture(page);
+  await ctrlClickOutputLine(page, 'output-editor-pane-1', '"branch"');
+  await page.waitForTimeout(SPLIT_SETTLE_MS);
+  const splitOpenMotion = await stopPaneStripMotionCapture(page);
+  await expectPaneStripViewport(page, { paneCount: 3, leftVisiblePaneIndex: 1 });
+  expectPaneStripMotion(splitOpenMotion, 1);
+
+  await ctrlClickOutputLine(page, 'output-editor-pane-2', '"twig"');
+  await page.waitForTimeout(SPLIT_SETTLE_MS);
+  await expectPaneStripViewport(page, { paneCount: 4, leftVisiblePaneIndex: 2 });
+
+  await startPaneStripMotionCapture(page);
+  await page.keyboard.press('Control+ArrowLeft');
+  await page.waitForTimeout(SPLIT_SETTLE_MS);
+  const navigationMotion = await stopPaneStripMotionCapture(page);
+  await expectPaneStripViewport(page, { paneCount: 4, leftVisiblePaneIndex: 1 });
+  expectPaneStripMotion(navigationMotion, 1);
 
   await resetPreferences(page);
   await app.close();

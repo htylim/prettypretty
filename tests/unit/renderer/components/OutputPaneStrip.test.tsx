@@ -1,13 +1,10 @@
-import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { describe, expect, it, vi, beforeEach, afterAll, beforeAll } from 'vitest';
 import { OutputPaneStrip } from '../../../../src/renderer/components/OutputPaneStrip';
 
-const scrollToMock = vi.fn(function scrollTo(
-  this: HTMLElement,
-  options: ScrollToOptions | number,
-): void {
-  this.scrollLeft = typeof options === 'number' ? options : (options.left ?? 0);
-});
+const focusMocksByTestId = new Map<string, ReturnType<typeof vi.fn>>();
+let nextAnimationFrameId = 1;
+const animationFrameCallbacks = new Map<number, FrameRequestCallback>();
 
 Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
   configurable: true,
@@ -16,9 +13,37 @@ Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
   },
 });
 
-Object.defineProperty(HTMLElement.prototype, 'scrollTo', {
-  configurable: true,
-  value: scrollToMock,
+const flushAnimationFrames = (timestamp = 16): void => {
+  const callbacks = [...animationFrameCallbacks.values()];
+  animationFrameCallbacks.clear();
+  for (const callback of callbacks) {
+    callback(timestamp);
+  }
+};
+
+const readTrackOffsetPx = (): number => {
+  const track = screen.getByTestId('output-pane-strip-track');
+  const transformMatch = track.getAttribute('style')?.match(/translate3d\((-?\d+(?:\.\d+)?)px/u);
+  if (!transformMatch?.[1]) {
+    return 0;
+  }
+
+  return Math.abs(Number(transformMatch[1]));
+};
+
+beforeAll(() => {
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+    const animationFrameId = nextAnimationFrameId++;
+    animationFrameCallbacks.set(animationFrameId, callback);
+    return animationFrameId;
+  });
+  vi.stubGlobal('cancelAnimationFrame', (animationFrameId: number) => {
+    animationFrameCallbacks.delete(animationFrameId);
+  });
+});
+
+afterAll(() => {
+  vi.unstubAllGlobals();
 });
 
 vi.mock('../../../../src/renderer/components/OutputEditor', async () => {
@@ -34,11 +59,28 @@ vi.mock('../../../../src/renderer/components/OutputEditor', async () => {
         },
         ref: React.ForwardedRef<unknown>,
       ) => {
-        void ref;
+        const testId = props.testId ?? 'output-editor';
+        const focusMockRef = React.useRef<ReturnType<typeof vi.fn> | null>(
+          focusMocksByTestId.get(testId) ?? vi.fn(),
+        );
+        React.useImperativeHandle(ref, () => ({
+          collapseAll: vi.fn(),
+          expandAll: vi.fn(),
+          focus: focusMockRef.current ?? vi.fn(),
+          openFind: vi.fn(),
+        }));
+        React.useEffect(() => {
+          if (focusMockRef.current) {
+            focusMocksByTestId.set(testId, focusMockRef.current);
+          }
+          return () => {
+            focusMocksByTestId.delete(testId);
+          };
+        }, [testId]);
         return React.createElement(
           'div',
           {
-            'data-testid': props.testId,
+            'data-testid': testId,
             'data-view-start': props.viewRange?.startLineNumber ?? '',
             'data-view-end': props.viewRange?.endLineNumber ?? '',
           },
@@ -67,12 +109,15 @@ describe('OutputPaneStrip', () => {
   const paneItemPattern = /^output-pane-(?!strip)/u;
 
   beforeEach(() => {
-    scrollToMock.mockClear();
+    focusMocksByTestId.clear();
+    animationFrameCallbacks.clear();
   });
 
   it('renders a single full-width root output pane', () => {
     render(
       <OutputPaneStrip
+        activePaneId="output-root-pane"
+        focusRequest={null}
         indentSize={2}
         leftVisiblePaneIndex={0}
         onNavigatePaneViewport={vi.fn()}
@@ -90,14 +135,18 @@ describe('OutputPaneStrip', () => {
       'data-left-visible-pane-index',
       '0',
     );
+    expect(screen.getByTestId('output-pane-strip-track')).toHaveStyle({
+      gridAutoColumns: '100%',
+    });
     expect(screen.getAllByTestId(paneItemPattern)).toHaveLength(1);
-    expect(screen.getByTestId('output-pane-output-root-pane')).toHaveStyle({ flexBasis: '100%' });
     expect(screen.getByTestId('output-editor')).toHaveTextContent('"root": true');
   });
 
   it('renders split panes at a fixed 50/50 width and keeps every pane mounted', () => {
     render(
       <OutputPaneStrip
+        activePaneId="output-pane-2"
+        focusRequest={null}
         indentSize={2}
         leftVisiblePaneIndex={0}
         onNavigatePaneViewport={vi.fn()}
@@ -147,18 +196,20 @@ describe('OutputPaneStrip', () => {
     expect(screen.getByTestId('output-pane-strip').className).toMatch(
       /\boutput-pane-strip-hide-scrollbar\b/u,
     );
+    expect(screen.getByTestId('output-pane-strip-track')).toHaveStyle({
+      gridAutoColumns: '50%',
+    });
     expect(screen.getAllByTestId(paneItemPattern)).toHaveLength(3);
-    expect(screen.getByTestId('output-pane-output-root-pane')).toHaveStyle({ flexBasis: '50%' });
-    expect(screen.getByTestId('output-pane-output-pane-1')).toHaveStyle({ flexBasis: '50%' });
-    expect(screen.getByTestId('output-pane-output-pane-2')).toHaveStyle({ flexBasis: '50%' });
     expect(screen.getByTestId('output-editor-pane-1')).toHaveAttribute('data-view-start', '3');
     expect(screen.getByTestId('output-editor-pane-2')).toHaveAttribute('data-view-start', '7');
   });
 
-  it('controls the scroll target from the viewport index and supports ctrl-wheel navigation', () => {
+  it('controls the viewport target from the pane index and supports ctrl-wheel navigation', () => {
     const onNavigatePaneViewport = vi.fn();
     const { rerender } = render(
       <OutputPaneStrip
+        activePaneId="output-root-pane"
+        focusRequest={null}
         indentSize={2}
         leftVisiblePaneIndex={0}
         onNavigatePaneViewport={onNavigatePaneViewport}
@@ -202,13 +253,12 @@ describe('OutputPaneStrip', () => {
       />,
     );
 
-    expect(scrollToMock).toHaveBeenLastCalledWith({
-      behavior: 'auto',
-      left: 0,
-    });
+    expect(readTrackOffsetPx()).toBe(0);
 
     rerender(
       <OutputPaneStrip
+        activePaneId="output-pane-2"
+        focusRequest={null}
         indentSize={2}
         leftVisiblePaneIndex={1}
         onNavigatePaneViewport={onNavigatePaneViewport}
@@ -252,10 +302,12 @@ describe('OutputPaneStrip', () => {
       />,
     );
 
-    expect(scrollToMock).toHaveBeenLastCalledWith({
-      behavior: 'smooth',
-      left: 300,
+    expect(readTrackOffsetPx()).toBe(0);
+
+    act(() => {
+      flushAnimationFrames(0);
     });
+    expect(readTrackOffsetPx()).toBe(300);
 
     fireEvent.wheel(screen.getByTestId('output-pane-strip'), {
       ctrlKey: true,
@@ -268,5 +320,90 @@ describe('OutputPaneStrip', () => {
       deltaX: -210,
     });
     expect(onNavigatePaneViewport).toHaveBeenLastCalledWith(-2);
+  });
+
+  it('waits for the pane strip to reach the requested viewport before focusing the target pane', () => {
+    const panes = [
+      ...createPanes(),
+      {
+        paneId: 'output-pane-1',
+        documentId: 'root-doc',
+        viewStateKey: 'output-pane-1:selection-1',
+        value: '{\n  "first": true\n}',
+        viewRange: {
+          startLineNumber: 2,
+          startColumn: 1,
+          endLineNumber: 4,
+          endColumn: 2,
+        },
+        sourceHighlightRange: null,
+        isSplitSelectionEnabled: true,
+        testId: 'output-editor-pane-1',
+      },
+      {
+        paneId: 'output-pane-2',
+        documentId: 'root-doc',
+        viewStateKey: 'output-pane-2:selection-1',
+        value: '{\n  "second": true\n}',
+        viewRange: {
+          startLineNumber: 5,
+          startColumn: 1,
+          endLineNumber: 7,
+          endColumn: 2,
+        },
+        sourceHighlightRange: null,
+        isSplitSelectionEnabled: true,
+        testId: 'output-editor-pane-2',
+      },
+    ] as const;
+    const { rerender } = render(
+      <OutputPaneStrip
+        activePaneId="output-pane-1"
+        focusRequest={null}
+        indentSize={2}
+        leftVisiblePaneIndex={0}
+        onNavigatePaneViewport={vi.fn()}
+        onPaneFocus={vi.fn()}
+        onPaneHandleChange={vi.fn()}
+        onPaneSplitSelection={vi.fn()}
+        panes={[...panes]}
+        themeMode="light"
+      />,
+    );
+
+    expect(readTrackOffsetPx()).toBe(0);
+    expect(focusMocksByTestId.get('output-editor-pane-2')).toHaveBeenCalledTimes(0);
+
+    rerender(
+      <OutputPaneStrip
+        activePaneId="output-pane-2"
+        focusRequest={{ paneId: 'output-pane-2', sequence: 1 }}
+        indentSize={2}
+        leftVisiblePaneIndex={1}
+        onNavigatePaneViewport={vi.fn()}
+        onPaneFocus={vi.fn()}
+        onPaneHandleChange={vi.fn()}
+        onPaneSplitSelection={vi.fn()}
+        panes={[...panes]}
+        themeMode="light"
+      />,
+    );
+
+    expect(readTrackOffsetPx()).toBe(0);
+    expect(focusMocksByTestId.get('output-editor-pane-2')).toHaveBeenCalledTimes(0);
+
+    act(() => {
+      flushAnimationFrames(0);
+    });
+    expect(focusMocksByTestId.get('output-editor-pane-2')).toHaveBeenCalledTimes(0);
+
+    act(() => {
+      fireEvent.transitionEnd(screen.getByTestId('output-pane-strip-track'), {
+        propertyName: 'transform',
+      });
+      flushAnimationFrames(16);
+    });
+    expect(readTrackOffsetPx()).toBe(300);
+    expect(focusMocksByTestId.get('output-editor-pane-2')).toHaveBeenCalledTimes(1);
   });
 });

@@ -4,7 +4,11 @@ import type { PaneMode, ThemeMode } from '../../shared/types';
 import type { OutputPaneSelection } from '../app/outputPaneDomain';
 import type { FallbackWaitState, IngestSource } from '../app/appDomain';
 import { InputEditor, type InputEditorHandle } from './InputEditor';
-import { OutputPaneStrip, type OutputPaneViewModel } from './OutputPaneStrip';
+import {
+  OutputPaneStrip,
+  type OutputPaneFocusRequest,
+  type OutputPaneViewModel,
+} from './OutputPaneStrip';
 import type { OutputEditorHandle } from './OutputEditor';
 
 // Empty-state paste shares the shell container with Monaco. Ignore paste events
@@ -24,7 +28,9 @@ type EditorShellProps = {
   indentSize: IndentSize;
   inputText: string;
   outputPanes: OutputPaneViewModel[];
+  activeOutputPaneId: string;
   outputLeftVisiblePaneIndex: number;
+  outputPaneFocusRequest: OutputPaneFocusRequest | null;
   ingestNotice: string | null;
   fallbackWaitState: FallbackWaitState | null;
   inputEditorRef: RefObject<InputEditorHandle | null>;
@@ -45,7 +51,9 @@ export const EditorShell = ({
   indentSize,
   inputText,
   outputPanes,
+  activeOutputPaneId,
   outputLeftVisiblePaneIndex,
+  outputPaneFocusRequest,
   ingestNotice,
   fallbackWaitState,
   inputEditorRef,
@@ -162,6 +170,8 @@ export const EditorShell = ({
       ) : (
         <div className="output-pane">
           <OutputPaneStrip
+            activePaneId={activeOutputPaneId}
+            focusRequest={outputPaneFocusRequest}
             indentSize={indentSize}
             leftVisiblePaneIndex={outputLeftVisiblePaneIndex}
             onNavigatePaneViewport={onNavigateOutputPaneViewport}

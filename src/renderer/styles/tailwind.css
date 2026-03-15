@@ -368,9 +368,18 @@ body {
   min-height: 0;
   width: 100%;
   overscroll-behavior-x: contain;
-  overflow-x: auto;
+  overflow-x: hidden;
   overflow-y: hidden;
-  scroll-snap-type: x mandatory;
+  overflow-anchor: none;
+}
+
+.output-pane-strip-track {
+  display: grid;
+  grid-auto-flow: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  will-change: transform;
 }
 
 .output-pane-strip-hide-scrollbar {
@@ -384,11 +393,8 @@ body {
 
 .output-pane-strip-item {
   display: flex;
-  flex: 0 0 auto;
   min-width: 0;
   min-height: 0;
-  scroll-snap-align: start;
-  scroll-snap-stop: always;
 }
 
 .output-pane-strip-item + .output-pane-strip-item {

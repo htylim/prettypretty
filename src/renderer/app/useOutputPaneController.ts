@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import type { PaneMode } from '../../shared/types';
 import type { OutputPaneViewModel } from '../components/OutputPaneStrip';
 import type { OutputEditorHandle } from '../components/OutputEditor';
@@ -66,10 +66,15 @@ type UseOutputPaneControllerOptions = {
 export type UseOutputPaneControllerResult = {
   outputDocumentId: string;
   outputPanes: OutputPaneViewModel[];
+  activeOutputPaneId: string;
   leftVisiblePaneIndex: number;
   hasDerivedOutputPane: boolean;
   canNavigateOutputPaneLeft: boolean;
   canNavigateOutputPaneRight: boolean;
+  outputPaneFocusRequest: {
+    paneId: string;
+    sequence: number;
+  } | null;
   getActiveOutputPaneHandle: () => OutputEditorHandle | null;
   onOutputPaneHandleChange: (paneId: string, handle: OutputEditorHandle | null) => void;
   onOutputPaneFocus: (paneId: string) => void;
@@ -84,11 +89,15 @@ export const useOutputPaneController = ({
   outputText,
 }: UseOutputPaneControllerOptions): UseOutputPaneControllerResult => {
   const outputPaneHandlesRef = useRef(new Map<string, OutputEditorHandle>());
-  const pendingFocusPaneIdRef = useRef<string | null>(null);
+  const nextFocusRequestSequenceRef = useRef(1);
   const [outputPaneChainSnapshot, dispatchOutputPaneChain] = useReducer(outputPaneChainReducer, {
     scopeKey: 'hidden:initial',
     chainState: createOutputPaneChainState(),
   });
+  const [outputPaneFocusRequest, setOutputPaneFocusRequest] = useState<{
+    paneId: string;
+    sequence: number;
+  } | null>(null);
 
   const outputDocumentId = useMemo(() => getOutputDocumentId(outputText), [outputText]);
   const isOutputMode = paneMode === 'output';
@@ -99,6 +108,11 @@ export const useOutputPaneController = ({
     isOutputMode && outputPaneChainSnapshot.scopeKey === outputPaneScopeKey
       ? outputPaneChainSnapshot.chainState
       : createOutputPaneChainState();
+  const outputPaneChainStateRef = useRef(outputPaneChainState);
+
+  useEffect(() => {
+    outputPaneChainStateRef.current = outputPaneChainState;
+  }, [outputPaneChainState]);
 
   const outputPanes = useMemo<OutputPaneViewModel[]>(() => {
     const rootPane: OutputPaneViewModel = {
@@ -131,10 +145,6 @@ export const useOutputPaneController = ({
     (paneId: string, handle: OutputEditorHandle | null): void => {
       if (handle) {
         outputPaneHandlesRef.current.set(paneId, handle);
-        if (pendingFocusPaneIdRef.current === paneId) {
-          handle.focus();
-          pendingFocusPaneIdRef.current = null;
-        }
         return;
       }
 
@@ -149,10 +159,17 @@ export const useOutputPaneController = ({
         state: ReturnType<typeof createOutputPaneChainState>,
       ) => ReturnType<typeof createOutputPaneChainState>,
     ): void => {
+      const currentState = outputPaneChainStateRef.current;
+      const nextState = mutator(currentState);
+      if (nextState === currentState) {
+        return;
+      }
+
+      outputPaneChainStateRef.current = nextState;
       dispatchOutputPaneChain({
-        type: 'mutate',
+        type: 'replace',
         scopeKey: outputPaneScopeKey,
-        mutator,
+        chainState: nextState,
       });
     },
     [outputPaneScopeKey],
@@ -167,38 +184,65 @@ export const useOutputPaneController = ({
 
   const openDerivedOutputPane = useCallback(
     (paneId: string, selection: OutputPaneSelection): void => {
-      mutateOutputPaneChain((state) => {
-        const nextState = openOrReplaceDerivedOutputPane(state, paneId, selection);
-        if (nextState !== state) {
-          pendingFocusPaneIdRef.current = nextState.activePaneId;
-        }
-        return nextState;
+      const currentState = outputPaneChainStateRef.current;
+      const nextState = openOrReplaceDerivedOutputPane(currentState, paneId, selection);
+      if (nextState === currentState) {
+        return;
+      }
+
+      outputPaneChainStateRef.current = nextState;
+      dispatchOutputPaneChain({
+        type: 'replace',
+        scopeKey: outputPaneScopeKey,
+        chainState: nextState,
+      });
+      setOutputPaneFocusRequest({
+        paneId: nextState.activePaneId,
+        sequence: nextFocusRequestSequenceRef.current++,
       });
     },
-    [mutateOutputPaneChain],
+    [outputPaneScopeKey],
   );
 
   const closeDerivedOutputPane = useCallback((): void => {
-    mutateOutputPaneChain((state) => {
-      const nextState = closeRightmostOutputPane(state);
-      if (nextState !== state) {
-        pendingFocusPaneIdRef.current = nextState.activePaneId;
-      }
-      return nextState;
+    const currentState = outputPaneChainStateRef.current;
+    const nextState = closeRightmostOutputPane(currentState);
+    if (nextState === currentState) {
+      return;
+    }
+
+    outputPaneChainStateRef.current = nextState;
+    dispatchOutputPaneChain({
+      type: 'replace',
+      scopeKey: outputPaneScopeKey,
+      chainState: nextState,
     });
-  }, [mutateOutputPaneChain]);
+    setOutputPaneFocusRequest({
+      paneId: nextState.activePaneId,
+      sequence: nextFocusRequestSequenceRef.current++,
+    });
+  }, [outputPaneScopeKey]);
 
   const navigateOutputPaneViewport = useCallback(
     (stepDelta: number): void => {
-      mutateOutputPaneChain((state) => {
-        const nextState = shiftOutputPaneViewport(state, stepDelta);
-        if (nextState !== state) {
-          pendingFocusPaneIdRef.current = nextState.activePaneId;
-        }
-        return nextState;
+      const currentState = outputPaneChainStateRef.current;
+      const nextState = shiftOutputPaneViewport(currentState, stepDelta);
+      if (nextState === currentState) {
+        return;
+      }
+
+      outputPaneChainStateRef.current = nextState;
+      dispatchOutputPaneChain({
+        type: 'replace',
+        scopeKey: outputPaneScopeKey,
+        chainState: nextState,
+      });
+      setOutputPaneFocusRequest({
+        paneId: nextState.activePaneId,
+        sequence: nextFocusRequestSequenceRef.current++,
       });
     },
-    [mutateOutputPaneChain],
+    [outputPaneScopeKey],
   );
 
   const getActiveOutputPaneHandle = useCallback((): OutputEditorHandle | null => {
@@ -213,41 +257,26 @@ export const useOutputPaneController = ({
   }, [outputPaneChainState]);
 
   const resetOutputPanes = useCallback((): void => {
-    pendingFocusPaneIdRef.current = null;
     outputPaneHandlesRef.current.clear();
+    setOutputPaneFocusRequest(null);
+    const nextState = createOutputPaneChainState();
+    outputPaneChainStateRef.current = nextState;
     dispatchOutputPaneChain({
       type: 'replace',
       scopeKey: outputPaneScopeKey,
-      chainState: createOutputPaneChainState(),
+      chainState: nextState,
     });
   }, [outputPaneScopeKey]);
-
-  useEffect(() => {
-    const pendingFocusPaneId = pendingFocusPaneIdRef.current;
-    if (!pendingFocusPaneId || pendingFocusPaneId !== outputPaneChainState.activePaneId) {
-      return;
-    }
-
-    const handle = outputPaneHandlesRef.current.get(pendingFocusPaneId);
-    if (!handle) {
-      return;
-    }
-
-    handle.focus();
-    pendingFocusPaneIdRef.current = null;
-  }, [outputPaneChainState.activePaneId, outputPanes]);
-
-  useEffect(() => {
-    resetOutputPanes();
-  }, [resetOutputPanes]);
 
   return {
     outputDocumentId,
     outputPanes,
+    activeOutputPaneId: outputPaneChainState.activePaneId,
     leftVisiblePaneIndex: outputPaneChainState.leftVisiblePaneIndex,
     hasDerivedOutputPane: hasDerivedOutputPane(outputPaneChainState),
     canNavigateOutputPaneLeft: canNavigateOutputPaneViewportLeft(outputPaneChainState),
     canNavigateOutputPaneRight: canNavigateOutputPaneViewportRight(outputPaneChainState),
+    outputPaneFocusRequest,
     getActiveOutputPaneHandle,
     onOutputPaneHandleChange: registerOutputPaneHandle,
     onOutputPaneFocus: focusVisibleOutputPane,

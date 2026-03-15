@@ -49,7 +49,9 @@ export const App = () => {
           indentSize={controller.indentSize}
           inputText={controller.inputText}
           outputPanes={controller.outputPanes}
+          activeOutputPaneId={controller.activeOutputPaneId}
           outputLeftVisiblePaneIndex={controller.outputLeftVisiblePaneIndex}
+          outputPaneFocusRequest={controller.outputPaneFocusRequest}
           ingestNotice={controller.ingestNotice}
           fallbackWaitState={controller.fallbackWaitState}
           inputEditorRef={inputEditorRef}
