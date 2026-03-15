@@ -70,6 +70,7 @@ const createOutputEditorHandle = (
 ): OutputEditorHandle => ({
   collapseAll: vi.fn(),
   expandAll: vi.fn(),
+  focus: vi.fn(),
   openFind: vi.fn(),
   ...overrides,
 });

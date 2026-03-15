@@ -91,6 +91,21 @@ body {
   gap: 12px;
 }
 
+.toolbar-split-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.toolbar-split-label {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  user-select: none;
+}
+
 .dropdown {
   position: relative;
 }
@@ -355,7 +370,16 @@ body {
   overscroll-behavior-x: contain;
   overflow-x: auto;
   overflow-y: hidden;
-  scroll-snap-type: x proximity;
+  scroll-snap-type: x mandatory;
+}
+
+.output-pane-strip-hide-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.output-pane-strip-hide-scrollbar::-webkit-scrollbar {
+  display: none;
 }
 
 .output-pane-strip-item {
@@ -364,6 +388,7 @@ body {
   min-width: 0;
   min-height: 0;
   scroll-snap-align: start;
+  scroll-snap-stop: always;
 }
 
 .output-pane-strip-item + .output-pane-strip-item {

@@ -28,6 +28,7 @@ Do not add routine status updates, implementation history, or one-time decisions
 - Do not extend a single-output editor design with ad hoc `secondaryPane*` state; represent derived read-only panes as a parent-child chain so upstream reselection can truncate descendants cleanly.
 - Do not derive split-pane excerpts from only the visible folded text; resolve and extract Monaco model ranges so folded sources can open expanded in derived panes without data loss.
 - Do not create separate Monaco models for structural split panes when the UI must preserve source line numbers; share the root source model and apply pane-local hidden areas for derived views.
+- Do not trust Monaco `getRegionAtLine(...)` as the sole source of nested split selection in hidden-area derived panes; scan folding regions and pick the smallest containing region or recursive pane splits can silently no-op in real Electron runs.
 - Do not maintain separate Monaco option sets for input/output that can drift; use one shared base and derive editable/read-only variants.
 - Do not enable fold actions when there is no content; fold controls should be content-aware and no-op states should stay disabled.
 - Do not let Monaco option drift happen between input and output panes; keep one shared base options seam and make any intentional pane-specific overrides explicit and unit-tested.
@@ -87,6 +88,7 @@ Do not add routine status updates, implementation history, or one-time decisions
 - Do not duplicate optimistic preference-write sequencing or fallback/prettifier state-reset branches inline across multiple handlers; move those transitions behind named helpers or small flow changes become regression-prone.
 - Do not leave request-id ownership, cancellation rules, or modal resolver semantics implicit in async renderer flows; document those invariants at the helper boundary or later refactors will break stale-response guards.
 - Do not implement renderer keyboard shortcuts or modifier-based Monaco gestures with macOS-only `metaKey` checks when the app targets Windows/Linux too; centralize a platform-aware primary modifier helper.
+- Do not let an outer pane-strip scroller compete with Monaco pane scrolling; reserve strip movement for explicit split-modifier gestures and keep viewport movement snapped to whole-pane steps.
 - Do not truncate a derived-pane chain in controller state just because the current UI only shows one extra pane; keep the full chain and let the pane strip handle overflow so horizontal multi-pane work stays incremental.
 - Do not let a renderer log viewer append forever after reading a bounded main-session log; keep renderer retention capped too or long sessions become memory leaks.
 - Do not center editor-shell states with `height: 100%` when a responsive layout can switch the parent to `min-height`; use flex growth on the shell and child panes so centered content stays centered after resize.

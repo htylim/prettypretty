@@ -325,13 +325,14 @@ describe('OutputEditor', () => {
     expect(lastRender.value).toBe('{"alpha":"beta"}');
   });
 
-  it('exposes collapse, expand, and find actions through the ref handle', async () => {
+  it('exposes collapse, expand, focus, and find actions through the ref handle', async () => {
     const handleRef = createRef<OutputEditorHandle>();
     render(<OutputEditor {...createProps({ value: 'const x = 1;' })} ref={handleRef} />);
 
     await handleRef.current?.collapseAll();
     await handleRef.current?.expandAll();
     await handleRef.current?.openFind();
+    handleRef.current?.focus();
 
     expect(getActionMock).toHaveBeenCalledWith('editor.foldAll');
     expect(getActionMock).toHaveBeenCalledWith('editor.unfoldAll');
@@ -339,7 +340,7 @@ describe('OutputEditor', () => {
     expect(foldRunMock).toHaveBeenCalledTimes(1);
     expect(unfoldRunMock).toHaveBeenCalledTimes(1);
     expect(findRunMock).toHaveBeenCalledTimes(1);
-    expect(focusMock).toHaveBeenCalledTimes(1);
+    expect(focusMock).toHaveBeenCalledTimes(2);
   });
 
   it('uses pane-local fold actions for derived source views', async () => {
@@ -436,7 +437,7 @@ describe('OutputEditor', () => {
 
     expect(preventDefault).toHaveBeenCalledTimes(1);
     expect(stopPropagation).toHaveBeenCalledTimes(1);
-    expect(resolveStructuralSplitSelectionMock).toHaveBeenCalledWith(editorMock, 2);
+    expect(resolveStructuralSplitSelectionMock).toHaveBeenCalledWith(editorMock, 2, null);
     expect(onSplitSelection).toHaveBeenCalledWith({
       sourceRange: {
         startLineNumber: 2,
@@ -445,6 +446,35 @@ describe('OutputEditor', () => {
         endColumn: 2,
       },
     });
+  });
+
+  it('passes the current pane view range into structural split resolution for derived panes', async () => {
+    const onSplitSelection = vi.fn();
+    const viewRange = {
+      startLineNumber: 3,
+      startColumn: 1,
+      endLineNumber: 5,
+      endColumn: 2,
+    };
+    resolveStructuralSplitSelectionMock.mockResolvedValue(null);
+
+    render(<OutputEditor {...createProps({ onSplitSelection, viewRange })} />);
+
+    await act(async () => {
+      splitMouseDownListener?.({
+        target: { position: { lineNumber: 4 } },
+        event: {
+          ctrlKey: true,
+          browserEvent: { detail: 1 },
+          preventDefault: vi.fn(),
+          stopPropagation: vi.fn(),
+        },
+      });
+      await Promise.resolve();
+    });
+
+    expect(resolveStructuralSplitSelectionMock).toHaveBeenCalledWith(editorMock, 4, viewRange);
+    expect(onSplitSelection).not.toHaveBeenCalled();
   });
 
   it('applies pane-local view ranges while keeping a shared source model path', () => {

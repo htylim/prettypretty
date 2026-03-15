@@ -48,6 +48,34 @@ describe('structuralSplitSelection', () => {
     });
   });
 
+  it('keeps nested child selections inside a derived pane view range', async () => {
+    resolveSmallestEnclosingFoldRangeMock.mockResolvedValue({
+      startLineNumber: 3,
+      endLineNumber: 5,
+      isCollapsed: false,
+    });
+
+    const selection = await resolveStructuralSplitSelection(
+      createEditor(['{', '  "root": {', '    "nested": {', '      "leaf": 1', '    }', '  }', '}']),
+      4,
+      {
+        startLineNumber: 2,
+        startColumn: 1,
+        endLineNumber: 6,
+        endColumn: 4,
+      },
+    );
+
+    expect(selection).toEqual({
+      sourceRange: {
+        startLineNumber: 3,
+        startColumn: 1,
+        endLineNumber: 5,
+        endColumn: 6,
+      },
+    });
+  });
+
   it('returns the folded block itself when the clicked line is a folded start', async () => {
     resolveSmallestEnclosingFoldRangeMock.mockResolvedValue({
       startLineNumber: 1,
@@ -62,6 +90,48 @@ describe('structuralSplitSelection', () => {
 
     expect(selection?.sourceRange.startLineNumber).toBe(1);
     expect(selection?.sourceRange.endLineNumber).toBe(3);
+  });
+
+  it('returns null when the resolved range equals the derived pane view range', async () => {
+    resolveSmallestEnclosingFoldRangeMock.mockResolvedValue({
+      startLineNumber: 2,
+      endLineNumber: 5,
+      isCollapsed: false,
+    });
+
+    await expect(
+      resolveStructuralSplitSelection(
+        createEditor(['{', '  "root": {', '    "nested": true', '    "other": true', '  }', '}']),
+        2,
+        {
+          startLineNumber: 2,
+          startColumn: 1,
+          endLineNumber: 5,
+          endColumn: 4,
+        },
+      ),
+    ).resolves.toBeNull();
+  });
+
+  it('returns null when Monaco resolves a range outside the pane view range', async () => {
+    resolveSmallestEnclosingFoldRangeMock.mockResolvedValue({
+      startLineNumber: 1,
+      endLineNumber: 5,
+      isCollapsed: false,
+    });
+
+    await expect(
+      resolveStructuralSplitSelection(
+        createEditor(['{', '  "nested": {', '    "leaf": 1', '  }', '}']),
+        2,
+        {
+          startLineNumber: 2,
+          startColumn: 1,
+          endLineNumber: 4,
+          endColumn: 4,
+        },
+      ),
+    ).resolves.toBeNull();
   });
 
   it('returns null when Monaco resolves no enclosing foldable block', async () => {

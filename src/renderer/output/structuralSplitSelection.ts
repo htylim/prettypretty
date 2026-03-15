@@ -14,9 +14,29 @@ const getFoldRangeModelSpan = (
   };
 };
 
+const isRangeWithinViewRange = (
+  sourceRange: OutputPaneSourceRange,
+  viewRange: OutputPaneSourceRange,
+): boolean => {
+  return (
+    sourceRange.startLineNumber >= viewRange.startLineNumber &&
+    sourceRange.endLineNumber <= viewRange.endLineNumber
+  );
+};
+
+const isRangeEqual = (left: OutputPaneSourceRange, right: OutputPaneSourceRange): boolean => {
+  return (
+    left.startLineNumber === right.startLineNumber &&
+    left.startColumn === right.startColumn &&
+    left.endLineNumber === right.endLineNumber &&
+    left.endColumn === right.endColumn
+  );
+};
+
 export const resolveStructuralSplitSelection = async (
   editor: MonacoEditor.IStandaloneCodeEditor,
   lineNumber: number,
+  paneViewRange: OutputPaneSourceRange | null = null,
 ): Promise<OutputPaneSelection | null> => {
   const model = editor.getModel();
   if (!model) {
@@ -29,6 +49,16 @@ export const resolveStructuralSplitSelection = async (
   }
 
   const sourceRange = getFoldRangeModelSpan(model, foldRange);
+  if (paneViewRange) {
+    if (!isRangeWithinViewRange(sourceRange, paneViewRange)) {
+      return null;
+    }
+
+    if (isRangeEqual(sourceRange, paneViewRange)) {
+      return null;
+    }
+  }
+
   return {
     sourceRange,
   };

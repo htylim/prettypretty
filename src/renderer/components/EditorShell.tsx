@@ -24,6 +24,7 @@ type EditorShellProps = {
   indentSize: IndentSize;
   inputText: string;
   outputPanes: OutputPaneViewModel[];
+  outputLeftVisiblePaneIndex: number;
   ingestNotice: string | null;
   fallbackWaitState: FallbackWaitState | null;
   inputEditorRef: RefObject<InputEditorHandle | null>;
@@ -35,6 +36,7 @@ type EditorShellProps = {
   onOutputPaneHandleChange: (paneId: string, handle: OutputEditorHandle | null) => void;
   onOutputPaneFocus: (paneId: string) => void;
   onOutputPaneSplitSelection: (paneId: string, selection: OutputPaneSelection) => void;
+  onNavigateOutputPaneViewport: (stepDelta: number) => void;
 };
 
 export const EditorShell = ({
@@ -43,6 +45,7 @@ export const EditorShell = ({
   indentSize,
   inputText,
   outputPanes,
+  outputLeftVisiblePaneIndex,
   ingestNotice,
   fallbackWaitState,
   inputEditorRef,
@@ -54,6 +57,7 @@ export const EditorShell = ({
   onOutputPaneHandleChange,
   onOutputPaneFocus,
   onOutputPaneSplitSelection,
+  onNavigateOutputPaneViewport,
 }: EditorShellProps) => {
   const hasContent = inputText.trim().length > 0;
   const fallbackWaitMessage = fallbackWaitState ? (
@@ -159,6 +163,8 @@ export const EditorShell = ({
         <div className="output-pane">
           <OutputPaneStrip
             indentSize={indentSize}
+            leftVisiblePaneIndex={outputLeftVisiblePaneIndex}
+            onNavigatePaneViewport={onNavigateOutputPaneViewport}
             onPaneFocus={onOutputPaneFocus}
             onPaneHandleChange={onOutputPaneHandleChange}
             onPaneSplitSelection={onOutputPaneSplitSelection}

@@ -67,6 +67,7 @@ const createProps = (
   indentSize: 2,
   inputText: '',
   outputPanes: createOutputPanes(),
+  outputLeftVisiblePaneIndex: 0,
   ingestNotice: null,
   fallbackWaitState: null,
   inputEditorRef: createInputEditorRef(),
@@ -78,6 +79,7 @@ const createProps = (
   onOutputPaneHandleChange: vi.fn(),
   onOutputPaneFocus: vi.fn(),
   onOutputPaneSplitSelection: vi.fn(),
+  onNavigateOutputPaneViewport: vi.fn(),
   ...overrides,
 });
 

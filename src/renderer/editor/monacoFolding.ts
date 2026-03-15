@@ -139,6 +139,36 @@ const toFoldRange = (region: FoldingRegion | null): FoldRange | null => {
   };
 };
 
+const findSmallestContainingRegion = (
+  foldingModel: FoldingModel,
+  lineNumber: number,
+): FoldingRegion | null => {
+  let bestRegion: FoldingRegion | null = null;
+  let bestSpan = Number.POSITIVE_INFINITY;
+  const regions = foldingModel.regions;
+
+  for (let index = 0; index < regions.length; index += 1) {
+    const region = regions.toRegion(index);
+    if (!region || lineNumber < region.startLineNumber || lineNumber > region.endLineNumber) {
+      continue;
+    }
+
+    const span = region.endLineNumber - region.startLineNumber;
+    if (
+      span < bestSpan ||
+      (span === bestSpan &&
+        bestRegion !== null &&
+        region.startLineNumber >= bestRegion.startLineNumber &&
+        region.endLineNumber <= bestRegion.endLineNumber)
+    ) {
+      bestRegion = region;
+      bestSpan = span;
+    }
+  }
+
+  return bestRegion;
+};
+
 export const getVisibleFoldStartLines = async (
   editor: MonacoEditor.IStandaloneCodeEditor,
   overscanLines = 0,
@@ -167,7 +197,7 @@ export const findSmallestEnclosingFoldRange = (
   lineNumber: number,
 ): FoldRange | null => {
   const foldingModel = getCurrentFoldingModel(editor);
-  return toFoldRange(foldingModel?.getRegionAtLine(lineNumber) ?? null);
+  return toFoldRange(foldingModel ? findSmallestContainingRegion(foldingModel, lineNumber) : null);
 };
 
 export const resolveSmallestEnclosingFoldRange = async (
@@ -175,7 +205,7 @@ export const resolveSmallestEnclosingFoldRange = async (
   lineNumber: number,
 ): Promise<FoldRange | null> => {
   const foldingModel = await getFoldingModel(editor);
-  return toFoldRange(foldingModel?.getRegionAtLine(lineNumber) ?? null);
+  return toFoldRange(foldingModel ? findSmallestContainingRegion(foldingModel, lineNumber) : null);
 };
 
 export const isFoldStartCollapsed = (

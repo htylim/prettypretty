@@ -6,29 +6,60 @@ type UseKeyboardShortcutsOptions = {
   isOutputMode: boolean;
   paneMode: PaneMode;
   hasContent: boolean;
+  canPopOutputPane: boolean;
   openNewWindow: () => void;
   resetCurrentWindow: () => void;
   handlePaneModeChange: (nextMode: PaneMode) => void;
   saveOutput: () => Promise<void>;
   copyOutput: () => Promise<void>;
   openFind: () => void;
+  closeOutputPane: () => void;
+  navigateOutputPaneViewport: (stepDelta: number) => void;
 };
 
 export const useKeyboardShortcuts = ({
   isOutputMode,
   paneMode,
   hasContent,
+  canPopOutputPane,
   openNewWindow,
   resetCurrentWindow,
   handlePaneModeChange,
   saveOutput,
   copyOutput,
   openFind,
+  closeOutputPane,
+  navigateOutputPaneViewport,
 }: UseKeyboardShortcutsOptions): void => {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent): void => {
       if (event.defaultPrevented || event.isComposing) {
         return;
+      }
+
+      if (event.key === 'Escape') {
+        if (!isOutputMode || !canPopOutputPane) {
+          return;
+        }
+
+        event.preventDefault();
+        closeOutputPane();
+        return;
+      }
+
+      const isLiteralCtrlShortcut = event.ctrlKey && !event.metaKey && !event.altKey;
+      if (isOutputMode && !event.shiftKey && isLiteralCtrlShortcut) {
+        if (event.key === 'ArrowLeft') {
+          event.preventDefault();
+          navigateOutputPaneViewport(-1);
+          return;
+        }
+
+        if (event.key === 'ArrowRight') {
+          event.preventDefault();
+          navigateOutputPaneViewport(1);
+          return;
+        }
       }
 
       if (!hasPrimaryModifier(event)) {
@@ -106,9 +137,12 @@ export const useKeyboardShortcuts = ({
     };
   }, [
     copyOutput,
+    closeOutputPane,
+    canPopOutputPane,
     handlePaneModeChange,
     hasContent,
     isOutputMode,
+    navigateOutputPaneViewport,
     openNewWindow,
     openFind,
     paneMode,

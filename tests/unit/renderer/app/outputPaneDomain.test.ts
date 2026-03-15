@@ -1,102 +1,159 @@
 import { describe, expect, it } from 'vitest';
 import {
+  canNavigateOutputPaneViewportLeft,
+  canNavigateOutputPaneViewportRight,
   closeRightmostOutputPane,
   createOutputPaneChainState,
-  focusOutputPane,
   getOutputPaneSourceHighlight,
   openOrReplaceDerivedOutputPane,
+  shiftOutputPaneViewport,
 } from '../../../../src/renderer/app/outputPaneDomain';
 
 const rootSelection = {
   sourceRange: {
     startLineNumber: 2,
     startColumn: 1,
-    endLineNumber: 5,
+    endLineNumber: 12,
     endColumn: 2,
   },
 };
 
 const childSelection = {
   sourceRange: {
-    startLineNumber: 1,
+    startLineNumber: 3,
     startColumn: 1,
-    endLineNumber: 3,
+    endLineNumber: 9,
     endColumn: 2,
   },
 };
 
+const grandchildSelection = {
+  sourceRange: {
+    startLineNumber: 4,
+    startColumn: 1,
+    endLineNumber: 6,
+    endColumn: 2,
+  },
+};
+
+const replacementSelection = {
+  sourceRange: {
+    startLineNumber: 7,
+    startColumn: 1,
+    endLineNumber: 10,
+    endColumn: 2,
+  },
+};
+
+const createRecursiveChain = () => {
+  const withChild = openOrReplaceDerivedOutputPane(
+    createOutputPaneChainState(),
+    'output-root-pane',
+    rootSelection,
+  );
+  const withGrandchild = openOrReplaceDerivedOutputPane(withChild, 'output-pane-1', childSelection);
+  return openOrReplaceDerivedOutputPane(withGrandchild, 'output-pane-2', grandchildSelection);
+};
+
 describe('outputPaneDomain', () => {
-  it('opens and replaces a derived pane without changing its pane identity', () => {
-    const opened = openOrReplaceDerivedOutputPane(
+  it('opens recursive child panes and targets the parent-child viewport pair', () => {
+    const withChild = openOrReplaceDerivedOutputPane(
       createOutputPaneChainState(),
       'output-root-pane',
       rootSelection,
     );
 
-    expect(opened.derivedPanes).toHaveLength(1);
-    expect(opened.derivedPanes[0]).toMatchObject({
+    expect(withChild.derivedPanes).toHaveLength(1);
+    expect(withChild.derivedPanes[0]).toMatchObject({
       parentPaneId: 'output-root-pane',
       paneId: 'output-pane-1',
       sourceRange: rootSelection.sourceRange,
       viewStateKey: 'output-pane-1:selection-1',
     });
+    expect(withChild.activePaneId).toBe('output-pane-1');
+    expect(withChild.leftVisiblePaneIndex).toBe(0);
 
-    const replaced = openOrReplaceDerivedOutputPane(opened, 'output-root-pane', {
-      ...rootSelection,
-      sourceRange: {
-        startLineNumber: 7,
-        startColumn: 1,
-        endLineNumber: 9,
-        endColumn: 2,
-      },
-    });
-
-    expect(replaced.derivedPanes).toHaveLength(1);
-    expect(replaced.derivedPanes[0]?.paneId).toBe('output-pane-1');
-    expect(replaced.derivedPanes[0]?.viewStateKey).toBe('output-pane-1:selection-2');
-    expect(replaced.nextDerivedPaneViewStateId).toBe(3);
-  });
-
-  it('treats identical reselection as a no-op unless descendants must be dropped', () => {
-    const withChild = openOrReplaceDerivedOutputPane(
-      createOutputPaneChainState(),
-      'output-root-pane',
-      rootSelection,
-    );
     const withGrandchild = openOrReplaceDerivedOutputPane(
-      focusOutputPane(withChild, 'output-pane-1'),
+      withChild,
       'output-pane-1',
       childSelection,
     );
 
-    const trimmed = openOrReplaceDerivedOutputPane(
-      withGrandchild,
-      'output-root-pane',
-      rootSelection,
-    );
-
-    expect(trimmed.derivedPanes).toHaveLength(1);
-    expect(trimmed.derivedPanes[0]?.viewStateKey).toBe(withChild.derivedPanes[0]?.viewStateKey);
-    expect(trimmed.activePaneId).toBe('output-pane-1');
-    expect(openOrReplaceDerivedOutputPane(withChild, 'output-root-pane', rootSelection)).toBe(
-      withChild,
-    );
+    expect(withGrandchild.derivedPanes).toHaveLength(2);
+    expect(withGrandchild.derivedPanes[1]).toMatchObject({
+      parentPaneId: 'output-pane-1',
+      paneId: 'output-pane-2',
+      sourceRange: childSelection.sourceRange,
+      viewStateKey: 'output-pane-2:selection-2',
+    });
+    expect(withGrandchild.activePaneId).toBe('output-pane-2');
+    expect(withGrandchild.leftVisiblePaneIndex).toBe(1);
   });
 
-  it('closes the rightmost pane and exposes parent highlights', () => {
-    const withChild = openOrReplaceDerivedOutputPane(
-      createOutputPaneChainState(),
+  it('truncates descendants on upstream reselection and preserves identical child identity', () => {
+    const recursiveChain = createRecursiveChain();
+
+    const trimmed = openOrReplaceDerivedOutputPane(
+      recursiveChain,
       'output-root-pane',
       rootSelection,
     );
+    expect(trimmed.derivedPanes).toHaveLength(1);
+    expect(trimmed.derivedPanes[0]?.paneId).toBe('output-pane-1');
+    expect(trimmed.derivedPanes[0]?.viewStateKey).toBe('output-pane-1:selection-1');
+    expect(trimmed.activePaneId).toBe('output-pane-1');
+    expect(trimmed.leftVisiblePaneIndex).toBe(0);
 
-    expect(getOutputPaneSourceHighlight(withChild, 'output-root-pane')).toEqual(
+    const replaced = openOrReplaceDerivedOutputPane(
+      recursiveChain,
+      'output-pane-1',
+      replacementSelection,
+    );
+    expect(replaced.derivedPanes).toHaveLength(2);
+    expect(replaced.derivedPanes[1]).toMatchObject({
+      parentPaneId: 'output-pane-1',
+      paneId: 'output-pane-2',
+      sourceRange: replacementSelection.sourceRange,
+      viewStateKey: 'output-pane-2:selection-4',
+    });
+    expect(replaced.activePaneId).toBe('output-pane-2');
+    expect(replaced.leftVisiblePaneIndex).toBe(1);
+  });
+
+  it('pops the rightmost pane, keeps source highlights, and navigates the snapped viewport', () => {
+    const recursiveChain = createRecursiveChain();
+
+    expect(getOutputPaneSourceHighlight(recursiveChain, 'output-root-pane')).toEqual(
       rootSelection.sourceRange,
     );
-    expect(getOutputPaneSourceHighlight(withChild, 'output-pane-1')).toBeNull();
+    expect(getOutputPaneSourceHighlight(recursiveChain, 'output-pane-1')).toEqual(
+      childSelection.sourceRange,
+    );
+    expect(getOutputPaneSourceHighlight(recursiveChain, 'output-pane-2')).toEqual(
+      grandchildSelection.sourceRange,
+    );
 
-    const closed = closeRightmostOutputPane(focusOutputPane(withChild, 'output-pane-1'));
-    expect(closed.derivedPanes).toHaveLength(0);
-    expect(closed.activePaneId).toBe('output-root-pane');
+    const navigatedLeft = shiftOutputPaneViewport(recursiveChain, -1);
+    expect(navigatedLeft.leftVisiblePaneIndex).toBe(1);
+    expect(navigatedLeft.activePaneId).toBe('output-pane-1');
+    expect(canNavigateOutputPaneViewportLeft(navigatedLeft)).toBe(true);
+    expect(canNavigateOutputPaneViewportRight(navigatedLeft)).toBe(true);
+
+    const navigatedFarLeft = shiftOutputPaneViewport(navigatedLeft, -1);
+    expect(navigatedFarLeft.leftVisiblePaneIndex).toBe(0);
+    expect(navigatedFarLeft.activePaneId).toBe('output-root-pane');
+    expect(canNavigateOutputPaneViewportLeft(navigatedFarLeft)).toBe(false);
+    expect(canNavigateOutputPaneViewportRight(navigatedFarLeft)).toBe(true);
+
+    const closed = closeRightmostOutputPane(recursiveChain);
+    expect(closed.derivedPanes).toHaveLength(2);
+    expect(closed.leftVisiblePaneIndex).toBe(1);
+    expect(closed.activePaneId).toBe('output-pane-2');
+
+    const closedAgain = closeRightmostOutputPane(closed);
+    expect(closedAgain.derivedPanes).toHaveLength(1);
+    expect(closedAgain.leftVisiblePaneIndex).toBe(0);
+    expect(closedAgain.activePaneId).toBe('output-pane-1');
+    expect(canNavigateOutputPaneViewportRight(closedAgain)).toBe(false);
   });
 });

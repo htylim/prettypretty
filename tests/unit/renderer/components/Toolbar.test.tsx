@@ -16,14 +16,18 @@ const createProps = (
     { id: 'codex', name: 'Codex', enabled: true },
   ],
   hasContent: true,
-  hasDerivedOutputPane: false,
+  canPopSplit: false,
+  canNavigateSplitLeft: false,
+  canNavigateSplitRight: false,
   onNew: vi.fn(),
   onPaneModeChange: vi.fn(),
   onCollapseAll: vi.fn(),
   onExpandAll: vi.fn(),
   onSave: vi.fn(),
   onCopy: vi.fn(),
-  onCloseSplit: vi.fn(),
+  onPopSplit: vi.fn(),
+  onNavigateSplitLeft: vi.fn(),
+  onNavigateSplitRight: vi.fn(),
   onThemeModeChange: vi.fn(),
   onIndentSizeChange: vi.fn(),
   onFallbackAgentIdChange: vi.fn(),
@@ -99,7 +103,16 @@ describe('Toolbar', () => {
   it('uses shared style for toolbar action buttons', () => {
     render(<Toolbar {...createProps({ paneMode: 'output' })} />);
 
-    const actionButtons = ['New', 'Collapse', 'Expand', 'Save', 'Copy', 'Split'] as const;
+    const actionButtons = [
+      'New',
+      'Collapse',
+      'Expand',
+      'Save',
+      'Copy',
+      'Pop split',
+      'Navigate splits left',
+      'Navigate splits right',
+    ] as const;
 
     for (const label of actionButtons) {
       const button = screen.getByRole('button', { name: label });
@@ -116,7 +129,16 @@ describe('Toolbar', () => {
       (button) => button.getAttribute('aria-label') || button.textContent?.trim(),
     );
 
-    expect(actionLabels).toEqual(['New', 'Collapse', 'Expand', 'Save', 'Copy', 'Split']);
+    expect(actionLabels).toEqual([
+      'New',
+      'Collapse',
+      'Expand',
+      'Save',
+      'Copy',
+      'Pop split',
+      'Navigate splits left',
+      'Navigate splits right',
+    ]);
   });
 
   it('shows tooltips with shortcut hints for primary controls', () => {
@@ -256,32 +278,67 @@ describe('Toolbar', () => {
     expect(triggerLabels).toEqual(['Indent: 2', 'Codex']);
   });
 
-  it('keeps the split button visible, disables it when closed, and places it after fallback control', async () => {
+  it('renders the Splits group after the fallback control with distinct pop/left/right states', async () => {
     const user = userEvent.setup();
-    const onCloseSplit = vi.fn();
+    const onPopSplit = vi.fn();
+    const onNavigateSplitLeft = vi.fn();
+    const onNavigateSplitRight = vi.fn();
     const { rerender } = render(
       <Toolbar
-        {...createProps({ hasDerivedOutputPane: false, onCloseSplit, paneMode: 'output' })}
+        {...createProps({
+          canPopSplit: false,
+          canNavigateSplitLeft: false,
+          canNavigateSplitRight: false,
+          onNavigateSplitLeft,
+          onNavigateSplitRight,
+          onPopSplit,
+          paneMode: 'output',
+        })}
       />,
     );
 
-    const splitButton = screen.getByRole('button', { name: 'Split' });
-    expect(splitButton).toBeDisabled();
-    expect(splitButton).toHaveAttribute('title', 'Close split pane');
+    const splitsGroup = screen.getByTestId('toolbar-splits-group');
+    const popButton = screen.getByRole('button', { name: 'Pop split' });
+    const leftButton = screen.getByRole('button', { name: 'Navigate splits left' });
+    const rightButton = screen.getByRole('button', { name: 'Navigate splits right' });
+
+    expect(splitsGroup).toHaveTextContent('Splits');
+    expect(popButton).toBeDisabled();
+    expect(leftButton).toBeDisabled();
+    expect(rightButton).toBeDisabled();
+    expect(popButton).toHaveAttribute('title', 'Pop rightmost split (Escape)');
+    expect(leftButton).toHaveAttribute('title', 'View previous split (Ctrl+Left)');
+    expect(rightButton).toHaveAttribute('title', 'View next split (Ctrl+Right)');
     expect(
       screen.getByTestId('fallback-agent-select').closest('.dropdown')?.nextElementSibling,
-    ).toBe(splitButton);
+    ).toBe(splitsGroup);
 
-    await user.click(splitButton);
-    expect(onCloseSplit).not.toHaveBeenCalled();
+    await user.click(popButton);
+    await user.click(leftButton);
+    await user.click(rightButton);
+    expect(onPopSplit).not.toHaveBeenCalled();
+    expect(onNavigateSplitLeft).not.toHaveBeenCalled();
+    expect(onNavigateSplitRight).not.toHaveBeenCalled();
 
     rerender(
       <Toolbar
-        {...createProps({ hasDerivedOutputPane: true, onCloseSplit, paneMode: 'output' })}
+        {...createProps({
+          canPopSplit: true,
+          canNavigateSplitLeft: true,
+          canNavigateSplitRight: true,
+          onNavigateSplitLeft,
+          onNavigateSplitRight,
+          onPopSplit,
+          paneMode: 'output',
+        })}
       />,
     );
 
-    await user.click(screen.getByRole('button', { name: 'Split' }));
-    expect(onCloseSplit).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole('button', { name: 'Pop split' }));
+    await user.click(screen.getByRole('button', { name: 'Navigate splits left' }));
+    await user.click(screen.getByRole('button', { name: 'Navigate splits right' }));
+    expect(onPopSplit).toHaveBeenCalledTimes(1);
+    expect(onNavigateSplitLeft).toHaveBeenCalledTimes(1);
+    expect(onNavigateSplitRight).toHaveBeenCalledTimes(1);
   });
 });

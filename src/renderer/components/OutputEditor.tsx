@@ -23,6 +23,7 @@ import { resolveStructuralSplitSelection } from '../output/structuralSplitSelect
 export type OutputEditorHandle = {
   collapseAll: () => void;
   expandAll: () => void;
+  focus: () => void;
   openFind: () => void;
 };
 
@@ -41,6 +42,7 @@ type OutputEditorProps = {
 
 const registerCtrlClickSplitSelection = (
   editor: MonacoEditor.IStandaloneCodeEditor,
+  getViewRange: () => OutputPaneSourceRange | null,
   onSplitSelection: (selection: OutputPaneSelection) => void,
 ): { dispose: () => void } => {
   let disposed = false;
@@ -54,7 +56,7 @@ const registerCtrlClickSplitSelection = (
     mouseEvent.event.preventDefault();
     mouseEvent.event.stopPropagation();
 
-    void resolveStructuralSplitSelection(editor, lineNumber).then((selection) => {
+    void resolveStructuralSplitSelection(editor, lineNumber, getViewRange()).then((selection) => {
       if (!selection || disposed) {
         return;
       }
@@ -103,6 +105,7 @@ export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
     const focusHandlerRef = useRef<typeof onFocus>(onFocus);
     const sourceViewRangeRef = useRef(viewRange);
     const activeViewRangeRef = useRef(viewRange);
+    const pendingEditorFocusRef = useRef(false);
     const viewRangeSourceRef = useRef({});
     const options = useMemo(() => getOutputEditorOptions(indentSize), [indentSize]);
     const language = useMemo(() => detectOutputLanguage(value), [value]);
@@ -231,6 +234,15 @@ export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
 
           await editor.getAction('editor.unfoldAll')?.run();
         },
+        focus: () => {
+          const editor = editorRef.current;
+          if (!editor) {
+            pendingEditorFocusRef.current = true;
+            return;
+          }
+
+          editor.focus();
+        },
         openFind: () => {
           const editor = editorRef.current;
           if (!editor) {
@@ -254,6 +266,10 @@ export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
       splitSelectionDecorationsRef.current = createSplitSelectionDecorations(editor);
       splitSelectionDecorationsRef.current.update(highlightRange);
       applyOutputViewRange(editor, viewRange, viewRangeSourceRef.current);
+      if (pendingEditorFocusRef.current) {
+        pendingEditorFocusRef.current = false;
+        editor.focus();
+      }
 
       const nextInteractionDisposables: Array<{ dispose: () => void }> = [
         registerInlineFoldControls(editor),
@@ -270,9 +286,13 @@ export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
 
       if (onSplitSelection) {
         nextInteractionDisposables.push(
-          registerCtrlClickSplitSelection(editor, (selection) => {
-            splitSelectionHandlerRef.current?.(selection);
-          }),
+          registerCtrlClickSplitSelection(
+            editor,
+            () => sourceViewRangeRef.current,
+            (selection) => {
+              splitSelectionHandlerRef.current?.(selection);
+            },
+          ),
         );
       }
 

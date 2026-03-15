@@ -4,15 +4,18 @@ import type { OutputPaneViewModel } from '../components/OutputPaneStrip';
 import type { OutputEditorHandle } from '../components/OutputEditor';
 import { getOutputDocumentId } from './appDomain';
 import {
+  canNavigateOutputPaneViewportLeft,
+  canNavigateOutputPaneViewportRight,
   closeRightmostOutputPane,
   createOutputPaneChainState,
   focusOutputPane,
-  getLastVisibleOutputPaneId,
   getOutputPaneSourceHighlight,
+  getRightmostVisibleOutputPaneId,
   getRootOutputPaneViewStateKey,
   hasDerivedOutputPane,
   openOrReplaceDerivedOutputPane,
   ROOT_OUTPUT_PANE_ID,
+  shiftOutputPaneViewport,
   type OutputPaneSelection,
 } from './outputPaneDomain';
 
@@ -63,11 +66,15 @@ type UseOutputPaneControllerOptions = {
 export type UseOutputPaneControllerResult = {
   outputDocumentId: string;
   outputPanes: OutputPaneViewModel[];
+  leftVisiblePaneIndex: number;
   hasDerivedOutputPane: boolean;
+  canNavigateOutputPaneLeft: boolean;
+  canNavigateOutputPaneRight: boolean;
   getActiveOutputPaneHandle: () => OutputEditorHandle | null;
   onOutputPaneHandleChange: (paneId: string, handle: OutputEditorHandle | null) => void;
   onOutputPaneFocus: (paneId: string) => void;
   onOutputPaneSplitSelection: (paneId: string, selection: OutputPaneSelection) => void;
+  onNavigateOutputPaneViewport: (stepDelta: number) => void;
   onCloseOutputPane: () => void;
   resetOutputPanes: () => void;
 };
@@ -77,7 +84,7 @@ export const useOutputPaneController = ({
   outputText,
 }: UseOutputPaneControllerOptions): UseOutputPaneControllerResult => {
   const outputPaneHandlesRef = useRef(new Map<string, OutputEditorHandle>());
-  const activeOutputPaneIdRef = useRef(ROOT_OUTPUT_PANE_ID);
+  const pendingFocusPaneIdRef = useRef<string | null>(null);
   const [outputPaneChainSnapshot, dispatchOutputPaneChain] = useReducer(outputPaneChainReducer, {
     scopeKey: 'hidden:initial',
     chainState: createOutputPaneChainState(),
@@ -114,7 +121,7 @@ export const useOutputPaneController = ({
         value: outputText,
         viewRange: pane.sourceRange,
         sourceHighlightRange: getOutputPaneSourceHighlight(outputPaneChainState, pane.paneId),
-        isSplitSelectionEnabled: false,
+        isSplitSelectionEnabled: true,
         testId: `output-editor-pane-${index + 1}`,
       })),
     ];
@@ -124,6 +131,10 @@ export const useOutputPaneController = ({
     (paneId: string, handle: OutputEditorHandle | null): void => {
       if (handle) {
         outputPaneHandlesRef.current.set(paneId, handle);
+        if (pendingFocusPaneIdRef.current === paneId) {
+          handle.focus();
+          pendingFocusPaneIdRef.current = null;
+        }
         return;
       }
 
@@ -149,7 +160,6 @@ export const useOutputPaneController = ({
 
   const focusVisibleOutputPane = useCallback(
     (paneId: string): void => {
-      activeOutputPaneIdRef.current = paneId;
       mutateOutputPaneChain((state) => focusOutputPane(state, paneId));
     },
     [mutateOutputPaneChain],
@@ -159,9 +169,10 @@ export const useOutputPaneController = ({
     (paneId: string, selection: OutputPaneSelection): void => {
       mutateOutputPaneChain((state) => {
         const nextState = openOrReplaceDerivedOutputPane(state, paneId, selection);
-        const nextActivePaneId = getLastVisibleOutputPaneId(nextState);
-        activeOutputPaneIdRef.current = nextActivePaneId;
-        return focusOutputPane(nextState, nextActivePaneId);
+        if (nextState !== state) {
+          pendingFocusPaneIdRef.current = nextState.activePaneId;
+        }
+        return nextState;
       });
     },
     [mutateOutputPaneChain],
@@ -170,23 +181,39 @@ export const useOutputPaneController = ({
   const closeDerivedOutputPane = useCallback((): void => {
     mutateOutputPaneChain((state) => {
       const nextState = closeRightmostOutputPane(state);
-      activeOutputPaneIdRef.current = nextState.activePaneId;
+      if (nextState !== state) {
+        pendingFocusPaneIdRef.current = nextState.activePaneId;
+      }
       return nextState;
     });
   }, [mutateOutputPaneChain]);
 
+  const navigateOutputPaneViewport = useCallback(
+    (stepDelta: number): void => {
+      mutateOutputPaneChain((state) => {
+        const nextState = shiftOutputPaneViewport(state, stepDelta);
+        if (nextState !== state) {
+          pendingFocusPaneIdRef.current = nextState.activePaneId;
+        }
+        return nextState;
+      });
+    },
+    [mutateOutputPaneChain],
+  );
+
   const getActiveOutputPaneHandle = useCallback((): OutputEditorHandle | null => {
-    const activeHandle = outputPaneHandlesRef.current.get(activeOutputPaneIdRef.current) ?? null;
+    const activeHandle =
+      outputPaneHandlesRef.current.get(outputPaneChainState.activePaneId) ?? null;
     if (activeHandle) {
       return activeHandle;
     }
 
-    const lastVisiblePaneId = getLastVisibleOutputPaneId(outputPaneChainState);
-    return outputPaneHandlesRef.current.get(lastVisiblePaneId) ?? null;
+    const fallbackPaneId = getRightmostVisibleOutputPaneId(outputPaneChainState);
+    return outputPaneHandlesRef.current.get(fallbackPaneId) ?? null;
   }, [outputPaneChainState]);
 
   const resetOutputPanes = useCallback((): void => {
-    activeOutputPaneIdRef.current = ROOT_OUTPUT_PANE_ID;
+    pendingFocusPaneIdRef.current = null;
     outputPaneHandlesRef.current.clear();
     dispatchOutputPaneChain({
       type: 'replace',
@@ -196,8 +223,19 @@ export const useOutputPaneController = ({
   }, [outputPaneScopeKey]);
 
   useEffect(() => {
-    activeOutputPaneIdRef.current = outputPaneChainState.activePaneId;
-  }, [outputPaneChainState.activePaneId]);
+    const pendingFocusPaneId = pendingFocusPaneIdRef.current;
+    if (!pendingFocusPaneId || pendingFocusPaneId !== outputPaneChainState.activePaneId) {
+      return;
+    }
+
+    const handle = outputPaneHandlesRef.current.get(pendingFocusPaneId);
+    if (!handle) {
+      return;
+    }
+
+    handle.focus();
+    pendingFocusPaneIdRef.current = null;
+  }, [outputPaneChainState.activePaneId, outputPanes]);
 
   useEffect(() => {
     resetOutputPanes();
@@ -206,11 +244,15 @@ export const useOutputPaneController = ({
   return {
     outputDocumentId,
     outputPanes,
+    leftVisiblePaneIndex: outputPaneChainState.leftVisiblePaneIndex,
     hasDerivedOutputPane: hasDerivedOutputPane(outputPaneChainState),
+    canNavigateOutputPaneLeft: canNavigateOutputPaneViewportLeft(outputPaneChainState),
+    canNavigateOutputPaneRight: canNavigateOutputPaneViewportRight(outputPaneChainState),
     getActiveOutputPaneHandle,
     onOutputPaneHandleChange: registerOutputPaneHandle,
     onOutputPaneFocus: focusVisibleOutputPane,
     onOutputPaneSplitSelection: openDerivedOutputPane,
+    onNavigateOutputPaneViewport: navigateOutputPaneViewport,
     onCloseOutputPane: closeDerivedOutputPane,
     resetOutputPanes,
   };

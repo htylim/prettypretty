@@ -1,4 +1,12 @@
-import { VscCollapseAll, VscCopy, VscDebugStepBack, VscExpandAll, VscSave } from 'react-icons/vsc';
+import {
+  VscArrowLeft,
+  VscArrowRight,
+  VscClose,
+  VscCollapseAll,
+  VscCopy,
+  VscExpandAll,
+  VscSave,
+} from 'react-icons/vsc';
 import type { PaneMode, ThemeMode } from '../../shared/types';
 import type { IndentSize } from '../../shared/preferences';
 import { FallbackAgentDropdown, type FallbackAgentOption } from './FallbackAgentDropdown';
@@ -11,14 +19,18 @@ type ToolbarProps = {
   fallbackAgentId: string | null;
   fallbackAgentOptions: FallbackAgentOption[];
   hasContent: boolean;
-  hasDerivedOutputPane: boolean;
+  canPopSplit: boolean;
+  canNavigateSplitLeft: boolean;
+  canNavigateSplitRight: boolean;
   onNew: () => void;
   onPaneModeChange: (nextMode: PaneMode) => void;
   onCollapseAll: () => void;
   onExpandAll: () => void;
   onSave: () => void;
   onCopy: () => void;
-  onCloseSplit: () => void;
+  onPopSplit: () => void;
+  onNavigateSplitLeft: () => void;
+  onNavigateSplitRight: () => void;
   onThemeModeChange: (nextMode: ThemeMode) => void;
   onIndentSizeChange: (nextIndentSize: IndentSize) => void;
   onFallbackAgentIdChange: (nextAgentId: string | null) => void;
@@ -38,7 +50,9 @@ const tooltips = {
   collapse: 'Collapse',
   save: 'Save (Cmd+S)',
   copy: 'Copy (Cmd+Shift+C)',
-  split: 'Close split pane',
+  splitPop: 'Pop rightmost split (Escape)',
+  splitLeft: 'View previous split (Ctrl+Left)',
+  splitRight: 'View next split (Ctrl+Right)',
   lightTheme: 'Switch to light theme',
   darkTheme: 'Switch to dark theme',
 } as const;
@@ -55,14 +69,18 @@ export const Toolbar = ({
   fallbackAgentId,
   fallbackAgentOptions,
   hasContent,
-  hasDerivedOutputPane,
+  canPopSplit,
+  canNavigateSplitLeft,
+  canNavigateSplitRight,
   onNew,
   onPaneModeChange,
   onCollapseAll,
   onExpandAll,
   onSave,
   onCopy,
-  onCloseSplit,
+  onPopSplit,
+  onNavigateSplitLeft,
+  onNavigateSplitRight,
   onThemeModeChange,
   onIndentSizeChange,
   onFallbackAgentIdChange,
@@ -162,17 +180,47 @@ export const Toolbar = ({
           onFallbackAgentIdChange={onFallbackAgentIdChange}
         />
 
-        <button
-          className={buttonClass}
-          data-testid="toolbar-split-button"
-          disabled={!hasDerivedOutputPane}
-          onClick={onCloseSplit}
-          title={tooltips.split}
-          type="button"
+        <div
+          aria-label="Splits"
+          className="toolbar-split-group"
+          data-testid="toolbar-splits-group"
+          role="group"
         >
-          <VscDebugStepBack />
-          <span>Split</span>
-        </button>
+          <span className="toolbar-split-label">Splits</span>
+          <button
+            aria-label="Pop split"
+            className={`${buttonClass} btn-icon`}
+            data-testid="toolbar-splits-pop"
+            disabled={!canPopSplit}
+            onClick={onPopSplit}
+            title={tooltips.splitPop}
+            type="button"
+          >
+            <VscClose />
+          </button>
+          <button
+            aria-label="Navigate splits left"
+            className={`${buttonClass} btn-icon`}
+            data-testid="toolbar-splits-left"
+            disabled={!canNavigateSplitLeft}
+            onClick={onNavigateSplitLeft}
+            title={tooltips.splitLeft}
+            type="button"
+          >
+            <VscArrowLeft />
+          </button>
+          <button
+            aria-label="Navigate splits right"
+            className={`${buttonClass} btn-icon`}
+            data-testid="toolbar-splits-right"
+            disabled={!canNavigateSplitRight}
+            onClick={onNavigateSplitRight}
+            title={tooltips.splitRight}
+            type="button"
+          >
+            <VscArrowRight />
+          </button>
+        </div>
       </div>
 
       <div className="toolbar-right">

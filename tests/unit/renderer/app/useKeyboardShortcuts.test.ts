@@ -18,12 +18,15 @@ type HarnessProps = {
   isOutputMode: boolean;
   paneMode: 'input' | 'output';
   hasContent: boolean;
+  canPopOutputPane: boolean;
   openNewWindow: () => void;
   resetCurrentWindow: () => void;
   handlePaneModeChange: (nextMode: 'input' | 'output') => void;
   saveOutput: () => Promise<void>;
   copyOutput: () => Promise<void>;
   openFind: () => void;
+  closeOutputPane: () => void;
+  navigateOutputPaneViewport: (stepDelta: number) => void;
 };
 
 const KeyboardHarness = (props: HarnessProps) => {
@@ -35,12 +38,15 @@ const createDefaults = () => ({
   isOutputMode: false,
   paneMode: 'input' as const,
   hasContent: false,
+  canPopOutputPane: false,
   openNewWindow: vi.fn(),
   resetCurrentWindow: vi.fn(),
   handlePaneModeChange: vi.fn(),
   saveOutput: vi.fn().mockResolvedValue(undefined),
   copyOutput: vi.fn().mockResolvedValue(undefined),
   openFind: vi.fn(),
+  closeOutputPane: vi.fn(),
+  navigateOutputPaneViewport: vi.fn(),
 });
 
 describe('useKeyboardShortcuts', () => {
@@ -102,5 +108,57 @@ describe('useKeyboardShortcuts', () => {
     expect(defaults.resetCurrentWindow).toHaveBeenCalledTimes(1);
     expect(defaults.saveOutput).toHaveBeenCalledTimes(1);
     expect(defaults.openFind).toHaveBeenCalledTimes(1);
+  });
+
+  it('routes literal Ctrl+Left/Ctrl+Right to split navigation only in output mode', () => {
+    const defaults = createDefaults();
+    const { rerender } = render(createElement(KeyboardHarness, defaults));
+
+    fireEvent.keyDown(window, { key: 'ArrowLeft', ctrlKey: true });
+    fireEvent.keyDown(window, { key: 'ArrowRight', ctrlKey: true });
+    expect(defaults.navigateOutputPaneViewport).not.toHaveBeenCalled();
+
+    rerender(
+      createElement(KeyboardHarness, {
+        ...defaults,
+        isOutputMode: true,
+        paneMode: 'output',
+      }),
+    );
+
+    fireEvent.keyDown(window, { key: 'ArrowLeft', ctrlKey: true });
+    fireEvent.keyDown(window, { key: 'ArrowRight', ctrlKey: true });
+
+    expect(defaults.navigateOutputPaneViewport).toHaveBeenNthCalledWith(1, -1);
+    expect(defaults.navigateOutputPaneViewport).toHaveBeenNthCalledWith(2, 1);
+  });
+
+  it('pops splits on Escape only when output mode is active and the event is not consumed', () => {
+    const defaults = createDefaults();
+    const { rerender } = render(createElement(KeyboardHarness, defaults));
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(defaults.closeOutputPane).not.toHaveBeenCalled();
+
+    rerender(
+      createElement(KeyboardHarness, {
+        ...defaults,
+        canPopOutputPane: true,
+        isOutputMode: true,
+        paneMode: 'output',
+      }),
+    );
+
+    const preventedEscape = new KeyboardEvent('keydown', {
+      key: 'Escape',
+      bubbles: true,
+      cancelable: true,
+    });
+    preventedEscape.preventDefault();
+    window.dispatchEvent(preventedEscape);
+    expect(defaults.closeOutputPane).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(defaults.closeOutputPane).toHaveBeenCalledTimes(1);
   });
 });

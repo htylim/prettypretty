@@ -20,6 +20,7 @@ const openWindowMock = vi.fn();
 const appOnResetCurrentWindowMock = vi.fn();
 const outputCollapseAllMock = vi.fn();
 const outputExpandAllMock = vi.fn();
+const outputFocusMock = vi.fn();
 const inputCollapseAllMock = vi.fn();
 const inputExpandAllMock = vi.fn();
 const openFindMock = vi.fn();
@@ -139,6 +140,7 @@ vi.mock('../../../src/renderer/components/OutputEditor', async () => {
           () => ({
             collapseAll: outputCollapseAllMock,
             expandAll: outputExpandAllMock,
+            focus: outputFocusMock,
             openFind: openFindMock,
           }),
           [],
@@ -168,6 +170,7 @@ beforeEach(() => {
   });
   outputCollapseAllMock.mockReset();
   outputExpandAllMock.mockReset();
+  outputFocusMock.mockReset();
   inputCollapseAllMock.mockReset();
   inputExpandAllMock.mockReset();
   openFindMock.mockReset();

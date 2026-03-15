@@ -26,14 +26,18 @@ export const App = () => {
           fallbackAgentId={controller.fallbackAgentId}
           fallbackAgentOptions={controller.fallbackAgentOptions}
           hasContent={controller.hasContent}
-          hasDerivedOutputPane={controller.hasDerivedOutputPane}
+          canPopSplit={controller.hasDerivedOutputPane}
+          canNavigateSplitLeft={controller.canNavigateOutputPaneLeft}
+          canNavigateSplitRight={controller.canNavigateOutputPaneRight}
           onNew={controller.onNew}
           onPaneModeChange={controller.onPaneModeChange}
           onCollapseAll={controller.onCollapseAll}
           onExpandAll={controller.onExpandAll}
           onSave={() => void controller.onSave()}
           onCopy={() => void controller.onCopy()}
-          onCloseSplit={controller.onCloseSplit}
+          onPopSplit={controller.onCloseSplit}
+          onNavigateSplitLeft={controller.onNavigateOutputPaneLeft}
+          onNavigateSplitRight={controller.onNavigateOutputPaneRight}
           onThemeModeChange={(mode) => void controller.onThemeModeChange(mode)}
           onIndentSizeChange={(size) => void controller.onIndentSizeChange(size)}
           onFallbackAgentIdChange={(agentId) => void controller.onFallbackAgentIdChange(agentId)}
@@ -45,6 +49,7 @@ export const App = () => {
           indentSize={controller.indentSize}
           inputText={controller.inputText}
           outputPanes={controller.outputPanes}
+          outputLeftVisiblePaneIndex={controller.outputLeftVisiblePaneIndex}
           ingestNotice={controller.ingestNotice}
           fallbackWaitState={controller.fallbackWaitState}
           inputEditorRef={inputEditorRef}
@@ -56,6 +61,7 @@ export const App = () => {
           onOutputPaneHandleChange={controller.onOutputPaneHandleChange}
           onOutputPaneFocus={controller.onOutputPaneFocus}
           onOutputPaneSplitSelection={controller.onOutputPaneSplitSelection}
+          onNavigateOutputPaneViewport={controller.onNavigateOutputPaneViewport}
         />
       </div>
 

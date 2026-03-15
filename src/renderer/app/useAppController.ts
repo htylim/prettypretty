@@ -37,6 +37,7 @@ export type UseAppControllerResult = {
   outputText: string;
   outputDocumentId: string;
   outputPanes: ReturnType<typeof useOutputPaneController>['outputPanes'];
+  outputLeftVisiblePaneIndex: number;
   fallbackWaitState: FallbackWaitState | null;
   fallbackWarningLineThreshold: number;
   fallbackModalState: FallbackModalState | null;
@@ -44,6 +45,8 @@ export type UseAppControllerResult = {
   fallbackAgentOptions: FallbackAgentOption[];
   hasContent: boolean;
   hasDerivedOutputPane: boolean;
+  canNavigateOutputPaneLeft: boolean;
+  canNavigateOutputPaneRight: boolean;
   onCancelActiveFallback: () => Promise<void>;
   onNew: () => void;
   onPaneModeChange: (mode: PaneMode) => void;
@@ -52,6 +55,9 @@ export type UseAppControllerResult = {
   onSave: () => Promise<void>;
   onCopy: () => Promise<void>;
   onCloseSplit: () => void;
+  onNavigateOutputPaneViewport: (stepDelta: number) => void;
+  onNavigateOutputPaneLeft: () => void;
+  onNavigateOutputPaneRight: () => void;
   onThemeModeChange: (mode: ThemeMode) => Promise<void>;
   onIndentSizeChange: (size: IndentSize) => Promise<void>;
   onFallbackAgentIdChange: (agentId: string | null) => Promise<void>;
@@ -210,11 +216,15 @@ export const useAppController = ({
   const {
     outputDocumentId,
     outputPanes,
+    leftVisiblePaneIndex: outputLeftVisiblePaneIndex,
     hasDerivedOutputPane: hasVisibleDerivedOutputPane,
+    canNavigateOutputPaneLeft,
+    canNavigateOutputPaneRight,
     getActiveOutputPaneHandle,
     onOutputPaneHandleChange: registerOutputPaneHandle,
     onOutputPaneFocus: focusVisibleOutputPane,
     onOutputPaneSplitSelection: openDerivedOutputPane,
+    onNavigateOutputPaneViewport: navigateOutputPaneViewport,
     onCloseOutputPane: closeDerivedOutputPane,
     resetOutputPanes,
   } = useOutputPaneController({
@@ -415,11 +425,14 @@ export const useAppController = ({
     isOutputMode,
     paneMode,
     hasContent,
+    canPopOutputPane: hasVisibleDerivedOutputPane,
     openNewWindow,
     resetCurrentWindow,
     handlePaneModeChange,
     saveOutput,
     copyOutput,
+    closeOutputPane: closeDerivedOutputPane,
+    navigateOutputPaneViewport,
     openFind: () => {
       getActiveOutputPaneHandle()?.openFind();
     },
@@ -434,6 +447,7 @@ export const useAppController = ({
     outputText,
     outputDocumentId,
     outputPanes,
+    outputLeftVisiblePaneIndex,
     fallbackWaitState,
     fallbackWarningLineThreshold,
     fallbackModalState,
@@ -441,6 +455,8 @@ export const useAppController = ({
     fallbackAgentOptions,
     hasContent,
     hasDerivedOutputPane: hasVisibleDerivedOutputPane,
+    canNavigateOutputPaneLeft,
+    canNavigateOutputPaneRight,
     onCancelActiveFallback: cancelActiveFallback,
     onNew: openNewWindow,
     onPaneModeChange: handlePaneModeChange,
@@ -449,6 +465,9 @@ export const useAppController = ({
     onSave: saveOutput,
     onCopy: copyOutput,
     onCloseSplit: closeDerivedOutputPane,
+    onNavigateOutputPaneViewport: navigateOutputPaneViewport,
+    onNavigateOutputPaneLeft: () => navigateOutputPaneViewport(-1),
+    onNavigateOutputPaneRight: () => navigateOutputPaneViewport(1),
     onThemeModeChange: persistThemeMode,
     onIndentSizeChange: persistIndentSize,
     onFallbackAgentIdChange: persistFallbackAgentId,

@@ -51,7 +51,9 @@
 - Dropdown trigger displays the selected agent name (or `No Fallback`) with a chevron indicator; no external label.
 - Disabled agents are visible in the dropdown panel but non-selectable (`<name> (Disabled)`).
 - Fallback preference persistence: selected fallback agent id (or no fallback) is stored through preload/main preferences APIs and restored on next app launch.
-- Split button: always visible immediately after the fallback-agent control, disabled when no derived output pane is open, labeled `Split`, and used to close the rightmost derived output pane.
+- `Splits` group: always visible immediately after the fallback-agent control, includes a static `Splits` label plus `Pop split`, `Navigate splits left`, and `Navigate splits right` buttons.
+- `Pop split` is disabled when no derived output pane is open.
+- Split navigation buttons are enabled only when at least three panes exist and there is another snapped viewport position in that direction.
 
 ## App Menu (macOS)
 
@@ -94,22 +96,30 @@
 - Output mode search uses Monaco native find widget (triggered by the platform primary modifier plus `F` in output mode).
 - Paste inside Monaco find/replace inputs stays local to that widget and must not trigger app-level ingest/prettify flow.
 - Output mode fold/view state persists for the current document identity during the app session.
-- Output mode supports a structural split gesture in stage one:
+- Output mode supports a recursive structural split gesture:
   - literal `Ctrl+click` on the root output pane resolves the smallest enclosing Monaco foldable block for the clicked line,
   - clicking a folded fold-start line resolves that folded block from the model, not the visible placeholder text,
-  - clicking a line with no enclosing foldable block is a no-op.
-- Stage one output split layout supports root pane `A` plus one derived pane `B` in a persistent `50/50` horizontal split.
-- The output pane strip keeps the full derived-pane chain mounted; once the chain grows beyond two panes, the strip extends horizontally with overflow instead of truncating pane state in the controller.
-- Derived pane `B`:
-  - renders the same Monaco source model as pane `A`, but as a filtered view of the selected block,
-  - stays read-only and uses the same syntax/theme/minimap/line-number/fold-control configuration as pane `A`,
-  - preserves source line numbers instead of renumbering from `1`,
-  - opens expanded even when the source block in `A` was folded,
-  - does not accept further split selection in stage one.
-- Source pane `A` shows a custom Monaco decoration highlight for the block displayed in `B`; that highlight is not a native Monaco/browser text selection and does not change copy/save output text.
-- Repeating `Ctrl+click` on `A` replaces pane `B` in place; closing the split clears both pane `B` and the source highlight.
+  - clicking a line with no enclosing foldable block is a no-op,
+  - derived panes may split again only when the resolved block is strictly smaller than that pane's full visible source range.
+- Output split layout keeps the full pane chain mounted and uses a snapped horizontal viewport:
+  - with one pane, the output viewport is a single full-width pane,
+  - once any derived pane exists, every pane uses `50/50` width and the viewport shows two panes at a time,
+  - opening/replacing a child pans the viewport to the parent-child pair for that interaction,
+  - left/right navigation moves exactly one pane at a time across the mounted chain.
+- Derived panes:
+  - render the same Monaco source model as the root pane, but as filtered views of the selected source range,
+  - stay read-only and use the same syntax/theme/minimap/line-number/fold-control configuration as the root pane,
+  - preserve source line numbers instead of renumbering from `1`,
+  - open expanded even when the source block in the parent pane was folded,
+  - remain mounted off-screen so fold/search/view state survives viewport navigation.
+- Every pane shows a custom Monaco decoration highlight for its direct child selection; highlights are not native Monaco/browser text selections and do not change copy/save output text.
+- Repeating `Ctrl+click` on a pane replaces only that pane's direct child and truncates all descendants to the right.
 - Output-pane modifier-click fold toggling is removed in this scope. Output folding remains available through inline fold controls and toolbar fold actions. Input-pane modifier-click folding remains unchanged.
-- Output `Expand`, `Collapse`, and `Cmd+F` target the active visible output pane. When a derived pane opens or is replaced, it becomes active immediately; afterward, normal focus changes continue to retarget those actions. `Save` and `Copy` remain rooted to the full root output text even when a derived pane is open.
+- Output `Expand`, `Collapse`, and `Cmd+F` target the active visible output pane. Split-open, split-pop, viewport navigation, and normal click focus all retarget that active pane. `Save` and `Copy` remain rooted to the full root output text even when derived panes are open.
+- Output split navigation shortcuts:
+  - literal `Ctrl+Left` / `Ctrl+Right`: move the split viewport one pane left/right in output mode,
+  - literal `Ctrl+Wheel` / `Ctrl+trackpad scroll`: move the split viewport by snapped pane steps in output mode,
+  - `Escape`: pop the rightmost derived pane in output mode when a split chain is open and Monaco did not already consume the key.
 - Split-pane state clears when output mode exits, when the root output document changes, and when the current document window is reset.
 - Output-mode prettify indentation and Monaco tab/guide indentation are sourced from the same persisted preference value (`indentSize`) so they stay synchronized.
 - If output mode currently displays already-prettified text, changing `indentSize` reindents the visible output locally by line-leading whitespace remap (no new prettifier/fallback request).
