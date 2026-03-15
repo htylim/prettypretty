@@ -178,7 +178,7 @@ describe('inlineFoldControls', () => {
       throw new Error('Expected inline fold widget');
     }
 
-    const button = widget.getDomNode().querySelector('button');
+    const button = widget.getDomNode().querySelector('[data-testid="output-inline-fold-control"]');
     if (!button) {
       throw new Error('Expected inline fold button');
     }
@@ -190,7 +190,7 @@ describe('inlineFoldControls', () => {
     registration.dispose();
   });
 
-  it('ctrl-clicking a widget updates only direct child fold state', async () => {
+  it('clicking the dedicated child widget updates only direct child fold state', async () => {
     const { editor, widgets } = createEditor();
     getVisibleFoldStartLinesMock.mockResolvedValue([
       { lineNumber: 4, endLineNumber: 8, isCollapsed: false, childToggleAction: 'expand' },
@@ -204,12 +204,14 @@ describe('inlineFoldControls', () => {
       throw new Error('Expected inline fold widget');
     }
 
-    const button = widget.getDomNode().querySelector('button');
+    const button = widget
+      .getDomNode()
+      .querySelector('[data-testid="output-inline-fold-children-control"]');
     if (!button) {
-      throw new Error('Expected inline fold button');
+      throw new Error('Expected inline child fold button');
     }
 
-    fireEvent.click(button, { ctrlKey: true });
+    fireEvent.click(button);
     await flushAsync();
 
     expect(applyFoldStartChildrenActionMock).toHaveBeenCalledWith(editor, 4, 'expand');
@@ -218,10 +220,10 @@ describe('inlineFoldControls', () => {
     registration.dispose();
   });
 
-  it('renders the child action separately when ctrl is held', async () => {
+  it('renders the child button disabled when there is no direct child fold action', async () => {
     const { editor, widgets } = createEditor();
     getVisibleFoldStartLinesMock.mockResolvedValue([
-      { lineNumber: 2, endLineNumber: 6, isCollapsed: false, childToggleAction: 'expand' },
+      { lineNumber: 2, endLineNumber: 6, isCollapsed: false, childToggleAction: null },
     ]);
 
     const registration = registerInlineFoldControls(editor);
@@ -232,28 +234,70 @@ describe('inlineFoldControls', () => {
       throw new Error('Expected inline fold widget');
     }
 
-    const button = widget.getDomNode().querySelector('button');
-    if (!button) {
-      throw new Error('Expected inline fold button');
+    const childButton = widget
+      .getDomNode()
+      .querySelector('[data-testid="output-inline-fold-children-control"]');
+    if (!childButton) {
+      throw new Error('Expected inline child fold button');
     }
 
-    expect(button).toHaveAttribute('data-ctrl-hint', 'false');
-    expect(button).toHaveAttribute('data-fold-action', 'collapse');
-    expect(button).toHaveAttribute('data-fold-action-scope', 'self');
-    expect(button).toHaveAttribute('aria-expanded', 'true');
-    expect(button).toHaveTextContent('-');
-    fireEvent.keyDown(window, { ctrlKey: true });
-    expect(button).toHaveAttribute('data-ctrl-hint', 'true');
-    expect(button).toHaveAttribute('data-fold-action', 'expand');
-    expect(button).toHaveAttribute('data-fold-action-scope', 'children');
-    expect(button).not.toHaveAttribute('aria-expanded');
-    expect(button).toHaveTextContent('+');
-    fireEvent.keyUp(window, { ctrlKey: false });
-    expect(button).toHaveAttribute('data-ctrl-hint', 'false');
-    expect(button).toHaveAttribute('data-fold-action', 'collapse');
-    expect(button).toHaveAttribute('data-fold-action-scope', 'self');
-    expect(button).toHaveAttribute('aria-expanded', 'true');
-    expect(button).toHaveTextContent('-');
+    expect(childButton).toBeDisabled();
+    expect(childButton).toHaveAttribute('data-line-number', '2');
+    expect(childButton).toHaveAttribute('data-fold-action', 'none');
+    expect(childButton).toHaveAttribute('aria-label', 'No direct child blocks at line 2');
+    expect(childButton).toHaveTextContent('-');
+
+    fireEvent.click(childButton);
+
+    expect(applyFoldStartChildrenActionMock).not.toHaveBeenCalled();
+
+    registration.dispose();
+  });
+
+  it('renders separate child-button state and refreshes it from direct child fold state', async () => {
+    const { editor, widgets, listeners } = createEditor();
+    getVisibleFoldStartLinesMock
+      .mockResolvedValueOnce([
+        { lineNumber: 2, endLineNumber: 6, isCollapsed: false, childToggleAction: 'collapse' },
+      ])
+      .mockResolvedValueOnce([
+        { lineNumber: 2, endLineNumber: 6, isCollapsed: false, childToggleAction: 'expand' },
+      ]);
+
+    const registration = registerInlineFoldControls(editor);
+    await flushAsync();
+
+    const widget = widgets.get('output-inline-fold-control:2');
+    if (!widget) {
+      throw new Error('Expected inline fold widget');
+    }
+
+    const selfButton = widget
+      .getDomNode()
+      .querySelector('[data-testid="output-inline-fold-control"]');
+    const childButton = widget
+      .getDomNode()
+      .querySelector('[data-testid="output-inline-fold-children-control"]');
+    if (!selfButton || !childButton) {
+      throw new Error('Expected inline fold buttons');
+    }
+
+    expect(selfButton).toHaveAttribute('data-fold-action', 'collapse');
+    expect(selfButton).toHaveAttribute('data-fold-action-scope', 'self');
+    expect(selfButton).toHaveAttribute('aria-expanded', 'true');
+    expect(selfButton).toHaveTextContent('-');
+    expect(childButton).toBeEnabled();
+    expect(childButton).toHaveAttribute('data-fold-action', 'collapse');
+    expect(childButton).toHaveAttribute('data-fold-action-scope', 'children');
+    expect(childButton).toHaveAttribute('aria-label', 'Collapse direct child blocks at line 2');
+    expect(childButton).toHaveTextContent('-');
+
+    listeners.hiddenAreas?.();
+    await flushAsync();
+
+    expect(childButton).toHaveAttribute('data-fold-action', 'expand');
+    expect(childButton).toHaveAttribute('aria-label', 'Expand direct child blocks at line 2');
+    expect(childButton).toHaveTextContent('+');
 
     registration.dispose();
   });
@@ -276,7 +320,7 @@ describe('inlineFoldControls', () => {
       throw new Error('Expected inline fold widget');
     }
 
-    const button = widget.getDomNode().querySelector('button');
+    const button = widget.getDomNode().querySelector('[data-testid="output-inline-fold-control"]');
     if (!button) {
       throw new Error('Expected inline fold button');
     }

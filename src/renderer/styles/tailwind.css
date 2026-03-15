@@ -402,13 +402,19 @@ body {
 }
 
 .output-inline-fold-control-widget {
-  display: flex;
+  height: 23px;
+}
+
+.output-inline-fold-control-row {
+  display: inline-flex;
   align-items: center;
+  gap: 4px;
   height: 23px;
   padding-top: 1px;
   padding-left: 18px;
   transform: translateY(-4px);
   user-select: none;
+  white-space: nowrap;
 }
 
 .output-inline-fold-control {
@@ -446,14 +452,22 @@ body {
   transition: opacity 100ms ease;
 }
 
-.output-inline-fold-control[data-ctrl-hint='true']::after {
+.output-inline-fold-control[data-fold-control-kind='children']::after {
   opacity: 0.72;
 }
 
-.output-inline-fold-control:hover {
+.output-inline-fold-control:hover:not(:disabled) {
   color: var(--text);
   border-color: color-mix(in oklab, var(--accent) 24%, var(--line));
   background: color-mix(in oklab, var(--accent-soft) 60%, var(--panel-alt));
+}
+
+.output-inline-fold-control:disabled {
+  cursor: default;
+  color: color-mix(in oklab, var(--muted) 65%, var(--line));
+  border-color: color-mix(in oklab, var(--line) 92%, transparent);
+  background: color-mix(in oklab, var(--panel-alt) 82%, var(--bg));
+  opacity: 0.52;
 }
 
 .output-inline-fold-control:focus-visible {

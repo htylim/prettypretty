@@ -123,8 +123,10 @@
   - stronger text/border contrast on hover,
   - visible `:focus-visible` ring using `--focus-ring`,
   - explicit expand/collapse glyphs (`+` / `-` in current scope),
-  - when literal `Ctrl` is held, show a tiny downward cue inside the existing button box without changing the button's dimensions,
-  - while literal `Ctrl` is held, the button glyph reflects the current direct-child action (`-` when any direct child block is expanded, `+` only when all direct child blocks are already collapsed).
+  - render the direct-child action as a separate button immediately to the right of the self-toggle button,
+  - keep a tiny downward cue inside the direct-child button box without changing the button's dimensions,
+  - the direct-child button glyph reflects the current direct-child action (`-` when any direct child block is expanded, `+` only when all direct child blocks are already collapsed),
+  - keep the direct-child button visible in a muted disabled state when the block has no immediate child foldable regions so button spacing stays stable.
 - Bracket pair colorization must define at least six depth colors before repeating.
 - Search in output mode should use Monaco's native find widget (no custom decoration class for search matches).
 

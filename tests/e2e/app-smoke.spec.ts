@@ -1,5 +1,29 @@
-import { _electron as electron, expect, test } from '@playwright/test';
+import { _electron as electron, expect, test, type Page } from '@playwright/test';
 import { join } from 'node:path';
+
+type RectSnapshot = {
+  top: number;
+  left: number;
+  right: number;
+  bottom: number;
+  width: number;
+  height: number;
+  centerY: number;
+};
+
+type BrowserRect = Omit<RectSnapshot, 'centerY'>;
+
+type BrowserElement = {
+  textContent?: string | null;
+  getBoundingClientRect: () => BrowserRect;
+  querySelector: (selector: string) => BrowserElement | null;
+  querySelectorAll: (selector: string) => BrowserElement[];
+};
+
+type BrowserRange = {
+  getBoundingClientRect: () => BrowserRect;
+  selectNodeContents: (node: unknown) => void;
+};
 
 const dispatchPaste = async (
   page: import('@playwright/test').Page,
@@ -38,6 +62,101 @@ const resetPreferences = async (page: import('@playwright/test').Page): Promise<
     };
     await bridge.prettypretty.preferences.reset();
   });
+};
+
+const readInlineFoldControlGeometry = async (
+  page: Page,
+  lineNumber: number,
+  lineText: string,
+): Promise<{
+  child: RectSnapshot | null;
+  line: RectSnapshot | null;
+  lineText: RectSnapshot | null;
+  self: RectSnapshot | null;
+}> =>
+  page.evaluate(
+    ({ lineNumber: targetLineNumber, lineText: targetLineText }) => {
+      const runtime = globalThis as unknown as {
+        document?: {
+          createRange: () => BrowserRange;
+          querySelector: (selector: string) => BrowserElement | null;
+        };
+      };
+      const editor = runtime.document?.querySelector('[data-testid="output-editor"]');
+      if (!editor) {
+        return {
+          self: null,
+          child: null,
+          line: null,
+          lineText: null,
+        };
+      }
+
+      const toRect = (rect: BrowserRect | null): RectSnapshot | null => {
+        if (!rect) {
+          return null;
+        }
+
+        return {
+          top: rect.top,
+          left: rect.left,
+          right: rect.right,
+          bottom: rect.bottom,
+          width: rect.width,
+          height: rect.height,
+          centerY: rect.top + rect.height / 2,
+        };
+      };
+
+      const normalizeText = (value: string | null | undefined): string =>
+        value?.replace(/\u00a0/g, ' ') ?? '';
+      const line = [...editor.querySelectorAll('.view-line')].find((element) =>
+        normalizeText(element.textContent).includes(targetLineText),
+      );
+      const lineRange = line ? (runtime.document?.createRange() ?? null) : null;
+      if (line && lineRange) {
+        lineRange.selectNodeContents(line);
+      }
+
+      return {
+        self: toRect(
+          editor
+            .querySelector(
+              `[data-testid="output-inline-fold-control"][data-line-number="${targetLineNumber}"]`,
+            )
+            ?.getBoundingClientRect() ?? null,
+        ),
+        child: toRect(
+          editor
+            .querySelector(
+              `[data-testid="output-inline-fold-children-control"][data-line-number="${targetLineNumber}"]`,
+            )
+            ?.getBoundingClientRect() ?? null,
+        ),
+        line: toRect(line?.getBoundingClientRect() ?? null),
+        lineText: toRect(lineRange?.getBoundingClientRect() ?? null),
+      };
+    },
+    { lineNumber, lineText },
+  );
+
+const expectInlineFoldControlsAnchored = async (
+  page: Page,
+  lineNumber: number,
+  lineText: string,
+): Promise<void> => {
+  const geometry = await readInlineFoldControlGeometry(page, lineNumber, lineText);
+  if (!geometry.self || !geometry.child || !geometry.line || !geometry.lineText) {
+    throw new Error('Expected inline fold geometry');
+  }
+
+  expect(Math.abs(geometry.self.top - geometry.child.top)).toBeLessThan(2);
+  expect(geometry.child.left).toBeGreaterThan(geometry.self.right);
+  expect(geometry.child.left - geometry.self.right).toBeLessThan(10);
+  expect(Math.abs(geometry.self.centerY - geometry.line.centerY)).toBeLessThan(8);
+  expect(Math.abs(geometry.child.centerY - geometry.line.centerY)).toBeLessThan(8);
+  expect(geometry.self.left).toBeGreaterThan(geometry.lineText.right - 4);
+  expect(geometry.self.left - geometry.lineText.right).toBeLessThan(64);
 };
 
 test('launches app and renders main window', async () => {
@@ -113,6 +232,21 @@ test('renders inline output fold controls and hides gutter fold controls', async
 
   const inlineControl = page.getByRole('button', { name: /Collapse folded block at line/ }).first();
   await expect(inlineControl).toBeVisible();
+  await expect(
+    outputEditor.locator(
+      '[data-testid="output-inline-fold-children-control"][data-line-number="3"]',
+    ),
+  ).toBeVisible();
+  await expect(
+    outputEditor.locator(
+      '[data-testid="output-inline-fold-children-control"][data-line-number="3"]',
+    ),
+  ).toBeDisabled();
+  await expect(
+    outputEditor.locator(
+      '[data-testid="output-inline-fold-children-control"][data-line-number="3"]',
+    ),
+  ).toHaveAttribute('aria-label', 'No direct child blocks at line 3');
 
   await inlineControl.click();
   await expect(outputEditor).not.toContainText('"leaf": 3');
@@ -128,7 +262,7 @@ test('renders inline output fold controls and hides gutter fold controls', async
   await app.close();
 });
 
-test('ctrl-clicking an inline fold control toggles only direct child blocks and shows the hint state', async () => {
+test('clicking the dedicated inline child fold control toggles only direct child blocks', async () => {
   const app = await electron.launch({
     args: [join(process.cwd(), 'out/main/index.js')],
   });
@@ -144,41 +278,73 @@ test('ctrl-clicking an inline fold control toggles only direct child blocks and 
   const topControl = outputEditor.locator(
     '[data-testid="output-inline-fold-control"][data-line-number="3"]',
   );
+  const topChildrenControl = outputEditor.locator(
+    '[data-testid="output-inline-fold-children-control"][data-line-number="3"]',
+  );
   await expect(topControl).toBeVisible();
+  await expect(topChildrenControl).toBeVisible();
   await expect(topControl).toHaveAttribute('aria-label', 'Collapse folded block at line 3');
+  await expect(topChildrenControl).toHaveAttribute(
+    'aria-label',
+    'Collapse direct child blocks at line 3',
+  );
 
-  await page.keyboard.down('Control');
-  await expect(topControl).toHaveAttribute('data-ctrl-hint', 'true');
-  await expect(topControl).toHaveAttribute('data-fold-action-scope', 'children');
-  await expect(topControl).toHaveAttribute('data-fold-action', 'collapse');
-  await page.keyboard.up('Control');
-  await expect(topControl).toHaveAttribute('data-ctrl-hint', 'false');
-  await expect(topControl).toHaveAttribute('data-fold-action-scope', 'self');
-  await expect(topControl).toHaveAttribute('data-fold-action', 'collapse');
-
-  await topControl.click({ modifiers: ['Control'] });
+  await topChildrenControl.click();
   await expect(outputEditor).toContainText('"d": {');
   await expect(outputEditor).toContainText('"f": {');
   await expect(outputEditor).not.toContainText('"e": {}');
   await expect(outputEditor).not.toContainText('"g": 2');
 
-  await page.keyboard.down('Control');
-  await expect(topControl).toHaveAttribute('data-fold-action-scope', 'children');
-  await expect(topControl).toHaveAttribute('data-fold-action', 'expand');
-  await page.keyboard.up('Control');
-  await expect(topControl).toHaveAttribute('data-fold-action-scope', 'self');
-  await expect(topControl).toHaveAttribute('data-fold-action', 'collapse');
+  await expect(topChildrenControl).toHaveAttribute('data-fold-action', 'expand');
+  await expect(topChildrenControl).toHaveAttribute(
+    'aria-label',
+    'Expand direct child blocks at line 3',
+  );
 
   await topControl.click();
   await expect(outputEditor).not.toContainText('"a": 1');
   await expect(topControl).toHaveAttribute('aria-label', 'Expand folded block at line 3');
 
-  await topControl.click({ modifiers: ['Control'] });
+  await topChildrenControl.click();
   await expect(outputEditor).not.toContainText('"a": 1');
 
   await topControl.click();
   await expect(outputEditor).toContainText('"e": {}');
   await expect(outputEditor).toContainText('"g": 2');
+
+  await resetPreferences(page);
+  await app.close();
+});
+
+test('keeps inline self and child fold buttons on one row and anchored to the fold-start line', async () => {
+  const app = await electron.launch({
+    args: [join(process.cwd(), 'out/main/index.js')],
+  });
+
+  const page = await app.firstWindow();
+  await page.waitForLoadState('domcontentloaded');
+  await resetPreferences(page);
+  await dispatchPaste(page, '{"outer":{"top":{"a":1,"d":{"e":{}},"f":{"g":2}}}}');
+
+  const outputEditor = page.getByTestId('output-editor');
+  const topControl = outputEditor.locator(
+    '[data-testid="output-inline-fold-control"][data-line-number="3"]',
+  );
+  const topChildrenControl = outputEditor.locator(
+    '[data-testid="output-inline-fold-children-control"][data-line-number="3"]',
+  );
+
+  await expect(topControl).toBeVisible();
+  await expect(topChildrenControl).toBeVisible();
+  await expectInlineFoldControlsAnchored(page, 3, '"top"');
+
+  await topChildrenControl.click();
+  await expect(outputEditor).not.toContainText('"e": {}');
+  await expectInlineFoldControlsAnchored(page, 3, '"top"');
+
+  await topControl.click();
+  await expect(topControl).toHaveAttribute('aria-label', 'Expand folded block at line 3');
+  await expectInlineFoldControlsAnchored(page, 3, '"top"');
 
   await resetPreferences(page);
   await app.close();
