@@ -126,6 +126,23 @@ describe('inlineFoldControls', () => {
     ]);
   });
 
+  it('keeps widgets inside the editor content layer so horizontal scroll moves with code', async () => {
+    const { editor, widgets } = createEditor();
+    getVisibleFoldStartLinesMock.mockResolvedValue([
+      { lineNumber: 2, endLineNumber: 6, isCollapsed: false },
+    ]);
+
+    registerInlineFoldControls(editor);
+    await flushAsync();
+
+    const widget = widgets.get('output-inline-fold-control:2');
+    if (!widget) {
+      throw new Error('Expected inline fold widget');
+    }
+
+    expect(widget.allowEditorOverflow).toBe(false);
+  });
+
   it('does not create widgets when there are no visible fold starts', async () => {
     const { editor, widgets, addContentWidgetMock } = createEditor();
     getVisibleFoldStartLinesMock.mockResolvedValue([]);

@@ -18,6 +18,7 @@ Do not add routine status updates, implementation history, or one-time decisions
 - Do not let prettifier indentation and Monaco indentation settings come from different sources; both must read the same persisted preference value.
 - Do not mutate output text to implement search highlighting; use Monaco-native find/decorations so copy/save output remains accurate.
 - Do not implement code-anchored Monaco controls with viewport-anchored overlay widgets; when the affordance must move with code, anchor it to model positions and style it so it cannot be mistaken for source text.
+- Do not use Monaco exact-position content widgets with `allowEditorOverflow` for code-anchored controls that must follow horizontal scroll; Monaco does not subtract `scrollLeft` in that path, so the control appears pinned while text moves.
 - Do not stop at model-position anchoring for inline Monaco controls; tune vertical offset and post-line spacing against Monaco line metrics or the control will sit low in the line and crowd folded placeholder text.
 - Do not assume one horizontal offset works for both inline fold states; expanded controls can sit tighter to code, while collapsed controls may need extra right-side clearance from Monaco placeholder text.
 - Do not implement inline Monaco fold affordances with injected text; use content widgets so copied/saved output and syntax highlighting stay untouched.

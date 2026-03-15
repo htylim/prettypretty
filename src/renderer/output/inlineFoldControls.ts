@@ -49,7 +49,9 @@ const createFoldWidget = (
   };
 
   const widget: FoldWidget = {
-    allowEditorOverflow: true,
+    // Monaco's exact-position overflowing content widgets ignore horizontal scroll.
+    // Keep fold controls inside the scrollable content layer so they stay code-anchored.
+    allowEditorOverflow: false,
     suppressMouseDown: true,
     getId: () => `output-inline-fold-control:${foldStart.lineNumber}`,
     getDomNode: () => domNode,
