@@ -150,6 +150,23 @@ describe('registerIpcHandlers prettifier channels', () => {
     });
   });
 
+  it('accepts valid embedded prettifier request ids through the IPC contract', async () => {
+    const runHandler = getRegisteredHandler(IPCChannels.prettifierRun);
+    const request = {
+      requestId: 1_000_000_000,
+      inputText: '{bad',
+      indentSize: 2,
+      trigger: 'switch-output',
+    };
+
+    await runHandler({ sender: { send: vi.fn() } }, request);
+
+    expect(prettifierService.run).toHaveBeenCalledWith(
+      request,
+      expect.objectContaining({ onFallbackProgress: expect.any(Function) }),
+    );
+  });
+
   it('rejects invalid prettifier payloads', async () => {
     const runHandler = getRegisteredHandler(IPCChannels.prettifierRun);
 
@@ -160,11 +177,22 @@ describe('registerIpcHandlers prettifier channels', () => {
       runHandler(
         { sender: { send: vi.fn() } },
         {
-          requestId: 1,
+          requestId: 0,
           inputText: '{bad',
           indentSize: 2,
           trigger: 'switch-output',
           fallbackAgentIdOverride: 42,
+        },
+      ),
+    ).rejects.toThrow('Invalid prettifier request payload');
+    await expect(
+      runHandler(
+        { sender: { send: vi.fn() } },
+        {
+          requestId: -1,
+          inputText: '{bad',
+          indentSize: 2,
+          trigger: 'switch-output',
         },
       ),
     ).rejects.toThrow('Invalid prettifier request payload');

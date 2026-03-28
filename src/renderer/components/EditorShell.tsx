@@ -1,8 +1,8 @@
 import type { ClipboardEventHandler, DragEventHandler, RefObject } from 'react';
 import type { IndentSize } from '../../shared/preferences';
 import type { PaneMode, ThemeMode } from '../../shared/types';
-import type { OutputPaneSelection } from '../app/outputPaneDomain';
 import type { FallbackWaitState, IngestSource } from '../app/appDomain';
+import type { OutputEmbeddedCandidate } from '../output/outputEmbeddedSelection';
 import { InputEditor, type InputEditorHandle } from './InputEditor';
 import {
   OutputPaneStrip,
@@ -41,7 +41,15 @@ type EditorShellProps = {
   onCancelFallbackWait: () => void;
   onOutputPaneHandleChange: (paneId: string, handle: OutputEditorHandle | null) => void;
   onOutputPaneFocus: (paneId: string) => void;
-  onOutputPaneSplitSelection: (paneId: string, selection: OutputPaneSelection) => void;
+  onOutputPaneEmbeddedCandidateChange: (
+    paneId: string,
+    candidate: OutputEmbeddedCandidate | null,
+  ) => void;
+  onOutputPanePrettifyInPane: (paneId: string, candidate: OutputEmbeddedCandidate) => Promise<void>;
+  onOutputPanePrettifyReplace: (
+    paneId: string,
+    candidate: OutputEmbeddedCandidate,
+  ) => Promise<void>;
   onNavigateOutputPaneViewport: (stepDelta: number) => void;
 };
 
@@ -64,7 +72,9 @@ export const EditorShell = ({
   onCancelFallbackWait,
   onOutputPaneHandleChange,
   onOutputPaneFocus,
-  onOutputPaneSplitSelection,
+  onOutputPaneEmbeddedCandidateChange,
+  onOutputPanePrettifyInPane,
+  onOutputPanePrettifyReplace,
   onNavigateOutputPaneViewport,
 }: EditorShellProps) => {
   const hasContent = inputText.trim().length > 0;
@@ -175,9 +185,11 @@ export const EditorShell = ({
             indentSize={indentSize}
             leftVisiblePaneIndex={outputLeftVisiblePaneIndex}
             onNavigatePaneViewport={onNavigateOutputPaneViewport}
+            onPaneEmbeddedCandidateChange={onOutputPaneEmbeddedCandidateChange}
             onPaneFocus={onOutputPaneFocus}
             onPaneHandleChange={onOutputPaneHandleChange}
-            onPaneSplitSelection={onOutputPaneSplitSelection}
+            onPanePrettifyInPane={onOutputPanePrettifyInPane}
+            onPanePrettifyReplace={onOutputPanePrettifyReplace}
             panes={outputPanes}
             themeMode={themeMode}
           />

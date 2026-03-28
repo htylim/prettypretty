@@ -4,56 +4,49 @@ import {
   canNavigateOutputPaneViewportRight,
   closeRightmostOutputPane,
   createOutputPaneChainState,
+  getOutputPaneDescendantIds,
+  getOutputPaneViewRange,
   getOutputPaneViewportPosition,
-  getOutputPaneSourceHighlight,
+  invalidateOutputPaneDescendants,
   openOrReplaceDerivedOutputPane,
   shiftOutputPaneViewport,
 } from '../../../../src/renderer/app/outputPaneDomain';
 
-const rootSelection = {
+const rootContent = {
+  kind: 'source-range' as const,
+  documentId: 'root-doc',
+  value: '{\n  "root": true,\n  "nested": {\n    "leaf": 1\n  }\n}',
   sourceRange: {
     startLineNumber: 2,
-    startColumn: 1,
-    endLineNumber: 12,
-    endColumn: 2,
-  },
-};
-
-const childSelection = {
-  sourceRange: {
-    startLineNumber: 3,
-    startColumn: 1,
-    endLineNumber: 9,
-    endColumn: 2,
-  },
-};
-
-const grandchildSelection = {
-  sourceRange: {
-    startLineNumber: 4,
     startColumn: 1,
     endLineNumber: 6,
     endColumn: 2,
   },
 };
 
-const replacementSelection = {
-  sourceRange: {
-    startLineNumber: 7,
-    startColumn: 1,
-    endLineNumber: 10,
-    endColumn: 2,
-  },
+const childContent = {
+  kind: 'independent-text' as const,
+  value: '{\n  "leaf": 1\n}',
+};
+
+const grandchildContent = {
+  kind: 'independent-text' as const,
+  value: '{\n  "id": 1\n}',
+};
+
+const replacementChildContent = {
+  kind: 'independent-text' as const,
+  value: '{\n  "leaf": 2\n}',
 };
 
 const createRecursiveChain = () => {
   const withChild = openOrReplaceDerivedOutputPane(
     createOutputPaneChainState(),
     'output-root-pane',
-    rootSelection,
+    rootContent,
   );
-  const withGrandchild = openOrReplaceDerivedOutputPane(withChild, 'output-pane-1', childSelection);
-  return openOrReplaceDerivedOutputPane(withGrandchild, 'output-pane-2', grandchildSelection);
+  const withGrandchild = openOrReplaceDerivedOutputPane(withChild, 'output-pane-1', childContent);
+  return openOrReplaceDerivedOutputPane(withGrandchild, 'output-pane-2', grandchildContent);
 };
 
 describe('outputPaneDomain', () => {
@@ -64,17 +57,13 @@ describe('outputPaneDomain', () => {
       total: 1,
     });
 
-    const withChild = openOrReplaceDerivedOutputPane(rootOnly, 'output-root-pane', rootSelection);
+    const withChild = openOrReplaceDerivedOutputPane(rootOnly, 'output-root-pane', rootContent);
     expect(getOutputPaneViewportPosition(withChild)).toEqual({
       current: 1,
       total: 1,
     });
 
-    const withGrandchild = openOrReplaceDerivedOutputPane(
-      withChild,
-      'output-pane-1',
-      childSelection,
-    );
+    const withGrandchild = openOrReplaceDerivedOutputPane(withChild, 'output-pane-1', childContent);
     expect(getOutputPaneViewportPosition(withGrandchild)).toEqual({
       current: 2,
       total: 2,
@@ -87,82 +76,100 @@ describe('outputPaneDomain', () => {
     });
   });
 
-  it('opens recursive child panes and targets the parent-child viewport pair', () => {
+  it('preserves source-range panes and assigns unique model identities to independent panes', () => {
     const withChild = openOrReplaceDerivedOutputPane(
       createOutputPaneChainState(),
       'output-root-pane',
-      rootSelection,
+      rootContent,
     );
 
     expect(withChild.derivedPanes).toHaveLength(1);
     expect(withChild.derivedPanes[0]).toMatchObject({
       parentPaneId: 'output-root-pane',
       paneId: 'output-pane-1',
-      sourceRange: rootSelection.sourceRange,
-      viewStateKey: 'output-pane-1:selection-1',
+      viewStateKey: 'output-pane-1:content-1',
+      content: rootContent,
     });
-    expect(withChild.activePaneId).toBe('output-pane-1');
-    expect(withChild.leftVisiblePaneIndex).toBe(0);
-
-    const withGrandchild = openOrReplaceDerivedOutputPane(
-      withChild,
-      'output-pane-1',
-      childSelection,
+    expect(getOutputPaneViewRange(withChild.derivedPanes[0]!.content)).toEqual(
+      rootContent.sourceRange,
     );
 
+    const withGrandchild = openOrReplaceDerivedOutputPane(withChild, 'output-pane-1', childContent);
     expect(withGrandchild.derivedPanes).toHaveLength(2);
     expect(withGrandchild.derivedPanes[1]).toMatchObject({
       parentPaneId: 'output-pane-1',
       paneId: 'output-pane-2',
-      sourceRange: childSelection.sourceRange,
-      viewStateKey: 'output-pane-2:selection-2',
+      viewStateKey: 'output-pane-2:content-2',
+      content: {
+        kind: 'independent-text',
+        value: '{\n  "leaf": 1\n}',
+      },
     });
+    expect(withGrandchild.derivedPanes[1]?.content.documentId).toBe('output-pane-2:document-2');
+    expect(getOutputPaneViewRange(withGrandchild.derivedPanes[1]!.content)).toBeNull();
     expect(withGrandchild.activePaneId).toBe('output-pane-2');
     expect(withGrandchild.leftVisiblePaneIndex).toBe(1);
   });
 
-  it('truncates descendants on upstream reselection and preserves identical child identity', () => {
+  it('trims descendants on upstream reselection and preserves identical child identity', () => {
     const recursiveChain = createRecursiveChain();
 
-    const trimmed = openOrReplaceDerivedOutputPane(
-      recursiveChain,
-      'output-root-pane',
-      rootSelection,
-    );
+    const trimmed = openOrReplaceDerivedOutputPane(recursiveChain, 'output-root-pane', rootContent);
     expect(trimmed.derivedPanes).toHaveLength(1);
     expect(trimmed.derivedPanes[0]?.paneId).toBe('output-pane-1');
-    expect(trimmed.derivedPanes[0]?.viewStateKey).toBe('output-pane-1:selection-1');
+    expect(trimmed.derivedPanes[0]?.viewStateKey).toBe('output-pane-1:content-1');
     expect(trimmed.activePaneId).toBe('output-pane-1');
     expect(trimmed.leftVisiblePaneIndex).toBe(0);
 
     const replaced = openOrReplaceDerivedOutputPane(
       recursiveChain,
       'output-pane-1',
-      replacementSelection,
+      replacementChildContent,
     );
     expect(replaced.derivedPanes).toHaveLength(2);
     expect(replaced.derivedPanes[1]).toMatchObject({
       parentPaneId: 'output-pane-1',
       paneId: 'output-pane-2',
-      sourceRange: replacementSelection.sourceRange,
-      viewStateKey: 'output-pane-2:selection-4',
+      viewStateKey: 'output-pane-2:content-4',
+      content: {
+        kind: 'independent-text',
+        value: '{\n  "leaf": 2\n}',
+      },
     });
+    expect(replaced.derivedPanes[1]?.content.documentId).toBe('output-pane-2:document-4');
     expect(replaced.activePaneId).toBe('output-pane-2');
     expect(replaced.leftVisiblePaneIndex).toBe(1);
   });
 
-  it('pops the rightmost pane, keeps source highlights, and navigates the snapped viewport', () => {
+  it('explicitly invalidates pane descendants and normalizes active pane plus viewport', () => {
+    const recursiveChain = createRecursiveChain();
+    const invalidated = invalidateOutputPaneDescendants(recursiveChain, 'output-pane-1');
+
+    expect(invalidated.derivedPanes).toHaveLength(1);
+    expect(invalidated.derivedPanes[0]?.paneId).toBe('output-pane-1');
+    expect(invalidated.activePaneId).toBe('output-pane-1');
+    expect(invalidated.leftVisiblePaneIndex).toBe(0);
+
+    const rootInvalidated = invalidateOutputPaneDescendants(recursiveChain, 'output-root-pane');
+    expect(rootInvalidated.derivedPanes).toHaveLength(0);
+    expect(rootInvalidated.activePaneId).toBe('output-root-pane');
+    expect(rootInvalidated.leftVisiblePaneIndex).toBe(0);
+
+    expect(invalidateOutputPaneDescendants(rootInvalidated, 'missing-pane')).toBe(rootInvalidated);
+  });
+
+  it('reports descendant pane ids, pops the rightmost pane, and navigates the snapped viewport', () => {
     const recursiveChain = createRecursiveChain();
 
-    expect(getOutputPaneSourceHighlight(recursiveChain, 'output-root-pane')).toEqual(
-      rootSelection.sourceRange,
-    );
-    expect(getOutputPaneSourceHighlight(recursiveChain, 'output-pane-1')).toEqual(
-      childSelection.sourceRange,
-    );
-    expect(getOutputPaneSourceHighlight(recursiveChain, 'output-pane-2')).toEqual(
-      grandchildSelection.sourceRange,
-    );
+    expect(getOutputPaneDescendantIds(recursiveChain, 'output-root-pane')).toEqual([
+      'output-pane-1',
+      'output-pane-2',
+      'output-pane-3',
+    ]);
+    expect(getOutputPaneDescendantIds(recursiveChain, 'output-pane-1')).toEqual([
+      'output-pane-2',
+      'output-pane-3',
+    ]);
 
     const navigatedLeft = shiftOutputPaneViewport(recursiveChain, -1);
     expect(navigatedLeft.leftVisiblePaneIndex).toBe(1);

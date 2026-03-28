@@ -185,9 +185,7 @@ test('closing one of two document windows leaves the app running', async () => {
   }
 
   await secondWindow.bringToFront();
-  await app.evaluate(({ Menu }) => {
-    Menu.sendActionToFirstResponder('performClose:');
-  });
+  await secondWindow.close();
 
   await waitForWindowCount(app, 1);
   expect(app.process().exitCode).toBeNull();
@@ -199,12 +197,10 @@ test('closing one of two document windows leaves the app running', async () => {
 test('closing the final remaining window exits the app process', async () => {
   const app = await launchApp();
 
-  await app.firstWindow();
+  const firstWindow = await app.firstWindow();
 
   const exitPromise = waitForAppExit(app);
-  await app.evaluate(({ BrowserWindow }) => {
-    BrowserWindow.getFocusedWindow()?.close();
-  });
+  await firstWindow.close();
   await exitPromise;
 });
 

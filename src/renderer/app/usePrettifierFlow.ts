@@ -5,7 +5,10 @@ import type { TelemetryEventName } from '../../shared/telemetry';
 import type { PaneMode } from '../../shared/types';
 import type { WindowApi } from '../../shared/window-api';
 import { detectFallbackFormatLabel } from '../prettifier/detectFallbackFormat';
-import { createPrettifierService } from '../prettifier/prettifierService';
+import {
+  createPrettifierService,
+  type PrettifyDetailedResult,
+} from '../prettifier/prettifierService';
 import { reindentText } from '../prettifier/reindentText';
 import {
   EMPTY_FILE_NOTICE,
@@ -55,6 +58,10 @@ export type UsePrettifierFlowResult = {
   isLlmRunning: boolean;
   fallbackWaitState: FallbackWaitState | null;
   cancelActiveFallback: () => Promise<void>;
+  cancelDetachedEmbeddedPrettify: () => Promise<void>;
+  prettifyEmbeddedContent: (rawText: string) => PrettifyDetailedResult;
+  prettifyEmbeddedContentForPane: (rawText: string) => Promise<string>;
+  prettifyEmbeddedContentForReplace: (rawText: string) => Promise<string>;
   runPrettifier: (
     nextInputText: string,
     trigger: PrettifyTrigger,
@@ -111,7 +118,11 @@ export const usePrettifierFlow = ({
   logTelemetry,
 }: UsePrettifierFlowOptions): UsePrettifierFlowResult => {
   const latestPrettifyRequestIdRef = useRef(0);
+  // Detached embedded-prettify runs need valid positive request ids, but they
+  // must stay out of the main runPrettifier sequence to avoid collisions.
+  const nextDetachedPrettifyRequestIdRef = useRef(1_000_000_000);
   const activeFallbackRequestIdRef = useRef<number | null>(null);
+  const activeDetachedPrettifyRequestIdsRef = useRef<Set<number>>(new Set());
   const lastPrettifiedInputRef = useRef<string | null>(null);
   const outputFormattingRef = useRef<OutputFormattingState>(createEmptyFormattingState());
   const [outputText, setOutputText] = useState('');
@@ -144,6 +155,89 @@ export const usePrettifierFlow = ({
   const clearOutputFormatting = useCallback((): void => {
     outputFormattingRef.current = createEmptyFormattingState();
   }, []);
+
+  // Embedded pane formatting should mirror the same local-pass behavior as the
+  // root output flow, including passthrough text on malformed/unsupported input.
+  const prettifyEmbeddedContent = useCallback(
+    (rawText: string): PrettifyDetailedResult => {
+      return prettifierService.prettifyDetailed(rawText);
+    },
+    [prettifierService],
+  );
+
+  const takeDetachedPrettifyRequestId = useCallback((): number => {
+    const requestId = nextDetachedPrettifyRequestIdRef.current;
+    nextDetachedPrettifyRequestIdRef.current += 1;
+    return requestId;
+  }, []);
+
+  const cancelDetachedEmbeddedPrettify = useCallback(async (): Promise<void> => {
+    const requestIds = [...activeDetachedPrettifyRequestIdsRef.current];
+    if (requestIds.length === 0) {
+      return;
+    }
+
+    await Promise.all(requestIds.map((requestId) => cancelFallbackRequest(requestId)));
+  }, [cancelFallbackRequest]);
+
+  /**
+   * Independent pane formatting should preserve the main output state while
+   * still reusing the configured local/fallback prettifier contract.
+   */
+  const prettifyEmbeddedContentForPane = useCallback(
+    async (rawText: string): Promise<string> => {
+      const localResult = prettifyEmbeddedContent(rawText);
+      if (localResult.kind === 'applied') {
+        return localResult.outputText;
+      }
+
+      const api = getWindowApi();
+      if (!api) {
+        return localResult.outputText;
+      }
+
+      const configuredFallbackAgent = getConfiguredFallbackAgentFromSelection(
+        fallbackAgentId,
+        fallbackAgentOptions,
+      );
+      if (!configuredFallbackAgent.shouldWaitForFallback) {
+        return localResult.outputText;
+      }
+
+      const requestId = takeDetachedPrettifyRequestId();
+      activeDetachedPrettifyRequestIdsRef.current.add(requestId);
+
+      try {
+        const response = await api.prettifier.run({
+          requestId,
+          inputText: rawText,
+          indentSize,
+          trigger: 'switch-output',
+        });
+        return response.outputText;
+      } catch (error) {
+        reportRendererError('Failed to run embedded pane prettifier fallback', error);
+        return localResult.outputText;
+      } finally {
+        activeDetachedPrettifyRequestIdsRef.current.delete(requestId);
+      }
+    },
+    [
+      fallbackAgentId,
+      fallbackAgentOptions,
+      getWindowApi,
+      indentSize,
+      prettifyEmbeddedContent,
+      takeDetachedPrettifyRequestId,
+    ],
+  );
+
+  const prettifyEmbeddedContentForReplace = useCallback(
+    async (rawText: string): Promise<string> => {
+      return await prettifyEmbeddedContentForPane(rawText);
+    },
+    [prettifyEmbeddedContentForPane],
+  );
 
   // Clearing a run invalidates all pending responses by advancing the shared request id.
   const clearRunState = useCallback(
@@ -431,8 +525,14 @@ export const usePrettifierFlow = ({
     if (activeRequestId !== null) {
       void cancelFallbackRequest(activeRequestId);
     }
+    void cancelDetachedEmbeddedPrettify();
     clearRunState('');
-  }, [cancelFallbackRequest, clearRunState, takeActiveFallbackRequestId]);
+  }, [
+    cancelDetachedEmbeddedPrettify,
+    cancelFallbackRequest,
+    clearRunState,
+    takeActiveFallbackRequestId,
+  ]);
 
   const isInputAlreadyPrettified = useCallback((input: string): boolean => {
     return lastPrettifiedInputRef.current === input;
@@ -530,6 +630,10 @@ export const usePrettifierFlow = ({
     isLlmRunning,
     fallbackWaitState,
     cancelActiveFallback,
+    cancelDetachedEmbeddedPrettify,
+    prettifyEmbeddedContent,
+    prettifyEmbeddedContentForPane,
+    prettifyEmbeddedContentForReplace,
     runPrettifier,
     ingestInputText,
     resetPrettifierState,

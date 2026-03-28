@@ -1,5 +1,6 @@
 import type { IRange, editor as MonacoEditor } from 'monaco-editor';
 import { configureMonaco } from './configureMonaco';
+import { registerGraphqlLanguage } from './registerGraphqlLanguage';
 import { registerMonacoThemes } from './monacoThemes';
 
 type HiddenAreaCapableEditor = MonacoEditor.IStandaloneCodeEditor & {
@@ -35,6 +36,7 @@ const cacheViewState = (
 export const prepareMonacoEditorRuntime = (monaco: typeof import('monaco-editor')): void => {
   monacoModule = monaco;
   configureMonaco();
+  registerGraphqlLanguage(monaco);
   registerMonacoThemes(monaco);
 };
 

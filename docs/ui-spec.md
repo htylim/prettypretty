@@ -108,32 +108,32 @@
 - Output mode search uses Monaco native find widget (triggered by the platform primary modifier plus `F` in output mode).
 - Paste inside Monaco find/replace inputs stays local to that widget and must not trigger app-level ingest/prettify flow.
 - Output mode fold/view state persists for the current document identity during the app session.
-- Output mode supports a recursive structural split gesture:
-  - literal `Ctrl+click` on the root output pane resolves the smallest enclosing Monaco foldable block for the clicked line,
-  - clicking a folded fold-start line resolves that folded block from the model, not the visible placeholder text,
-  - clicking a line with no enclosing foldable block is a no-op,
-  - derived panes may split again only when the resolved block is strictly smaller than that pane's full visible source range.
-- Output split layout keeps the full pane chain mounted and uses a snapped horizontal viewport:
-  - with one pane, the output viewport is a single full-width pane,
-  - once any derived pane exists, every pane uses `50/50` width and the viewport shows two panes at a time,
-  - opening/replacing a child pans the viewport to the parent-child pair for that interaction,
-  - left/right navigation moves exactly one pane at a time across the mounted chain.
-- Derived panes:
-  - render the same Monaco source model as the root pane, but as filtered views of the selected source range,
-  - stay read-only and use the same syntax/theme/minimap/line-number/fold-control configuration as the root pane,
-  - preserve source line numbers instead of renumbering from `1`,
-  - open expanded even when the source block in the parent pane was folded,
-  - remain mounted off-screen so fold/search/view state survives viewport navigation.
-- Every pane shows a custom Monaco decoration highlight for its direct child selection; highlights are not native Monaco/browser text selections and do not change copy/save output text.
-- Repeating `Ctrl+click` on a pane replaces only that pane's direct child and truncates all descendants to the right.
+- Output mode supports embedded-content detection on literal `Ctrl+click`:
+  - detection runs against the current output text model, not rendered DOM text,
+  - the click resolves one embedded structured payload candidate at the clicked source location when the source contains an extractable quoted payload or nested structured block,
+  - when nested candidates contain the clicked location, the outermost containing candidate wins,
+  - clicking unsupported text clears the embedded highlight and does not mutate output content.
+- Output mode right-click uses a renderer-owned context menu with `Prettify in Pane` and `Prettify & Replace`.
+- Output context-menu action state is selection-driven:
+  - when there is no non-empty Monaco selection, both actions are visible but disabled,
+  - when there is a non-empty selection, both actions operate on that exact selected text instead of inferring a target from the click position,
+  - selection normalization unwraps host literal delimiters and decodes escapes before formatting,
+  - if prettification cannot improve the payload, actions still use the normalized/pass-through result.
+- Output pane-strip platform is retained for embedded-content exploration:
+  - root-only output stays full width,
+  - once any derived pane exists, the strip uses equal-width `50/50` panes with snapped horizontal viewport movement,
+  - `Prettify in Pane` opens an independent right-side pane for extracted/prettified content,
+  - derived panes behave like first-class output panes for focus, find, folding, and syntax detection.
+- Output mode shows a custom Monaco decoration highlight for the current embedded candidate; the highlight is not a native Monaco/browser text selection and does not change copy/save output text.
 - Output-pane modifier-click fold toggling is removed in this scope. Output folding remains available through inline fold controls and toolbar fold actions, with one inline button that switches between self-toggle and immediate-child fold state changes while literal `Ctrl` is held. Input-pane modifier-click folding remains unchanged.
-- Output `Expand`, `Collapse`, and `Cmd+F` target the active visible output pane. Split-open, split-pop, viewport navigation, and normal click focus all retarget that active pane. `Save` and `Copy` remain rooted to the full root output text even when derived panes are open.
+- Output `Expand`, `Collapse`, and `Cmd+F` target the active visible output pane. Normal click focus and embedded-highlight updates retarget that active pane. `Save` and `Copy` remain rooted to the full root output text.
+- Output panes form a strict left-to-right dependency chain. If any pane's represented content changes, every pane to its right closes immediately and the strip normalizes focus plus viewport to the remaining chain.
 - Toolbar split navigation shows a centered `x of y` label between the left/right buttons only while an output pane is visible. The label reports snapped viewport positions, not mounted pane count: root-only and root-plus-first-derived both show `1 of 1`, opening the second/third derived panes yields `2 of 2` and `3 of 3`, and moving one step left from the end yields `2 of 3`.
 - Output split navigation shortcuts:
   - literal `Ctrl+Left` / `Ctrl+Right`: move the split viewport one pane left/right in output mode,
   - literal `Ctrl+Wheel` / `Ctrl+trackpad scroll`: move the split viewport by snapped pane steps in output mode,
   - `Escape`: pop the rightmost derived pane in output mode when a split chain is open and Monaco did not already consume the key.
-- Split-pane state clears when output mode exits, when the root output document changes, and when the current document window is reset.
+- Output embedded-highlight state clears when output mode exits, when the root output document changes, and when the current document window is reset.
 - Output-mode prettify indentation and Monaco tab/guide indentation are sourced from the same persisted preference value (`indentSize`) so they stay synchronized.
 - If output mode currently displays already-prettified text, changing `indentSize` reindents the visible output locally by line-leading whitespace remap (no new prettifier/fallback request).
 - If output is passthrough/non-prettified, changing `indentSize` does not mutate existing output text.

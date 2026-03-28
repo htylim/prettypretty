@@ -99,8 +99,7 @@ const createPanes = () =>
       viewStateKey: 'output-root-pane:root-doc',
       value: '{\n  "root": true\n}',
       viewRange: null,
-      sourceHighlightRange: null,
-      isSplitSelectionEnabled: true,
+      embeddedCandidate: null,
       testId: 'output-editor',
     },
   ] as const;
@@ -121,9 +120,11 @@ describe('OutputPaneStrip', () => {
         indentSize={2}
         leftVisiblePaneIndex={0}
         onNavigatePaneViewport={vi.fn()}
+        onPaneEmbeddedCandidateChange={vi.fn()}
+        onPanePrettifyInPane={vi.fn()}
+        onPanePrettifyReplace={vi.fn()}
         onPaneFocus={vi.fn()}
         onPaneHandleChange={vi.fn()}
-        onPaneSplitSelection={vi.fn()}
         panes={[...createPanes()]}
         themeMode="light"
       />,
@@ -150,9 +151,11 @@ describe('OutputPaneStrip', () => {
         indentSize={2}
         leftVisiblePaneIndex={0}
         onNavigatePaneViewport={vi.fn()}
+        onPaneEmbeddedCandidateChange={vi.fn()}
+        onPanePrettifyInPane={vi.fn()}
+        onPanePrettifyReplace={vi.fn()}
         onPaneFocus={vi.fn()}
         onPaneHandleChange={vi.fn()}
-        onPaneSplitSelection={vi.fn()}
         panes={[
           ...createPanes(),
           {
@@ -166,8 +169,7 @@ describe('OutputPaneStrip', () => {
               endLineNumber: 5,
               endColumn: 2,
             },
-            sourceHighlightRange: null,
-            isSplitSelectionEnabled: true,
+            embeddedCandidate: null,
             testId: 'output-editor-pane-1',
           },
           {
@@ -181,8 +183,7 @@ describe('OutputPaneStrip', () => {
               endLineNumber: 9,
               endColumn: 2,
             },
-            sourceHighlightRange: null,
-            isSplitSelectionEnabled: true,
+            embeddedCandidate: null,
             testId: 'output-editor-pane-2',
           },
         ]}
@@ -204,6 +205,40 @@ describe('OutputPaneStrip', () => {
     expect(screen.getByTestId('output-editor-pane-2')).toHaveAttribute('data-view-start', '7');
   });
 
+  it('renders independent pane content without a shared source-range view filter', () => {
+    render(
+      <OutputPaneStrip
+        activePaneId="output-pane-1"
+        focusRequest={null}
+        indentSize={2}
+        leftVisiblePaneIndex={0}
+        onNavigatePaneViewport={vi.fn()}
+        onPaneEmbeddedCandidateChange={vi.fn()}
+        onPanePrettifyInPane={vi.fn()}
+        onPanePrettifyReplace={vi.fn()}
+        onPaneFocus={vi.fn()}
+        onPaneHandleChange={vi.fn()}
+        panes={[
+          ...createPanes(),
+          {
+            paneId: 'output-pane-1',
+            documentId: 'output-pane-1:document-1',
+            viewStateKey: 'output-pane-1:content-1',
+            value: '{\n  "pretty": true\n}',
+            viewRange: null,
+            embeddedCandidate: null,
+            testId: 'output-editor-pane-1',
+          },
+        ]}
+        themeMode="dark"
+      />,
+    );
+
+    expect(screen.getByTestId('output-editor-pane-1')).toHaveTextContent('"pretty": true');
+    expect(screen.getByTestId('output-editor-pane-1')).toHaveAttribute('data-view-start', '');
+    expect(screen.getByTestId('output-editor-pane-1')).toHaveAttribute('data-view-end', '');
+  });
+
   it('controls the viewport target from the pane index and supports ctrl-wheel navigation', () => {
     const onNavigatePaneViewport = vi.fn();
     const { rerender } = render(
@@ -213,9 +248,11 @@ describe('OutputPaneStrip', () => {
         indentSize={2}
         leftVisiblePaneIndex={0}
         onNavigatePaneViewport={onNavigatePaneViewport}
+        onPaneEmbeddedCandidateChange={vi.fn()}
+        onPanePrettifyInPane={vi.fn()}
+        onPanePrettifyReplace={vi.fn()}
         onPaneFocus={vi.fn()}
         onPaneHandleChange={vi.fn()}
-        onPaneSplitSelection={vi.fn()}
         panes={[
           ...createPanes(),
           {
@@ -229,8 +266,7 @@ describe('OutputPaneStrip', () => {
               endLineNumber: 4,
               endColumn: 2,
             },
-            sourceHighlightRange: null,
-            isSplitSelectionEnabled: true,
+            embeddedCandidate: null,
             testId: 'output-editor-pane-1',
           },
           {
@@ -244,8 +280,7 @@ describe('OutputPaneStrip', () => {
               endLineNumber: 7,
               endColumn: 2,
             },
-            sourceHighlightRange: null,
-            isSplitSelectionEnabled: true,
+            embeddedCandidate: null,
             testId: 'output-editor-pane-2',
           },
         ]}
@@ -262,9 +297,11 @@ describe('OutputPaneStrip', () => {
         indentSize={2}
         leftVisiblePaneIndex={1}
         onNavigatePaneViewport={onNavigatePaneViewport}
+        onPaneEmbeddedCandidateChange={vi.fn()}
+        onPanePrettifyInPane={vi.fn()}
+        onPanePrettifyReplace={vi.fn()}
         onPaneFocus={vi.fn()}
         onPaneHandleChange={vi.fn()}
-        onPaneSplitSelection={vi.fn()}
         panes={[
           ...createPanes(),
           {
@@ -278,8 +315,7 @@ describe('OutputPaneStrip', () => {
               endLineNumber: 4,
               endColumn: 2,
             },
-            sourceHighlightRange: null,
-            isSplitSelectionEnabled: true,
+            embeddedCandidate: null,
             testId: 'output-editor-pane-1',
           },
           {
@@ -293,8 +329,7 @@ describe('OutputPaneStrip', () => {
               endLineNumber: 7,
               endColumn: 2,
             },
-            sourceHighlightRange: null,
-            isSplitSelectionEnabled: true,
+            embeddedCandidate: null,
             testId: 'output-editor-pane-2',
           },
         ]}
@@ -336,8 +371,7 @@ describe('OutputPaneStrip', () => {
           endLineNumber: 4,
           endColumn: 2,
         },
-        sourceHighlightRange: null,
-        isSplitSelectionEnabled: true,
+        embeddedCandidate: null,
         testId: 'output-editor-pane-1',
       },
       {
@@ -351,8 +385,7 @@ describe('OutputPaneStrip', () => {
           endLineNumber: 7,
           endColumn: 2,
         },
-        sourceHighlightRange: null,
-        isSplitSelectionEnabled: true,
+        embeddedCandidate: null,
         testId: 'output-editor-pane-2',
       },
     ] as const;
@@ -363,9 +396,11 @@ describe('OutputPaneStrip', () => {
         indentSize={2}
         leftVisiblePaneIndex={0}
         onNavigatePaneViewport={vi.fn()}
+        onPaneEmbeddedCandidateChange={vi.fn()}
+        onPanePrettifyInPane={vi.fn()}
+        onPanePrettifyReplace={vi.fn()}
         onPaneFocus={vi.fn()}
         onPaneHandleChange={vi.fn()}
-        onPaneSplitSelection={vi.fn()}
         panes={[...panes]}
         themeMode="light"
       />,
@@ -381,9 +416,11 @@ describe('OutputPaneStrip', () => {
         indentSize={2}
         leftVisiblePaneIndex={1}
         onNavigatePaneViewport={vi.fn()}
+        onPaneEmbeddedCandidateChange={vi.fn()}
+        onPanePrettifyInPane={vi.fn()}
+        onPanePrettifyReplace={vi.fn()}
         onPaneFocus={vi.fn()}
         onPaneHandleChange={vi.fn()}
-        onPaneSplitSelection={vi.fn()}
         panes={[...panes]}
         themeMode="light"
       />,

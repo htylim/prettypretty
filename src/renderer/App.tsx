@@ -63,7 +63,9 @@ export const App = () => {
           onCancelFallbackWait={() => void controller.onCancelActiveFallback()}
           onOutputPaneHandleChange={controller.onOutputPaneHandleChange}
           onOutputPaneFocus={controller.onOutputPaneFocus}
-          onOutputPaneSplitSelection={controller.onOutputPaneSplitSelection}
+          onOutputPaneEmbeddedCandidateChange={controller.onOutputPaneEmbeddedCandidateChange}
+          onOutputPanePrettifyInPane={controller.onOutputPanePrettifyInPane}
+          onOutputPanePrettifyReplace={controller.onOutputPanePrettifyReplace}
           onNavigateOutputPaneViewport={controller.onNavigateOutputPaneViewport}
         />
       </div>

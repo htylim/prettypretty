@@ -18,7 +18,7 @@
 
 - `src/renderer/App.tsx` is a thin composition shell only.
 - `src/renderer/app/useAppController.ts` owns renderer orchestration and UI wiring.
-- `src/renderer/app/useOutputPaneController.ts` owns output-pane chain state, pane-strip viewport state (`leftVisiblePaneIndex`), active-pane routing, focus handoff, and reset rules independently from the broader app controller.
+- `src/renderer/app/useOutputPaneController.ts` owns output-pane chain state, pane-strip viewport state (`leftVisiblePaneIndex`), active-pane routing, embedded-highlight state, focus handoff, and reset rules independently from the broader app controller.
 - `src/renderer/app/usePrettifierFlow.ts` owns prettifier execution flow, request-id race guards, fallback wait/progress state, and request-scoped fallback cancellation.
 - `src/renderer/app/usePreferencesFlow.ts` owns preferences hydration and optimistic persistence sequencing for theme/fallback agent.
 - `src/renderer/app/useKeyboardShortcuts.ts` owns keyboard shortcut bindings and mode gating, including split navigation/pop shortcuts in output mode for literal `Ctrl+Arrow`, browser-style `primary+[ / primary+]`, and `Alt+Arrow` navigation equivalents.
@@ -26,7 +26,7 @@
 - `src/renderer/app/primaryModifier.ts` centralizes platform-aware primary-modifier detection for renderer shortcuts and Monaco input gestures.
 - `src/renderer/app/windowApi.ts` centralizes safe access to the typed preload bridge from renderer hooks.
 - `src/renderer/app/appDomain.ts` contains pure helper functions/constants shared by renderer controller hooks.
-- `src/renderer/app/outputPaneDomain.ts` owns pure derived-pane chain mutations, descendant truncation, viewport-step math, source-highlight lookup, and active-pane normalization for output split behavior.
+- `src/renderer/app/outputPaneDomain.ts` owns pure derived-pane chain mutations, generalized pane-content descriptors (shared-source range views plus independent extracted text), explicit descendant invalidation, viewport-step math, source-highlight lookup, and active-pane normalization for output split behavior.
 - `src/renderer/app/reportRendererError.ts` provides a single renderer-side error reporting path.
 
 ## Renderer Editor Folding
@@ -34,10 +34,11 @@
 - `src/renderer/editor/monacoFolding.ts` is the single renderer folding adapter. It isolates Monaco folding-contribution access and exposes fold-start discovery, smallest-enclosing fold-range resolution, collapsed-state lookup, toggle-by-fold-start behavior, direct-child action resolution, and direct-child action execution for renderer features.
 - `src/renderer/output/inlineFoldControls.ts` owns output-only inline fold control widgets. It renders Monaco content widgets on visible fold-start lines, derives collapsed-preview text from the top lines inside the folded region, refreshes widget state from scroll/layout/model/language/hidden-area changes, swaps the single inline button between self-toggle and direct-child actions while literal `Ctrl` is held, and prevents inline-control clicks from falling through to pane split selection.
 - `src/renderer/output/indentBlockFolding.ts` remains the modifier-click registration seam, but it now delegates fold targeting and toggling to `monacoFolding.ts` instead of inferring fold ranges from indentation.
-- `src/renderer/output/structuralSplitSelection.ts` resolves the smallest enclosing foldable block from Monaco model data, constrains derived-pane selection to ranges strictly inside the pane view range, and returns the exact source range for derived output panes.
+- `src/renderer/output/outputEmbeddedSelection.ts` resolves one embedded structured payload candidate from output text plus click/selection context, projects nested decoded matches back to source coordinates, and returns the exact source span plus extracted payload.
 - `src/renderer/output/outputViewRange.ts` owns pane-local hidden-area application so derived panes can render filtered views over the shared root Monaco model without mutating source text or fold state in sibling panes.
 - `src/renderer/output/monacoEditorRuntime.ts` owns Monaco runtime preparation, bounded pane view-state caching, and shared-model reference counting so editor instances do not manage those globals inline.
-- `src/renderer/output/splitSelectionDecorations.ts` owns the Monaco decoration collection for source-pane split highlights.
+- `src/renderer/output/registerGraphqlLanguage.ts` registers the custom Monaco GraphQL language used by output panes when detected content is a GraphQL operation or schema block.
+- `src/renderer/output/splitSelectionDecorations.ts` owns the Monaco decoration collection for output embedded highlights.
 - `src/renderer/components/OutputPaneStrip.tsx` renders the ordered horizontal output pane strip, mounts every pane in the current chain, owns the hidden-scrollbar scroll container, and converts literal-`Ctrl` wheel/trackpad gestures into snapped viewport steps.
 - Output-pane editors share one Monaco source model per root output document. Root-pane view state persists by root document identity, derived-pane keys are regenerated when a selection changes, and the runtime manager caps cached view-state entries so pane replacement cannot grow that cache without bound.
 
@@ -128,7 +129,10 @@
 - Active fallback children are tracked in main by request id and terminated on user cancel or app shutdown; POSIX builds kill the spawned process group and Windows uses tree termination (`taskkill /T /F`) so child/grandchild agent processes do not survive app exit.
 - Fallback execution enforces timeout and output-size caps and classifies failures into typed statuses.
 - Any fallback failure degrades to passthrough output instead of throwing into renderer.
+- Output syntax highlighting is inferred from the rendered text and currently recognizes JSON, JavaScript, TypeScript, GraphQL, YAML, XML, SQL, Markdown, and plaintext.
 - Empty open-file/drop content stays in input mode and shows an inline notice (`File has no content.`).
-- Output split state stays renderer-window local inside `useOutputPaneController`, resets on root-output invalidation / output-mode exit / window reset, and never changes the root output text used by save/copy.
-- Output split state keeps content and viewport concerns separate: the ordered derived-pane chain decides which panes exist, while `leftVisiblePaneIndex` decides which adjacent pair is framed in the strip.
+- Output pane state stays renderer-window local inside `useOutputPaneController`, resets on root-output invalidation / output-mode exit / window reset, and never changes the root output text used by save/copy.
+- Output pane state keeps content, highlight, and viewport concerns separate: the ordered derived-pane chain decides which panes exist, the embedded-candidate map decides which pane source spans are highlighted, and `leftVisiblePaneIndex` decides which adjacent pair is framed in the strip.
+- The pane-strip platform is broader than the current product workflow: today it is used for root output plus independent embedded-prettify panes, but the chain model still supports shared-source range panes as a separate content strategy.
+- Output pane dependency is explicit and linear: every pane depends on the pane immediately to its left, and any mutation of a pane invalidates and removes every pane to its right before focus/viewport state is normalized.
 - Toolbar fold/find routing uses controller-managed `activePaneId` plus registered output-editor handles, so visible pane focus is independent from pane content identity and follows split open/pop/navigation transitions.

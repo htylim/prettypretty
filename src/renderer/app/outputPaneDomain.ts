@@ -7,14 +7,41 @@ export type OutputPaneSourceRange = Pick<
   'startLineNumber' | 'startColumn' | 'endLineNumber' | 'endColumn'
 >;
 
-export type OutputPaneSelection = {
+export type SourceRangeOutputPaneContent = {
+  kind: 'source-range';
+  documentId: string;
+  value: string;
   sourceRange: OutputPaneSourceRange;
 };
+
+export type IndependentTextOutputPaneContent = {
+  kind: 'independent-text';
+  documentId: string;
+  value: string;
+};
+
+export type OutputPaneContent = SourceRangeOutputPaneContent | IndependentTextOutputPaneContent;
+
+export type OutputPaneContentInput =
+  | SourceRangeOutputPaneContent
+  | {
+      kind: 'independent-text';
+      value: string;
+    };
 
 export type DerivedOutputPane = {
   parentPaneId: string;
   paneId: string;
-  sourceRange: OutputPaneSourceRange;
+  content: OutputPaneContent;
+  viewStateKey: string;
+};
+
+export type OutputPaneDescriptor = {
+  paneId: string;
+  parentPaneId: string | null;
+  documentId: string;
+  value: string;
+  viewRange: OutputPaneSourceRange | null;
   viewStateKey: string;
 };
 
@@ -22,19 +49,31 @@ export type OutputPaneChainState = {
   activePaneId: string;
   derivedPanes: DerivedOutputPane[];
   leftVisiblePaneIndex: number;
-  nextDerivedPaneViewStateId: number;
+  nextDerivedPaneSequence: number;
 };
 
 export const createOutputPaneChainState = (): OutputPaneChainState => ({
   activePaneId: ROOT_OUTPUT_PANE_ID,
   derivedPanes: [],
   leftVisiblePaneIndex: 0,
-  nextDerivedPaneViewStateId: 1,
+  nextDerivedPaneSequence: 1,
 });
 
 export const getRootOutputPaneViewStateKey = (documentId: string): string => {
   return `${ROOT_OUTPUT_PANE_ID}:${documentId}`;
 };
+
+export const createRootOutputPaneDescriptor = (
+  documentId: string,
+  value: string,
+): OutputPaneDescriptor => ({
+  paneId: ROOT_OUTPUT_PANE_ID,
+  parentPaneId: null,
+  documentId,
+  value,
+  viewRange: null,
+  viewStateKey: getRootOutputPaneViewStateKey(documentId),
+});
 
 export const hasDerivedOutputPane = (state: OutputPaneChainState): boolean => {
   return state.derivedPanes.length > 0;
@@ -79,43 +118,22 @@ const getOutputPaneIdAtIndex = (
   return derivedPanes[paneIndex - 1]?.paneId ?? null;
 };
 
-export const getRightmostVisibleOutputPaneId = (
-  state: Pick<OutputPaneChainState, 'derivedPanes' | 'leftVisiblePaneIndex'>,
-): string => {
-  const rightmostVisiblePaneIndex = Math.min(
-    getOutputPaneCount(state) - 1,
-    state.leftVisiblePaneIndex + 1,
-  );
-  return (
-    getOutputPaneIdAtIndex(state.derivedPanes, rightmostVisiblePaneIndex) ?? ROOT_OUTPUT_PANE_ID
-  );
+export const getOutputPaneViewRange = (
+  content: OutputPaneContent,
+): OutputPaneSourceRange | null => {
+  return content.kind === 'source-range' ? content.sourceRange : null;
 };
 
-export const getOutputPaneViewportPosition = (
-  state: Pick<OutputPaneChainState, 'derivedPanes' | 'leftVisiblePaneIndex'>,
-): {
-  current: number;
-  total: number;
-} => {
-  return {
-    current: state.leftVisiblePaneIndex + 1,
-    total: Math.max(1, getOutputPaneCount(state) - 1),
-  };
-};
-
-export const canNavigateOutputPaneViewportLeft = (
-  state: Pick<OutputPaneChainState, 'derivedPanes' | 'leftVisiblePaneIndex'>,
-): boolean => {
-  return getOutputPaneCount(state) > 2 && state.leftVisiblePaneIndex > 0;
-};
-
-export const canNavigateOutputPaneViewportRight = (
-  state: Pick<OutputPaneChainState, 'derivedPanes' | 'leftVisiblePaneIndex'>,
-): boolean => {
-  return (
-    getOutputPaneCount(state) > 2 && state.leftVisiblePaneIndex < getMaxLeftVisiblePaneIndex(state)
-  );
-};
+export const toOutputPaneDescriptor = (
+  pane: Pick<DerivedOutputPane, 'paneId' | 'parentPaneId' | 'content' | 'viewStateKey'>,
+): OutputPaneDescriptor => ({
+  paneId: pane.paneId,
+  parentPaneId: pane.parentPaneId,
+  documentId: pane.content.documentId,
+  value: pane.content.value,
+  viewRange: getOutputPaneViewRange(pane.content),
+  viewStateKey: pane.viewStateKey,
+});
 
 const areSourceRangesEqual = (
   left: OutputPaneSourceRange,
@@ -129,12 +147,51 @@ const areSourceRangesEqual = (
   );
 };
 
+const areOutputPaneContentsEqual = (
+  left: OutputPaneContent,
+  right: OutputPaneContentInput,
+): boolean => {
+  if (left.kind !== right.kind) {
+    return false;
+  }
+
+  if (left.kind === 'source-range' && right.kind === 'source-range') {
+    return (
+      left.documentId === right.documentId &&
+      left.value === right.value &&
+      areSourceRangesEqual(left.sourceRange, right.sourceRange)
+    );
+  }
+
+  return left.value === right.value;
+};
+
 const createDerivedPaneId = (depth: number): string => {
   return `output-pane-${depth}`;
 };
 
 const createDerivedPaneViewStateKey = (paneId: string, sequence: number): string => {
-  return `${paneId}:selection-${sequence}`;
+  return `${paneId}:content-${sequence}`;
+};
+
+const createDerivedPaneDocumentId = (paneId: string, sequence: number): string => {
+  return `${paneId}:document-${sequence}`;
+};
+
+const createOutputPaneContent = (
+  paneId: string,
+  sequence: number,
+  content: OutputPaneContentInput,
+): OutputPaneContent => {
+  if (content.kind === 'source-range') {
+    return content;
+  }
+
+  return {
+    kind: 'independent-text',
+    documentId: createDerivedPaneDocumentId(paneId, sequence),
+    value: content.value,
+  };
 };
 
 const normalizeActivePaneId = (activePaneId: string, derivedPanes: DerivedOutputPane[]): string => {
@@ -186,10 +243,43 @@ export const closeRightmostOutputPane = (state: OutputPaneChainState): OutputPan
   };
 };
 
+/**
+ * Every pane depends on the pane immediately to its left. When a pane changes,
+ * all panes to the right become invalid and must be removed from the chain.
+ */
+export const invalidateOutputPaneDescendants = (
+  state: OutputPaneChainState,
+  paneId: string,
+): OutputPaneChainState => {
+  const paneIndex = getOutputPaneIndex(state.derivedPanes, paneId);
+  if (paneIndex === null) {
+    return state;
+  }
+
+  const nextDerivedPanes = state.derivedPanes.slice(0, paneIndex);
+  if (nextDerivedPanes.length === state.derivedPanes.length) {
+    return state;
+  }
+
+  return {
+    ...state,
+    activePaneId: normalizeActivePaneId(state.activePaneId, nextDerivedPanes),
+    derivedPanes: nextDerivedPanes,
+    leftVisiblePaneIndex: clampLeftVisiblePaneIndex(state.leftVisiblePaneIndex, {
+      derivedPanes: nextDerivedPanes,
+    }),
+  };
+};
+
+/**
+ * The pane strip is a linear dependency chain. Every pane to the right depends
+ * on the pane immediately to its left, so reopening a parent trims its child
+ * and every descendant before the replacement content is inserted.
+ */
 export const openOrReplaceDerivedOutputPane = (
   state: OutputPaneChainState,
   parentPaneId: string,
-  selection: OutputPaneSelection,
+  content: OutputPaneContentInput,
 ): OutputPaneChainState => {
   const parentPaneIndex = getOutputPaneIndex(state.derivedPanes, parentPaneId);
   if (parentPaneIndex === null) {
@@ -200,20 +290,21 @@ export const openOrReplaceDerivedOutputPane = (
   const nextPrefix = state.derivedPanes.slice(0, childDerivedPaneIndex);
   const existingChild = state.derivedPanes[childDerivedPaneIndex];
   const nextPaneId = existingChild?.paneId ?? createDerivedPaneId(childDerivedPaneIndex + 1);
+  const stateWithoutDescendants =
+    existingChild === undefined
+      ? state
+      : invalidateOutputPaneDescendants(state, existingChild.paneId);
   const nextLeftVisiblePaneIndex = clampLeftVisiblePaneIndex(parentPaneIndex, {
     derivedPanes: existingChild ? [...nextPrefix, existingChild] : nextPrefix,
   });
-  const nextDerivedPanesWithoutDescendants =
-    existingChild === undefined ? nextPrefix : [...nextPrefix, existingChild];
-  const hasDescendantsToDrop = state.derivedPanes.length > childDerivedPaneIndex + 1;
-  const isSameChildSelection =
+  const isSameChildContent =
     existingChild !== undefined &&
     existingChild.parentPaneId === parentPaneId &&
-    areSourceRangesEqual(existingChild.sourceRange, selection.sourceRange);
+    areOutputPaneContentsEqual(existingChild.content, content);
 
-  if (isSameChildSelection) {
+  if (isSameChildContent) {
     if (
-      !hasDescendantsToDrop &&
+      stateWithoutDescendants === state &&
       state.activePaneId === existingChild.paneId &&
       state.leftVisiblePaneIndex === nextLeftVisiblePaneIndex
     ) {
@@ -221,27 +312,78 @@ export const openOrReplaceDerivedOutputPane = (
     }
 
     return {
-      ...state,
+      ...stateWithoutDescendants,
       activePaneId: existingChild.paneId,
-      derivedPanes: nextDerivedPanesWithoutDescendants,
       leftVisiblePaneIndex: nextLeftVisiblePaneIndex,
     };
   }
 
+  const sequence = state.nextDerivedPaneSequence;
   const nextDerivedPane: DerivedOutputPane = {
     parentPaneId,
     paneId: nextPaneId,
-    sourceRange: selection.sourceRange,
-    viewStateKey: createDerivedPaneViewStateKey(nextPaneId, state.nextDerivedPaneViewStateId),
+    content: createOutputPaneContent(nextPaneId, sequence, content),
+    viewStateKey: createDerivedPaneViewStateKey(nextPaneId, sequence),
   };
 
   const nextDerivedPanes = [...nextPrefix, nextDerivedPane];
   return {
+    ...stateWithoutDescendants,
     activePaneId: nextDerivedPane.paneId,
     derivedPanes: nextDerivedPanes,
     leftVisiblePaneIndex: parentPaneIndex,
-    nextDerivedPaneViewStateId: state.nextDerivedPaneViewStateId + 1,
+    nextDerivedPaneSequence: sequence + 1,
   };
+};
+
+export const getOutputPaneDescendantIds = (
+  state: Pick<OutputPaneChainState, 'derivedPanes'>,
+  paneId: string,
+): string[] => {
+  const paneIndex = getOutputPaneIndex(state.derivedPanes, paneId);
+  if (paneIndex === null) {
+    return [];
+  }
+
+  return state.derivedPanes.slice(paneIndex).map((pane) => pane.paneId);
+};
+
+export const getRightmostVisibleOutputPaneId = (
+  state: Pick<OutputPaneChainState, 'derivedPanes' | 'leftVisiblePaneIndex'>,
+): string => {
+  const rightmostVisiblePaneIndex = Math.min(
+    getOutputPaneCount(state) - 1,
+    state.leftVisiblePaneIndex + 1,
+  );
+  return (
+    getOutputPaneIdAtIndex(state.derivedPanes, rightmostVisiblePaneIndex) ?? ROOT_OUTPUT_PANE_ID
+  );
+};
+
+export const getOutputPaneViewportPosition = (
+  state: Pick<OutputPaneChainState, 'derivedPanes' | 'leftVisiblePaneIndex'>,
+): {
+  current: number;
+  total: number;
+} => {
+  return {
+    current: state.leftVisiblePaneIndex + 1,
+    total: Math.max(1, getOutputPaneCount(state) - 1),
+  };
+};
+
+export const canNavigateOutputPaneViewportLeft = (
+  state: Pick<OutputPaneChainState, 'derivedPanes' | 'leftVisiblePaneIndex'>,
+): boolean => {
+  return getOutputPaneCount(state) > 2 && state.leftVisiblePaneIndex > 0;
+};
+
+export const canNavigateOutputPaneViewportRight = (
+  state: Pick<OutputPaneChainState, 'derivedPanes' | 'leftVisiblePaneIndex'>,
+): boolean => {
+  return (
+    getOutputPaneCount(state) > 2 && state.leftVisiblePaneIndex < getMaxLeftVisiblePaneIndex(state)
+  );
 };
 
 export const shiftOutputPaneViewport = (
@@ -270,12 +412,4 @@ export const shiftOutputPaneViewport = (
     activePaneId: nextActivePaneId,
     leftVisiblePaneIndex: nextLeftVisiblePaneIndex,
   };
-};
-
-export const getOutputPaneSourceHighlight = (
-  state: Pick<OutputPaneChainState, 'derivedPanes'>,
-  paneId: string,
-): OutputPaneSourceRange | null => {
-  const childPane = state.derivedPanes.find((pane) => pane.parentPaneId === paneId) ?? null;
-  return childPane?.sourceRange ?? null;
 };

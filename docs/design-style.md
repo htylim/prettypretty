@@ -105,12 +105,13 @@
 - Output split-pane rules:
   - use an ordered horizontal pane strip with one full-width pane when unsplit and equal-width `50/50` panes once any derived pane exists,
   - separate adjacent panes with existing border/surface tokens,
-  - render derived panes as filtered views over the same Monaco source model as the leftmost pane,
-  - keep source line numbers visible in derived panes instead of renumbering from `1`,
+  - keep the root-only phase visually identical to a single Monaco output pane,
+  - derived panes may either reuse the shared root model for source-range views or mount independent models for extracted content, but the chrome and layout should stay visually uniform,
+  - preserve source line numbers when a pane is rendering a filtered source-range view instead of renumbering from `1`,
   - keep every pane mounted even when it scrolls off-screen,
   - hide the outer strip scrollbar UI while preserving real scroll-position movement and whole-pane snapping,
-  - keep future multi-pane extension possible without rewriting the strip into a one-off two-pane layout.
-- Split-source highlight rules:
+  - keep the pane-strip platform general enough that product behavior can change without rewriting it into a one-off two-pane layout.
+- Output embedded-highlight rules:
   - render through Monaco decorations, not native selection,
   - use subtle token-derived fills with a clearer start-line anchor treatment,
   - remain visible on folded start lines without pulsing or animation,

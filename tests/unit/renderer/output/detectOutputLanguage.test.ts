@@ -39,6 +39,17 @@ describe('detectOutputLanguage', () => {
     expect(detectOutputLanguage(input)).toBe('sql');
   });
 
+  it('detects graphql operations', () => {
+    const input =
+      'query ListShipments($first: Int) { shipments(first: $first) { edges { node { id } } } }';
+    expect(detectOutputLanguage(input)).toBe('graphql');
+  });
+
+  it('detects graphql schema definitions', () => {
+    const input = 'type Shipment {\n  id: ID!\n  request_id: String\n}';
+    expect(detectOutputLanguage(input)).toBe('graphql');
+  });
+
   it('detects markdown', () => {
     const input = '# Title\n\n- first\n- second';
     expect(detectOutputLanguage(input)).toBe('markdown');

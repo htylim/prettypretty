@@ -15,9 +15,9 @@
   --line: #cccccc;
   --accent: #007acc;
   --accent-soft: #e4e6f1;
-  --split-selection-fill: color-mix(in oklab, var(--accent) 8%, transparent);
-  --split-selection-anchor: color-mix(in oklab, var(--accent) 14%, transparent);
-  --split-selection-edge: color-mix(in oklab, var(--accent) 58%, var(--line));
+  --output-embedded-highlight-fill: color-mix(in oklab, var(--accent) 8%, transparent);
+  --output-embedded-highlight-anchor: color-mix(in oklab, var(--accent) 14%, transparent);
+  --output-embedded-highlight-edge: color-mix(in oklab, var(--accent) 58%, var(--line));
   --shadow-soft: 0 4px 12px rgba(0, 0, 0, 0.08);
   --focus-ring: var(--accent);
 }
@@ -32,9 +32,9 @@
   --line: #3c3c3c;
   --accent: #007acc;
   --accent-soft: #37373d;
-  --split-selection-fill: color-mix(in oklab, var(--accent) 10%, transparent);
-  --split-selection-anchor: color-mix(in oklab, var(--accent) 18%, transparent);
-  --split-selection-edge: color-mix(in oklab, var(--accent) 68%, var(--line));
+  --output-embedded-highlight-fill: color-mix(in oklab, var(--accent) 10%, transparent);
+  --output-embedded-highlight-anchor: color-mix(in oklab, var(--accent) 18%, transparent);
+  --output-embedded-highlight-edge: color-mix(in oklab, var(--accent) 68%, var(--line));
   --shadow-soft: 0 4px 12px rgba(0, 0, 0, 0.25);
   --focus-ring: var(--accent);
 }
@@ -189,6 +189,20 @@ body {
 .dropdown-option-disabled {
   opacity: 0.45;
   cursor: not-allowed;
+}
+
+.output-context-menu {
+  position: fixed;
+  min-width: 180px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  box-shadow: var(--shadow-soft);
+  padding: 4px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  animation: dropdown-reveal 120ms ease-out;
 }
 
 @keyframes dropdown-reveal {
@@ -676,19 +690,60 @@ body {
 }
 
 .output-editor {
+  position: relative;
   flex: 1 1 auto;
   width: 100%;
   min-height: 0;
   background: transparent;
 }
 
-.output-split-selection-range {
-  background: var(--split-selection-fill);
+.output-context-menu {
+  position: absolute;
+  z-index: 20;
+  display: grid;
+  min-width: 12rem;
+  gap: 0.125rem;
+  padding: 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 0.7rem;
+  background: color-mix(in oklab, var(--panel-alt) 94%, var(--bg));
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.22);
 }
 
-.output-split-selection-anchor {
-  background: var(--split-selection-anchor);
-  box-shadow: inset 2px 0 0 var(--split-selection-edge);
+.output-context-menu-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0.45rem 0.65rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.output-context-menu-item:hover:not(:disabled),
+.output-context-menu-item:focus-visible:not(:disabled) {
+  background: color-mix(in oklab, var(--accent-soft) 52%, var(--panel-alt));
+  outline: none;
+}
+
+.output-context-menu-item:disabled {
+  background: color-mix(in oklab, var(--panel-alt) 82%, var(--line));
+  color: var(--muted);
+  opacity: 0.72;
+  cursor: not-allowed;
+}
+
+.output-embedded-highlight-range {
+  background: var(--output-embedded-highlight-fill);
+}
+
+.output-embedded-highlight-anchor {
+  background: var(--output-embedded-highlight-anchor);
+  box-shadow: inset 2px 0 0 var(--output-embedded-highlight-edge);
 }
 
 @keyframes llm-spinner-rotate {

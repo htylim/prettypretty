@@ -2,6 +2,7 @@ export type OutputLanguageId =
   | 'json'
   | 'javascript'
   | 'typescript'
+  | 'graphql'
   | 'yaml'
   | 'xml'
   | 'sql'
@@ -12,6 +13,10 @@ const SQL_START = /^\s*(select|insert|update|delete|create|alter|drop|truncate|w
 const XML_START = /^\s*<(\?xml\b|[a-zA-Z_][\w:.-]*)(\s|>|\/>)/;
 const MARKDOWN_HINT = /^\s{0,3}(#{1,6}\s+|[-*+]\s+|\d+\.\s+|>\s+|```|~~~)|\[[^\]]+\]\([^)]+\)/m;
 const YAML_HINT = /^(\s*---\s*$|\s*[a-zA-Z0-9_-]+\s*:\s*.+)$/m;
+const GRAPHQL_OPERATION_START = /^\s*(query|mutation|subscription|fragment)\b/i;
+const GRAPHQL_SCHEMA_START =
+  /^\s*(schema|type|interface|input|scalar|enum|union|directive|extend)\b/m;
+const GRAPHQL_TYPE_REFERENCE = /\[?[A-Z][\w]*[\]!]*(?:\s*@[A-Za-z_]\w*)?/;
 
 const looksLikeJsonByParse = (trimmedText: string): boolean => {
   try {
@@ -67,6 +72,29 @@ const looksLikeTypeScript = (trimmedText: string): boolean => {
 const looksLikeJavaScript = (trimmedText: string): boolean =>
   /\b(const|let|var|function|=>|import|export|class|new)\b/.test(trimmedText);
 
+const looksLikeGraphql = (trimmedText: string): boolean => {
+  const hasSelectionSet =
+    /{\s*[A-Za-z_]/.test(trimmedText) && /\b[A-Za-z_][\w]*\s*(\(|{|\n)/.test(trimmedText);
+  if (GRAPHQL_OPERATION_START.test(trimmedText)) {
+    return (
+      hasSelectionSet ||
+      new RegExp(`\\$\\w+\\s*:\\s*${GRAPHQL_TYPE_REFERENCE.source}\\b`).test(trimmedText)
+    );
+  }
+
+  if (GRAPHQL_SCHEMA_START.test(trimmedText)) {
+    return (
+      /{\s*[A-Za-z_]/.test(trimmedText) &&
+      new RegExp(
+        `^\\s*[A-Za-z_][\\w]*\\s*(?:\\([^)]*\\))?\\s*:\\s*${GRAPHQL_TYPE_REFERENCE.source}\\s*$`,
+        'm',
+      ).test(trimmedText)
+    );
+  }
+
+  return false;
+};
+
 const looksLikeYaml = (trimmedText: string): boolean =>
   YAML_HINT.test(trimmedText) && !/[{};]/.test(trimmedText);
 
@@ -99,6 +127,10 @@ export const detectOutputLanguage = (text: string): OutputLanguageId => {
 
   if (looksLikeSql(trimmedText)) {
     return 'sql';
+  }
+
+  if (looksLikeGraphql(trimmedText)) {
+    return 'graphql';
   }
 
   if (looksLikeTypeScript(trimmedText)) {

@@ -1,11 +1,20 @@
 import Editor, { type OnMount } from '@monaco-editor/react';
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import type { editor as MonacoEditor } from 'monaco-editor';
 import type { IndentSize } from '../../shared/preferences';
 import type { ThemeMode } from '../../shared/types';
-import type { OutputPaneSelection, OutputPaneSourceRange } from '../app/outputPaneDomain';
+import type { OutputPaneSourceRange } from '../app/outputPaneDomain';
 import { setCollapseStateForFoldStart } from '../editor/monacoFolding';
 import { detectOutputLanguage } from '../output/detectOutputLanguage';
+import { registerInlineFoldControls } from '../output/inlineFoldControls';
 import {
   prepareMonacoEditorRuntime,
   releaseSharedEditorModel,
@@ -14,11 +23,18 @@ import {
   saveEditorViewState,
 } from '../output/monacoEditorRuntime';
 import { PRETTYPRETTY_DARK_THEME, PRETTYPRETTY_LIGHT_THEME } from '../output/monacoThemes';
-import { applyOutputViewRange } from '../output/outputViewRange';
-import { registerInlineFoldControls } from '../output/inlineFoldControls';
+import {
+  createOutputContextMenuActions,
+  type OutputContextMenuAction,
+} from '../output/outputContextMenuActions';
+import {
+  normalizeOutputEmbeddedSelectionText,
+  resolveOutputEmbeddedSelection,
+  type OutputEmbeddedCandidate,
+} from '../output/outputEmbeddedSelection';
 import { getOutputEditorOptions } from '../output/outputEditorConfig';
-import { createSplitSelectionDecorations } from '../output/splitSelectionDecorations';
-import { resolveStructuralSplitSelection } from '../output/structuralSplitSelection';
+import { applyOutputViewRange } from '../output/outputViewRange';
+import { createOutputEmbeddedHighlightDecorations } from '../output/splitSelectionDecorations';
 
 export type OutputEditorHandle = {
   collapseAll: () => void;
@@ -34,41 +50,101 @@ type OutputEditorProps = {
   viewStateKey: string;
   indentSize: IndentSize;
   viewRange?: OutputPaneSourceRange | null | undefined;
-  highlightRange?: OutputPaneSourceRange | null | undefined;
-  onSplitSelection?: ((selection: OutputPaneSelection) => void) | undefined;
+  embeddedCandidate?: OutputEmbeddedCandidate | null | undefined;
+  onEmbeddedCandidateChange?: ((candidate: OutputEmbeddedCandidate | null) => void) | undefined;
+  onPrettifyInPane?: ((candidate: OutputEmbeddedCandidate) => void) | undefined;
+  onPrettifyReplace?: ((candidate: OutputEmbeddedCandidate) => void) | undefined;
   onFocus?: (() => void) | undefined;
   testId?: string | undefined;
 };
 
-const registerCtrlClickSplitSelection = (
+type MonacoSelectionLike = OutputPaneSourceRange & {
+  selectionStartLineNumber: number;
+  selectionStartColumn: number;
+  positionLineNumber: number;
+  positionColumn: number;
+};
+
+type OutputContextMenuState = {
+  x: number;
+  y: number;
+  actions: OutputContextMenuAction[];
+};
+
+const isCtrlClickContextMenuEvent = (event: MouseEvent): boolean => {
+  return event.ctrlKey && event.button === 0;
+};
+
+const registerCtrlClickEmbeddedSelection = (
+  container: HTMLDivElement,
   editor: MonacoEditor.IStandaloneCodeEditor,
+  getValue: () => string,
   getViewRange: () => OutputPaneSourceRange | null,
-  onSplitSelection: (selection: OutputPaneSelection) => void,
+  onEmbeddedCandidateChange: (candidate: OutputEmbeddedCandidate | null) => void,
 ): { dispose: () => void } => {
-  let disposed = false;
-  const disposable = editor.onMouseDown((mouseEvent) => {
-    const lineNumber = mouseEvent.target.position?.lineNumber;
-    const isCtrlClick = mouseEvent.event.ctrlKey && mouseEvent.event.browserEvent.detail === 1;
-    if (!lineNumber || !isCtrlClick) {
+  const handleMouseDown = (event: MouseEvent): void => {
+    if (event.button !== 0 || !event.ctrlKey || event.detail !== 1) {
       return;
     }
 
-    mouseEvent.event.preventDefault();
-    mouseEvent.event.stopPropagation();
+    if (event.target instanceof Element && event.target.closest('.output-context-menu')) {
+      return;
+    }
 
-    void resolveStructuralSplitSelection(editor, lineNumber, getViewRange()).then((selection) => {
-      if (!selection || disposed) {
-        return;
-      }
+    const target = editor.getTargetAtClientPoint(event.clientX, event.clientY);
+    const lineNumber = target?.position?.lineNumber;
+    const column = target?.position?.column ?? 1;
+    if (!lineNumber) {
+      return;
+    }
 
-      onSplitSelection(selection);
-    });
-  });
+    event.preventDefault();
+    event.stopPropagation();
+
+    const value = getValue();
+    const viewRange = getViewRange();
+    const directCandidate = resolveOutputEmbeddedSelection(
+      value,
+      {
+        type: 'position',
+        lineNumber,
+        column,
+      },
+      viewRange,
+    );
+    if (directCandidate) {
+      onEmbeddedCandidateChange(directCandidate);
+      return;
+    }
+
+    const model = editor.getModel();
+    if (!model) {
+      onEmbeddedCandidateChange(null);
+      return;
+    }
+
+    onEmbeddedCandidateChange(
+      resolveOutputEmbeddedSelection(
+        value,
+        {
+          type: 'range',
+          sourceRange: {
+            startLineNumber: lineNumber,
+            startColumn: 1,
+            endLineNumber: lineNumber,
+            endColumn: model.getLineMaxColumn(lineNumber),
+          },
+        },
+        viewRange,
+      ),
+    );
+  };
+
+  container.addEventListener('mousedown', handleMouseDown, true);
 
   return {
     dispose: () => {
-      disposed = true;
-      disposable.dispose();
+      container.removeEventListener('mousedown', handleMouseDown, true);
     },
   };
 };
@@ -79,6 +155,90 @@ const collapseViewRangeToStartLine = (viewRange: OutputPaneSourceRange): OutputP
   endColumn: viewRange.startColumn,
 });
 
+const formatSourceRangeForDataAttribute = (
+  sourceRange: OutputPaneSourceRange | null,
+): string | undefined => {
+  if (!sourceRange) {
+    return undefined;
+  }
+
+  return `${sourceRange.startLineNumber}:${sourceRange.startColumn}-${sourceRange.endLineNumber}:${sourceRange.endColumn}`;
+};
+
+const selectionToSourceRange = (selection: MonacoSelectionLike): OutputPaneSourceRange => ({
+  startLineNumber: selection.startLineNumber,
+  startColumn: selection.startColumn,
+  endLineNumber: selection.endLineNumber,
+  endColumn: selection.endColumn,
+});
+
+const isSelectionEmpty = (selection: MonacoSelectionLike | null): boolean => {
+  if (!selection) {
+    return true;
+  }
+
+  return (
+    selection.selectionStartLineNumber === selection.positionLineNumber &&
+    selection.selectionStartColumn === selection.positionColumn
+  );
+};
+
+const getTextForSourceRange = (value: string, sourceRange: OutputPaneSourceRange): string => {
+  const lines = value.split('\n');
+  const startLineIndex = Math.max(sourceRange.startLineNumber - 1, 0);
+  const endLineIndex = Math.min(sourceRange.endLineNumber - 1, lines.length - 1);
+  if (startLineIndex > endLineIndex) {
+    return '';
+  }
+
+  const selectedLines = lines.slice(startLineIndex, endLineIndex + 1);
+  if (selectedLines.length === 0) {
+    return '';
+  }
+
+  if (selectedLines.length === 1) {
+    const line = selectedLines[0] ?? '';
+    return line.slice(
+      Math.max(sourceRange.startColumn - 1, 0),
+      Math.max(sourceRange.endColumn - 1, 0),
+    );
+  }
+
+  selectedLines[0] = selectedLines[0]?.slice(Math.max(sourceRange.startColumn - 1, 0)) ?? '';
+  const lastLineIndex = selectedLines.length - 1;
+  selectedLines[lastLineIndex] =
+    selectedLines[lastLineIndex]?.slice(0, Math.max(sourceRange.endColumn - 1, 0)) ?? '';
+
+  return selectedLines.join('\n');
+};
+
+const resolveContextMenuCandidate = (
+  editor: MonacoEditor.IStandaloneCodeEditor,
+  value: string,
+): OutputEmbeddedCandidate | null => {
+  const selection = editor.getSelection();
+  if (!selection || isSelectionEmpty(selection)) {
+    return null;
+  }
+
+  const sourceRange = selectionToSourceRange(selection);
+  const selectedText = getTextForSourceRange(value, sourceRange);
+  const payload = normalizeOutputEmbeddedSelectionText(selectedText);
+  if (!payload) {
+    return null;
+  }
+
+  return {
+    sourceRange,
+    payload,
+  };
+};
+
+/**
+ * Monaco-backed read-only output editor. It owns pane-local editor state,
+ * optional view-range filtering, embedded candidate highlighting, and the
+ * renderer-owned output context menu so Electron stays deterministic.
+ */
 export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
   (
     {
@@ -88,29 +248,42 @@ export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
       viewStateKey,
       indentSize,
       viewRange = null,
-      highlightRange = null,
-      onSplitSelection,
+      embeddedCandidate = null,
+      onEmbeddedCandidateChange,
+      onPrettifyInPane,
+      onPrettifyReplace,
       onFocus,
       testId = 'output-editor',
     },
     ref,
   ) => {
+    const [contextMenuState, setContextMenuState] = useState<OutputContextMenuState | null>(null);
+    const containerRef = useRef<HTMLDivElement | null>(null);
     const editorRef = useRef<MonacoEditor.IStandaloneCodeEditor | null>(null);
     const currentViewStateKeyRef = useRef(viewStateKey);
     const interactionDisposablesRef = useRef<Array<{ dispose: () => void }>>([]);
-    const splitSelectionDecorationsRef = useRef<ReturnType<
-      typeof createSplitSelectionDecorations
+    const embeddedHighlightDecorationsRef = useRef<ReturnType<
+      typeof createOutputEmbeddedHighlightDecorations
     > | null>(null);
-    const splitSelectionHandlerRef = useRef<typeof onSplitSelection>(onSplitSelection);
+    const embeddedCandidateHandlerRef =
+      useRef<typeof onEmbeddedCandidateChange>(onEmbeddedCandidateChange);
+    const prettifyInPaneHandlerRef = useRef<typeof onPrettifyInPane>(onPrettifyInPane);
+    const prettifyReplaceHandlerRef = useRef<typeof onPrettifyReplace>(onPrettifyReplace);
     const focusHandlerRef = useRef<typeof onFocus>(onFocus);
     const sourceViewRangeRef = useRef(viewRange);
     const activeViewRangeRef = useRef(viewRange);
+    const valueRef = useRef(value);
+    const currentEmbeddedCandidateRef = useRef<OutputEmbeddedCandidate | null>(embeddedCandidate);
+    const contextMenuSelectionSnapshotRef = useRef<OutputEmbeddedCandidate | null | undefined>(
+      undefined,
+    );
     const pendingEditorFocusRef = useRef(false);
     const viewRangeSourceRef = useRef({});
     const options = useMemo(() => getOutputEditorOptions(indentSize), [indentSize]);
     const language = useMemo(() => detectOutputLanguage(value), [value]);
     const theme = themeMode === 'dark' ? PRETTYPRETTY_DARK_THEME : PRETTYPRETTY_LIGHT_THEME;
     const modelPath = useMemo(() => `output://source/${documentId}`, [documentId]);
+    const highlightRange = embeddedCandidate?.sourceRange ?? null;
     const handleBeforeMount = useCallback((monaco: typeof import('monaco-editor')): void => {
       prepareMonacoEditorRuntime(monaco);
     }, []);
@@ -123,6 +296,48 @@ export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
 
       saveEditorViewState(currentViewStateKeyRef.current, editor);
     };
+
+    const closeContextMenu = useCallback((): void => {
+      contextMenuSelectionSnapshotRef.current = undefined;
+      setContextMenuState(null);
+    }, []);
+
+    const applyEmbeddedCandidate = useCallback(
+      (candidate: OutputEmbeddedCandidate | null): void => {
+        currentEmbeddedCandidateRef.current = candidate;
+        embeddedCandidateHandlerRef.current?.(candidate);
+      },
+      [],
+    );
+
+    /**
+     * Uses Monaco hit testing at the DOM `contextmenu` event point. This keeps
+     * right-click behavior stable in real Electron runs where Monaco's
+     * right-button mouse hook is not reliable for renderer-owned menus.
+     */
+    const openContextMenuAtPoint = useCallback((clientX: number, clientY: number): void => {
+      const editor = editorRef.current;
+      if (!editor) {
+        return;
+      }
+
+      const nextCandidate =
+        contextMenuSelectionSnapshotRef.current === undefined
+          ? resolveContextMenuCandidate(editor, valueRef.current)
+          : contextMenuSelectionSnapshotRef.current;
+      contextMenuSelectionSnapshotRef.current = undefined;
+
+      const containerBounds = containerRef.current?.getBoundingClientRect();
+      setContextMenuState({
+        x: containerBounds ? clientX - containerBounds.left : clientX,
+        y: containerBounds ? clientY - containerBounds.top : clientY,
+        actions: createOutputContextMenuActions({
+          candidate: nextCandidate,
+          onPrettifyInPane: prettifyInPaneHandlerRef.current,
+          onPrettifyReplace: prettifyReplaceHandlerRef.current,
+        }),
+      });
+    }, []);
 
     useEffect(() => {
       const editor = editorRef.current;
@@ -146,6 +361,10 @@ export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
     }, [viewRange]);
 
     useEffect(() => {
+      valueRef.current = value;
+    }, [value]);
+
+    useEffect(() => {
       const editor = editorRef.current;
       if (!editor) {
         return;
@@ -157,12 +376,21 @@ export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
     }, [viewRange]);
 
     useEffect(() => {
-      splitSelectionDecorationsRef.current?.update(highlightRange);
-    }, [highlightRange]);
+      currentEmbeddedCandidateRef.current = embeddedCandidate;
+      embeddedHighlightDecorationsRef.current?.update(highlightRange);
+    }, [embeddedCandidate, highlightRange]);
 
     useEffect(() => {
-      splitSelectionHandlerRef.current = onSplitSelection;
-    }, [onSplitSelection]);
+      embeddedCandidateHandlerRef.current = onEmbeddedCandidateChange;
+    }, [onEmbeddedCandidateChange]);
+
+    useEffect(() => {
+      prettifyInPaneHandlerRef.current = onPrettifyInPane;
+    }, [onPrettifyInPane]);
+
+    useEffect(() => {
+      prettifyReplaceHandlerRef.current = onPrettifyReplace;
+    }, [onPrettifyReplace]);
 
     useEffect(() => {
       focusHandlerRef.current = onFocus;
@@ -182,8 +410,8 @@ export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
           disposable.dispose();
         }
         interactionDisposablesRef.current = [];
-        splitSelectionDecorationsRef.current?.dispose();
-        splitSelectionDecorationsRef.current = null;
+        embeddedHighlightDecorationsRef.current?.dispose();
+        embeddedHighlightDecorationsRef.current = null;
 
         if (editor) {
           saveEditorViewState(currentViewStateKeyRef.current, editor);
@@ -192,6 +420,82 @@ export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
       },
       [],
     );
+
+    useEffect(() => {
+      if (!contextMenuState) {
+        return;
+      }
+
+      const handlePointerDown = (event: MouseEvent): void => {
+        const target = event.target;
+        if (target instanceof Node && containerRef.current?.contains(target)) {
+          return;
+        }
+
+        closeContextMenu();
+      };
+
+      const handleKeyDown = (event: KeyboardEvent): void => {
+        if (event.key === 'Escape') {
+          closeContextMenu();
+        }
+      };
+
+      window.addEventListener('mousedown', handlePointerDown, true);
+      window.addEventListener('keydown', handleKeyDown);
+      return () => {
+        window.removeEventListener('mousedown', handlePointerDown, true);
+        window.removeEventListener('keydown', handleKeyDown);
+      };
+    }, [closeContextMenu, contextMenuState]);
+
+    useEffect(() => {
+      const container = containerRef.current;
+      if (!container) {
+        return;
+      }
+
+      const handleContextMenu = (event: MouseEvent): void => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (isCtrlClickContextMenuEvent(event)) {
+          closeContextMenu();
+          return;
+        }
+
+        focusHandlerRef.current?.();
+        openContextMenuAtPoint(event.clientX, event.clientY);
+      };
+
+      container.addEventListener('contextmenu', handleContextMenu, true);
+      return () => {
+        container.removeEventListener('contextmenu', handleContextMenu, true);
+      };
+    }, [closeContextMenu, openContextMenuAtPoint]);
+
+    useEffect(() => {
+      const container = containerRef.current;
+      if (!container) {
+        return;
+      }
+
+      const handleMouseDownCapture = (event: MouseEvent): void => {
+        if (event.button !== 2) {
+          contextMenuSelectionSnapshotRef.current = undefined;
+          return;
+        }
+
+        const editor = editorRef.current;
+        contextMenuSelectionSnapshotRef.current = editor
+          ? resolveContextMenuCandidate(editor, valueRef.current)
+          : null;
+      };
+
+      container.addEventListener('mousedown', handleMouseDownCapture, true);
+      return () => {
+        container.removeEventListener('mousedown', handleMouseDownCapture, true);
+      };
+    }, []);
 
     useImperativeHandle(
       ref,
@@ -263,8 +567,8 @@ export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
       restoreEditorViewState(viewStateKey, editor, {
         hiddenAreaResetSource: viewRangeSourceRef.current,
       });
-      splitSelectionDecorationsRef.current = createSplitSelectionDecorations(editor);
-      splitSelectionDecorationsRef.current.update(highlightRange);
+      embeddedHighlightDecorationsRef.current = createOutputEmbeddedHighlightDecorations(editor);
+      embeddedHighlightDecorationsRef.current.update(highlightRange);
       applyOutputViewRange(editor, viewRange, viewRangeSourceRef.current);
       if (pendingEditorFocusRef.current) {
         pendingEditorFocusRef.current = false;
@@ -276,21 +580,33 @@ export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
         editor.onDidChangeHiddenAreas(() => {
           applyOutputViewRange(editor, activeViewRangeRef.current, viewRangeSourceRef.current);
         }),
-        editor.onMouseDown(() => {
+        editor.onMouseDown((mouseEvent) => {
           focusHandlerRef.current?.();
+          if (mouseEvent.event.browserEvent.button !== 2) {
+            closeContextMenu();
+          }
         }),
         editor.onDidFocusEditorWidget(() => {
           focusHandlerRef.current?.();
         }),
       ];
 
-      if (onSplitSelection) {
+      if (onEmbeddedCandidateChange) {
+        const container = containerRef.current;
+        if (!container) {
+          interactionDisposablesRef.current = nextInteractionDisposables;
+          return;
+        }
+
         nextInteractionDisposables.push(
-          registerCtrlClickSplitSelection(
+          registerCtrlClickEmbeddedSelection(
+            container,
             editor,
+            () => valueRef.current,
             () => sourceViewRangeRef.current,
-            (selection) => {
-              splitSelectionHandlerRef.current?.(selection);
+            (candidate) => {
+              closeContextMenu();
+              applyEmbeddedCandidate(candidate);
             },
           ),
         );
@@ -302,6 +618,7 @@ export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
     return (
       <div
         className="output-editor"
+        data-embedded-highlight-range={formatSourceRangeForDataAttribute(highlightRange)}
         data-testid={testId}
         onFocusCapture={() => {
           focusHandlerRef.current?.();
@@ -309,6 +626,8 @@ export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
         onMouseDown={() => {
           focusHandlerRef.current?.();
         }}
+        ref={containerRef}
+        style={{ position: 'relative' }}
       >
         <Editor
           beforeMount={handleBeforeMount}
@@ -322,6 +641,34 @@ export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
           theme={theme}
           value={value}
         />
+        {contextMenuState ? (
+          <div
+            className="output-context-menu"
+            data-testid={`${testId}-context-menu`}
+            role="menu"
+            style={{
+              left: contextMenuState.x,
+              top: contextMenuState.y,
+            }}
+          >
+            {contextMenuState.actions.map((action) => (
+              <button
+                className="output-context-menu-item"
+                data-testid={`${testId}-context-menu-${action.id}`}
+                disabled={action.disabled}
+                key={action.id}
+                onClick={() => {
+                  closeContextMenu();
+                  void action.run();
+                }}
+                role="menuitem"
+                type="button"
+              >
+                {action.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
     );
   },

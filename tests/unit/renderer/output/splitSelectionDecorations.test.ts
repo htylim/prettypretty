@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { editor as MonacoEditor } from 'monaco-editor';
 import {
-  createSplitSelectionDecorations,
-  OUTPUT_SPLIT_SELECTION_ANCHOR_CLASS,
-  OUTPUT_SPLIT_SELECTION_RANGE_CLASS,
+  createOutputEmbeddedHighlightDecorations,
+  OUTPUT_EMBEDDED_HIGHLIGHT_ANCHOR_CLASS,
+  OUTPUT_EMBEDDED_HIGHLIGHT_RANGE_CLASS,
 } from '../../../../src/renderer/output/splitSelectionDecorations';
 
 const setMock = vi.fn();
@@ -24,8 +24,8 @@ describe('splitSelectionDecorations', () => {
     clearMock.mockReset();
   });
 
-  it('applies non-selection Monaco decorations when a child pane exists', () => {
-    const controller = createSplitSelectionDecorations(createEditor());
+  it('applies non-selection Monaco decorations for an embedded highlight span', () => {
+    const controller = createOutputEmbeddedHighlightDecorations(createEditor());
 
     controller.update({
       startLineNumber: 2,
@@ -37,21 +37,21 @@ describe('splitSelectionDecorations', () => {
     expect(setMock).toHaveBeenCalledWith([
       expect.objectContaining({
         options: expect.objectContaining({
-          className: OUTPUT_SPLIT_SELECTION_RANGE_CLASS,
+          className: OUTPUT_EMBEDDED_HIGHLIGHT_RANGE_CLASS,
           isWholeLine: true,
         }),
       }),
       expect.objectContaining({
         options: expect.objectContaining({
-          className: OUTPUT_SPLIT_SELECTION_ANCHOR_CLASS,
+          className: OUTPUT_EMBEDDED_HIGHLIGHT_ANCHOR_CLASS,
           isWholeLine: true,
         }),
       }),
     ]);
   });
 
-  it('clears decorations when the child pane closes or the controller is disposed', () => {
-    const controller = createSplitSelectionDecorations(createEditor());
+  it('clears decorations when the highlighted candidate clears or the controller is disposed', () => {
+    const controller = createOutputEmbeddedHighlightDecorations(createEditor());
 
     controller.update(null);
     expect(setMock).toHaveBeenCalledWith([]);

@@ -1,10 +1,10 @@
 import type { editor as MonacoEditor } from 'monaco-editor';
 import type { OutputPaneSourceRange } from '../app/outputPaneDomain';
 
-export const OUTPUT_SPLIT_SELECTION_RANGE_CLASS = 'output-split-selection-range';
-export const OUTPUT_SPLIT_SELECTION_ANCHOR_CLASS = 'output-split-selection-anchor';
+export const OUTPUT_EMBEDDED_HIGHLIGHT_RANGE_CLASS = 'output-embedded-highlight-range';
+export const OUTPUT_EMBEDDED_HIGHLIGHT_ANCHOR_CLASS = 'output-embedded-highlight-anchor';
 
-export type SplitSelectionDecorationsController = {
+export type OutputEmbeddedHighlightDecorationsController = {
   update: (sourceRange: OutputPaneSourceRange | null) => void;
   dispose: () => void;
 };
@@ -16,7 +16,7 @@ const toDecorations = (
     {
       range: sourceRange,
       options: {
-        className: OUTPUT_SPLIT_SELECTION_RANGE_CLASS,
+        className: OUTPUT_EMBEDDED_HIGHLIGHT_RANGE_CLASS,
         isWholeLine: true,
       },
     },
@@ -28,16 +28,16 @@ const toDecorations = (
         endColumn: 1,
       },
       options: {
-        className: OUTPUT_SPLIT_SELECTION_ANCHOR_CLASS,
+        className: OUTPUT_EMBEDDED_HIGHLIGHT_ANCHOR_CLASS,
         isWholeLine: true,
       },
     },
   ];
 };
 
-export const createSplitSelectionDecorations = (
+export const createOutputEmbeddedHighlightDecorations = (
   editor: MonacoEditor.IStandaloneCodeEditor,
-): SplitSelectionDecorationsController => {
+): OutputEmbeddedHighlightDecorationsController => {
   const decorations = editor.createDecorationsCollection();
 
   return {
