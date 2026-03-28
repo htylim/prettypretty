@@ -62,8 +62,8 @@ class BrowserWindowMock {
   bounds = {
     x: 100,
     y: 100,
-    width: 1280,
-    height: 840,
+    width: 1600,
+    height: 1050,
   };
   webContents = {
     send: focusedWindowSendMock,
@@ -244,8 +244,8 @@ describe('main process window lifecycle', () => {
       workArea: {
         x: 0,
         y: 0,
-        width: 1600,
-        height: 1200,
+        width: 1920,
+        height: 1440,
       },
     });
     terminateAllFallbackProcessesMock.mockReset().mockReturnValue(0);
@@ -284,8 +284,8 @@ describe('main process window lifecycle', () => {
     firstWindow.bounds = {
       x: 140,
       y: 180,
-      width: 1280,
-      height: 840,
+      width: 1600,
+      height: 1050,
     };
 
     getMenuItem('New Window').click?.(undefined as never, undefined, {} as never);
@@ -294,8 +294,8 @@ describe('main process window lifecycle', () => {
       getNormalBounds: () => ({
         x: 520,
         y: 560,
-        width: 1280,
-        height: 840,
+        width: 1600,
+        height: 1050,
       }),
     } as unknown as BrowserWindowMock;
 

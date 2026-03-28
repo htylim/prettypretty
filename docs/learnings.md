@@ -54,6 +54,7 @@ Do not add routine status updates, implementation history, or one-time decisions
 - Do not tie app lifetime to the first-created document window when the product supports multiple windows; let Electron close individual windows normally and exit only from `window-all-closed`.
 - Do not open file/save dialogs without scoping them to the invoking `BrowserWindow`; unparented dialogs become ambiguous once multiple document windows are open.
 - Do not open fixed-size document windows at identical screen coordinates; cascade new windows from the focused window and clamp or wrap inside the display work area so the prior window stays discoverable.
+- Do not change default document window dimensions without updating cascade-placement tests and display-work-area fixtures; stagger expectations depend on the shared main-window size constants.
 - Do not derive multi-window placement context after an async await; capture the initiating window bounds before async preference or IPC work so later focus changes cannot redirect the new window.
 - Do not execute fallback LLM commands from renderer code or without hard timeout/output caps; keep process execution in main with typed status outcomes so failures degrade to passthrough instead of UI hangs.
 - Do not pass raw fallback prompt content through child process argv; use stdin-only transport for user text so local process inspection cannot expose prompts.

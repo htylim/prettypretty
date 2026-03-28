@@ -15,8 +15,8 @@ const appIconPath = join(process.cwd(), 'build/icon.png');
 const mainWindowIcon =
   process.platform === 'darwin' || !existsSync(appIconPath) ? undefined : appIconPath;
 const INITIAL_THEME_MODE_ARG_PREFIX = '--prettypretty-theme-mode=';
-const MAIN_WINDOW_WIDTH = 1280;
-const MAIN_WINDOW_HEIGHT = 840;
+const MAIN_WINDOW_WIDTH = 1600;
+const MAIN_WINDOW_HEIGHT = 1050;
 const WINDOW_STAGGER_OFFSET = 32;
 const mainWindows = new WeakSet<BrowserWindow>();
 const isBrowserNavigationCommand = (

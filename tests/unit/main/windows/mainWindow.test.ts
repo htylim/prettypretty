@@ -78,8 +78,8 @@ describe('createMainWindow', () => {
       workArea: {
         x: 0,
         y: 0,
-        width: 1600,
-        height: 1200,
+        width: 1920,
+        height: 1440,
       },
     });
     delete process.env.ELECTRON_RENDERER_URL;
@@ -129,8 +129,8 @@ describe('createMainWindow', () => {
       getNormalBounds: () => ({
         x: 100,
         y: 80,
-        width: 1280,
-        height: 840,
+        width: 1600,
+        height: 1050,
       }),
     });
     const { createMainWindow } = await import('../../../../src/main/windows/mainWindow');
@@ -154,16 +154,16 @@ describe('createMainWindow', () => {
       getNormalBounds: () => ({
         x: 420,
         y: 300,
-        width: 1280,
-        height: 840,
+        width: 1600,
+        height: 1050,
       }),
     });
     screenGetDisplayMatchingMock.mockReturnValue({
       workArea: {
         x: 100,
         y: 40,
-        width: 1600,
-        height: 1200,
+        width: 1920,
+        height: 1440,
       },
     });
 
@@ -185,8 +185,8 @@ describe('createMainWindow', () => {
       referenceBounds: {
         x: -240,
         y: -120,
-        width: 1280,
-        height: 840,
+        width: 1600,
+        height: 1050,
       },
     });
 
