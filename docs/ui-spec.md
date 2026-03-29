@@ -19,6 +19,7 @@
 
 - Centered single-line CTA: `Paste, Drop or Click`.
 - Empty-state CTA remains vertically centered within the editor shell across window resizes and responsive breakpoints.
+- On document-window launch and reset, the empty editor shell takes keyboard focus so immediate paste works without an extra click.
 - Only `Click` is interactive, visually underlined, and opens file picker via preload bridge.
 - Drop and paste are supported in editor shell.
 

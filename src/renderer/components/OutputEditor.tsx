@@ -274,6 +274,7 @@ export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
     const activeViewRangeRef = useRef(viewRange);
     const valueRef = useRef(value);
     const currentEmbeddedCandidateRef = useRef<OutputEmbeddedCandidate | null>(embeddedCandidate);
+    const latestSelectionCandidateRef = useRef<OutputEmbeddedCandidate | null>(null);
     const contextMenuSelectionSnapshotRef = useRef<OutputEmbeddedCandidate | null | undefined>(
       undefined,
     );
@@ -310,6 +311,13 @@ export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
       [],
     );
 
+    const updateSelectionCandidateSnapshot = useCallback((): OutputEmbeddedCandidate | null => {
+      const editor = editorRef.current;
+      const nextCandidate = editor ? resolveContextMenuCandidate(editor, valueRef.current) : null;
+      latestSelectionCandidateRef.current = nextCandidate;
+      return nextCandidate;
+    }, []);
+
     /**
      * Uses Monaco hit testing at the DOM `contextmenu` event point. This keeps
      * right-click behavior stable in real Electron runs where Monaco's
@@ -323,7 +331,8 @@ export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
 
       const nextCandidate =
         contextMenuSelectionSnapshotRef.current === undefined
-          ? resolveContextMenuCandidate(editor, valueRef.current)
+          ? (latestSelectionCandidateRef.current ??
+            resolveContextMenuCandidate(editor, valueRef.current))
           : contextMenuSelectionSnapshotRef.current;
       contextMenuSelectionSnapshotRef.current = undefined;
 
@@ -362,6 +371,7 @@ export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
 
     useEffect(() => {
       valueRef.current = value;
+      latestSelectionCandidateRef.current = null;
     }, [value]);
 
     useEffect(() => {
@@ -485,10 +495,7 @@ export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
           return;
         }
 
-        const editor = editorRef.current;
-        contextMenuSelectionSnapshotRef.current = editor
-          ? resolveContextMenuCandidate(editor, valueRef.current)
-          : null;
+        contextMenuSelectionSnapshotRef.current = latestSelectionCandidateRef.current;
       };
 
       container.addEventListener('mousedown', handleMouseDownCapture, true);
@@ -580,6 +587,9 @@ export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
         editor.onDidChangeHiddenAreas(() => {
           applyOutputViewRange(editor, activeViewRangeRef.current, viewRangeSourceRef.current);
         }),
+        editor.onDidChangeCursorSelection(() => {
+          updateSelectionCandidateSnapshot();
+        }),
         editor.onMouseDown((mouseEvent) => {
           focusHandlerRef.current?.();
           if (mouseEvent.event.browserEvent.button !== 2) {
@@ -590,6 +600,8 @@ export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
           focusHandlerRef.current?.();
         }),
       ];
+
+      updateSelectionCandidateSnapshot();
 
       if (onEmbeddedCandidateChange) {
         const container = containerRef.current;

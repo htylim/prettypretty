@@ -202,7 +202,23 @@ test('launches app and renders main window', async () => {
   });
 
   const page = await app.firstWindow();
+  await page.waitForLoadState('domcontentloaded');
   await expect(page.getByText('Paste, Drop or Click')).toBeVisible();
+  await expect
+    .poll(async () => {
+      return await page.evaluate(() => {
+        const runtime = globalThis as unknown as {
+          document?: {
+            activeElement?: {
+              getAttribute: (name: string) => string | null;
+            } | null;
+          };
+        };
+
+        return runtime.document?.activeElement?.getAttribute('data-testid') ?? null;
+      });
+    })
+    .toBe('editor-shell');
 
   await app.close();
 });

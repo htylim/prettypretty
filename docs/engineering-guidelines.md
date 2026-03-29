@@ -32,5 +32,6 @@
 
 ## Hooks
 
-- `pre-commit`: lint/format staged files, full local quality gate, and e2e.
+- `pre-commit`: lint/format staged files plus the non-E2E local quality gate (`pnpm check`).
+- `pre-commit` must not launch Playwright/Electron e2e; commit-time hooks should stay fast enough for normal iteration.
 - `pre-push`: no-op.

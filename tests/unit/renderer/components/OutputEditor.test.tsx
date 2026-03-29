@@ -35,6 +35,7 @@ const {
   focusMouseDownDisposeMock,
   hiddenAreasDisposeMock,
   focusWidgetDisposeMock,
+  selectionChangeDisposeMock,
 } = vi.hoisted(() => ({
   prepareMonacoEditorRuntimeMock: vi.fn(),
   retainSharedEditorModelMock: vi.fn(),
@@ -75,6 +76,7 @@ const {
   focusMouseDownDisposeMock: vi.fn(),
   hiddenAreasDisposeMock: vi.fn(),
   focusWidgetDisposeMock: vi.fn(),
+  selectionChangeDisposeMock: vi.fn(),
 }));
 
 vi.mock('../../../../src/renderer/output/monacoEditorRuntime', () => ({
@@ -169,6 +171,7 @@ type MonacoMouseDownListener = (event: {
 let mouseDownListeners: MonacoMouseDownListener[] = [];
 let currentContextMenuTargetPosition: { lineNumber: number; column: number } | null = null;
 let focusWidgetListener: (() => void) | null = null;
+let selectionChangeListener: (() => void) | null = null;
 
 const editorMock = {
   getAction: (id: string): { run: () => Promise<void> } | undefined => {
@@ -214,6 +217,10 @@ const editorMock = {
   onDidFocusEditorWidget: (listener: () => void): { dispose: () => void } => {
     focusWidgetListener = listener;
     return { dispose: focusWidgetDisposeMock };
+  },
+  onDidChangeCursorSelection: (listener: () => void): { dispose: () => void } => {
+    selectionChangeListener = listener;
+    return { dispose: selectionChangeDisposeMock };
   },
   getModel: vi.fn(() => null),
 } as unknown as MonacoEditor.IStandaloneCodeEditor;
@@ -264,6 +271,7 @@ describe('OutputEditor', () => {
     mouseDownListeners = [];
     currentContextMenuTargetPosition = null;
     focusWidgetListener = null;
+    selectionChangeListener = null;
     prepareMonacoEditorRuntimeMock.mockClear();
     retainSharedEditorModelMock.mockClear();
     releaseSharedEditorModelMock.mockClear();
@@ -290,6 +298,7 @@ describe('OutputEditor', () => {
     focusMouseDownDisposeMock.mockClear();
     hiddenAreasDisposeMock.mockClear();
     focusWidgetDisposeMock.mockClear();
+    selectionChangeDisposeMock.mockClear();
   });
 
   it('renders Monaco in read-only mode with line numbers and a pane-specific model path', () => {
@@ -523,6 +532,61 @@ describe('OutputEditor', () => {
     });
 
     expect(onPrettifyReplace).toHaveBeenCalledWith({
+      payload: '{"nested":true}',
+      sourceRange: {
+        startLineNumber: 1,
+        startColumn: selectionStartColumn,
+        endLineNumber: 1,
+        endColumn: selectionEndColumn,
+      },
+    });
+  });
+
+  it('keeps the last non-empty selection for context-menu actions when right click collapses Monaco selection', async () => {
+    const onPrettifyInPane = vi.fn(async () => undefined);
+    const value = '{"payload":"{\\"nested\\":true}"}';
+    const selectedSnippet = '"{\\"nested\\":true}"';
+    const selectionStartOffset = value.indexOf(selectedSnippet);
+    const selectionStartColumn = selectionStartOffset + 1;
+    const selectionEndColumn = selectionStartColumn + selectedSnippet.length;
+    currentSelection = {
+      selectionStartLineNumber: 1,
+      selectionStartColumn,
+      positionLineNumber: 1,
+      positionColumn: selectionEndColumn,
+      startLineNumber: 1,
+      startColumn: selectionStartColumn,
+      endLineNumber: 1,
+      endColumn: selectionEndColumn,
+    };
+
+    render(
+      <OutputEditor
+        {...createProps({
+          value,
+          onPrettifyInPane,
+        })}
+      />,
+    );
+
+    selectionChangeListener?.();
+    currentSelection = null;
+
+    fireEvent.mouseDown(screen.getByTestId('output-editor'), {
+      button: 2,
+    });
+    fireEvent.contextMenu(screen.getByTestId('output-editor'), {
+      clientX: 24,
+      clientY: 48,
+    });
+
+    expect(screen.getByTestId('output-editor-context-menu-prettify-in-pane')).not.toBeDisabled();
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('output-editor-context-menu-prettify-in-pane'));
+    });
+
+    expect(onPrettifyInPane).toHaveBeenCalledWith({
       payload: '{"nested":true}',
       sourceRange: {
         startLineNumber: 1,

@@ -1,4 +1,10 @@
-import type { ClipboardEventHandler, DragEventHandler, RefObject } from 'react';
+import {
+  useEffect,
+  useRef,
+  type ClipboardEventHandler,
+  type DragEventHandler,
+  type RefObject,
+} from 'react';
 import type { IndentSize } from '../../shared/preferences';
 import type { PaneMode, ThemeMode } from '../../shared/types';
 import type { FallbackWaitState, IngestSource } from '../app/appDomain';
@@ -77,6 +83,7 @@ export const EditorShell = ({
   onOutputPanePrettifyReplace,
   onNavigateOutputPaneViewport,
 }: EditorShellProps) => {
+  const shellRef = useRef<HTMLElement | null>(null);
   const hasContent = inputText.trim().length > 0;
   const fallbackWaitMessage = fallbackWaitState ? (
     <>
@@ -89,6 +96,14 @@ export const EditorShell = ({
     fallbackWaitState && fallbackWaitState.progressLines.length > 0
       ? fallbackWaitState.progressLines.join('\n')
       : 'Waiting for agent output...';
+
+  useEffect(() => {
+    if (hasContent || fallbackWaitState) {
+      return;
+    }
+
+    shellRef.current?.focus();
+  }, [fallbackWaitState, hasContent]);
 
   const handleDrop: DragEventHandler<HTMLDivElement> = async (event) => {
     event.preventDefault();
@@ -120,6 +135,8 @@ export const EditorShell = ({
       onDrop={handleDrop}
       onPaste={handlePaste}
       data-testid="editor-shell"
+      ref={shellRef}
+      tabIndex={-1}
     >
       {ingestNotice ? (
         <div className="ingest-notice" data-testid="ingest-notice" role="status">

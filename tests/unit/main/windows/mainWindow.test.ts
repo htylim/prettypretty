@@ -11,6 +11,8 @@ const {
   existsSyncMock,
   screenGetDisplayMatchingMock,
   webContentsSendMock,
+  webContentsFocusMock,
+  browserWindowFocusMock,
 } = vi.hoisted(() => {
   return {
     browserWindowConstructorMock: vi.fn(),
@@ -21,6 +23,8 @@ const {
     existsSyncMock: vi.fn(),
     screenGetDisplayMatchingMock: vi.fn(),
     webContentsSendMock: vi.fn(),
+    webContentsFocusMock: vi.fn(),
+    browserWindowFocusMock: vi.fn(),
   };
 });
 
@@ -28,6 +32,7 @@ vi.mock('electron', () => {
   class BrowserWindowMock {
     webContents = {
       send: webContentsSendMock,
+      focus: webContentsFocusMock,
     };
 
     constructor(options: unknown) {
@@ -45,6 +50,10 @@ vi.mock('electron', () => {
     on(eventName: string, listener: (...args: unknown[]) => void): this {
       browserWindowOnMock(eventName, listener);
       return this;
+    }
+
+    focus(): void {
+      browserWindowFocusMock();
     }
   }
 
@@ -82,6 +91,8 @@ describe('createMainWindow', () => {
         height: 1440,
       },
     });
+    webContentsFocusMock.mockReset();
+    browserWindowFocusMock.mockReset();
     delete process.env.ELECTRON_RENDERER_URL;
   });
 
@@ -117,6 +128,8 @@ describe('createMainWindow', () => {
     if (process.platform === 'darwin') {
       expect(windowOptions.icon).toBeUndefined();
     }
+    expect(browserWindowFocusMock).toHaveBeenCalledTimes(1);
+    expect(webContentsFocusMock).toHaveBeenCalledTimes(1);
     expect(loadFileMock).toHaveBeenCalledTimes(1);
     expect(loadURLMock).not.toHaveBeenCalled();
     expect(isMainWindow(mainWindow)).toBe(true);

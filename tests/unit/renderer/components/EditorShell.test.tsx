@@ -94,6 +94,7 @@ describe('EditorShell', () => {
 
     const cta = screen.getByTestId('empty-state-cta');
     expect(cta).toHaveTextContent(/^Paste, Drop or Click$/);
+    expect(screen.getByTestId('editor-shell')).toHaveFocus();
 
     fireEvent.click(screen.getByRole('button', { name: 'Click' }));
     expect(onOpenFile).toHaveBeenCalledTimes(1);

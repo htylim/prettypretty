@@ -7,6 +7,7 @@ import {
 } from '@playwright/test';
 import { join } from 'node:path';
 
+const PASTE_SHORTCUT = process.platform === 'darwin' ? 'Meta+V' : 'Control+V';
 const EMBEDDED_FIXTURE = JSON.stringify(
   {
     payload: '{"query":"{ user { id } }"}',
@@ -35,6 +36,12 @@ const launchApp = async (): Promise<ElectronApplication> => {
   });
 };
 
+const writeClipboardText = async (app: ElectronApplication, text: string): Promise<void> => {
+  await app.evaluate(({ clipboard }, nextText) => {
+    clipboard.writeText(nextText);
+  }, text);
+};
+
 const dispatchPaste = async (page: Page, text: string): Promise<void> => {
   await page.evaluate((pasteText) => {
     const runtime = globalThis as unknown as {
@@ -56,6 +63,16 @@ const dispatchPaste = async (page: Page, text: string): Promise<void> => {
     });
     shell.dispatchEvent(pasteEvent);
   }, text);
+};
+
+const pasteFromClipboardShortcut = async (
+  app: ElectronApplication,
+  page: Page,
+  text: string,
+): Promise<void> => {
+  await writeClipboardText(app, text);
+  await page.bringToFront();
+  await page.keyboard.press(PASTE_SHORTCUT);
 };
 
 const resetPreferences = async (page: Page): Promise<void> => {
@@ -423,6 +440,36 @@ test('prettify in pane supports repeated nested opens, snapped navigation, and d
   await expect(page.getByTestId('output-editor-pane-2')).toHaveCount(0);
   await expect(page.getByTestId('output-editor')).toContainText('"id": 1');
   await expect(page.getByTestId('output-editor')).not.toContainText('"payload"');
+
+  await resetPreferences(page);
+  await app.close();
+});
+
+test('prettify in pane works after native paste shortcut and real right click selection', async () => {
+  const app = await launchApp();
+  const page = await app.firstWindow();
+  await page.waitForLoadState('domcontentloaded');
+  await resetPreferences(page);
+
+  await pasteFromClipboardShortcut(app, page, EMBEDDED_FIXTURE);
+  await expect(page.locator('[data-testid="output-editor"] .monaco-editor')).toBeVisible();
+
+  await openOutputContextMenuForSelection(
+    page,
+    'output-editor',
+    '"variables"',
+    VARIABLES_EMBEDDED_SELECTION_SNIPPET,
+  );
+  await page.getByTestId('output-editor-context-menu-prettify-in-pane').click();
+
+  await expect(page.locator('[data-testid="output-pane-strip"]')).toHaveAttribute(
+    'data-pane-count',
+    '2',
+    {
+      timeout: 1_500,
+    },
+  );
+  await expect(page.getByTestId('output-editor-pane-1')).toContainText('"id": 1');
 
   await resetPreferences(page);
   await app.close();

@@ -67,6 +67,7 @@ class BrowserWindowMock {
   };
   webContents = {
     send: focusedWindowSendMock,
+    focus: vi.fn(),
   };
 
   constructor(options: unknown) {
@@ -83,6 +84,8 @@ class BrowserWindowMock {
   async loadURL(...args: unknown[]): Promise<void> {
     await browserWindowLoadURLMock(...args);
   }
+
+  focus(): void {}
 
   isDestroyed(): boolean {
     return false;

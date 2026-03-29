@@ -152,6 +152,9 @@ export const createMainWindow = async (
     await win.loadFile(join(__dirname, '../renderer/index.html'));
   }
 
+  win.focus();
+  win.webContents.focus();
+
   return win;
 };
 
