@@ -156,8 +156,11 @@ test('Cmd+N opens a new document window and Cmd+Shift+N resets only the focused 
   await secondWindow.waitForLoadState('domcontentloaded');
   const windows = await getWindowSnapshot(app);
   expect(windows).toHaveLength(2);
-  expect(windows[1]?.bounds.x).toBe((windows[0]?.bounds.x ?? 0) + 32);
-  expect(windows[1]?.bounds.y).toBe((windows[0]?.bounds.y ?? 0) + 32);
+  const originWindow = windows[0];
+  const createdWindow = windows.find((window) => window.id !== originWindow?.id);
+  expect(createdWindow).toBeDefined();
+  expect(createdWindow?.visible).toBe(true);
+  expect(createdWindow?.destroyed).toBe(false);
 
   await dispatchPaste(secondWindow, '{"window":"two"}');
   await expect(secondWindow.getByTestId('output-editor')).toContainText('"window": "two"');

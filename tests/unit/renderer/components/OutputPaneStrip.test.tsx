@@ -99,7 +99,6 @@ const createPanes = () =>
       viewStateKey: 'output-root-pane:root-doc',
       value: '{\n  "root": true\n}',
       viewRange: null,
-      embeddedCandidate: null,
       testId: 'output-editor',
     },
   ] as const;
@@ -120,9 +119,6 @@ describe('OutputPaneStrip', () => {
         indentSize={2}
         leftVisiblePaneIndex={0}
         onNavigatePaneViewport={vi.fn()}
-        onPaneEmbeddedCandidateChange={vi.fn()}
-        onPanePrettifyInPane={vi.fn()}
-        onPanePrettifyReplace={vi.fn()}
         onPaneFocus={vi.fn()}
         onPaneHandleChange={vi.fn()}
         panes={[...createPanes()]}
@@ -151,9 +147,6 @@ describe('OutputPaneStrip', () => {
         indentSize={2}
         leftVisiblePaneIndex={0}
         onNavigatePaneViewport={vi.fn()}
-        onPaneEmbeddedCandidateChange={vi.fn()}
-        onPanePrettifyInPane={vi.fn()}
-        onPanePrettifyReplace={vi.fn()}
         onPaneFocus={vi.fn()}
         onPaneHandleChange={vi.fn()}
         panes={[
@@ -169,7 +162,6 @@ describe('OutputPaneStrip', () => {
               endLineNumber: 5,
               endColumn: 2,
             },
-            embeddedCandidate: null,
             testId: 'output-editor-pane-1',
           },
           {
@@ -183,7 +175,6 @@ describe('OutputPaneStrip', () => {
               endLineNumber: 9,
               endColumn: 2,
             },
-            embeddedCandidate: null,
             testId: 'output-editor-pane-2',
           },
         ]}
@@ -213,9 +204,6 @@ describe('OutputPaneStrip', () => {
         indentSize={2}
         leftVisiblePaneIndex={0}
         onNavigatePaneViewport={vi.fn()}
-        onPaneEmbeddedCandidateChange={vi.fn()}
-        onPanePrettifyInPane={vi.fn()}
-        onPanePrettifyReplace={vi.fn()}
         onPaneFocus={vi.fn()}
         onPaneHandleChange={vi.fn()}
         panes={[
@@ -226,7 +214,6 @@ describe('OutputPaneStrip', () => {
             viewStateKey: 'output-pane-1:content-1',
             value: '{\n  "pretty": true\n}',
             viewRange: null,
-            embeddedCandidate: null,
             testId: 'output-editor-pane-1',
           },
         ]}
@@ -248,9 +235,6 @@ describe('OutputPaneStrip', () => {
         indentSize={2}
         leftVisiblePaneIndex={0}
         onNavigatePaneViewport={onNavigatePaneViewport}
-        onPaneEmbeddedCandidateChange={vi.fn()}
-        onPanePrettifyInPane={vi.fn()}
-        onPanePrettifyReplace={vi.fn()}
         onPaneFocus={vi.fn()}
         onPaneHandleChange={vi.fn()}
         panes={[
@@ -266,7 +250,6 @@ describe('OutputPaneStrip', () => {
               endLineNumber: 4,
               endColumn: 2,
             },
-            embeddedCandidate: null,
             testId: 'output-editor-pane-1',
           },
           {
@@ -280,7 +263,6 @@ describe('OutputPaneStrip', () => {
               endLineNumber: 7,
               endColumn: 2,
             },
-            embeddedCandidate: null,
             testId: 'output-editor-pane-2',
           },
         ]}
@@ -297,9 +279,6 @@ describe('OutputPaneStrip', () => {
         indentSize={2}
         leftVisiblePaneIndex={1}
         onNavigatePaneViewport={onNavigatePaneViewport}
-        onPaneEmbeddedCandidateChange={vi.fn()}
-        onPanePrettifyInPane={vi.fn()}
-        onPanePrettifyReplace={vi.fn()}
         onPaneFocus={vi.fn()}
         onPaneHandleChange={vi.fn()}
         panes={[
@@ -315,7 +294,6 @@ describe('OutputPaneStrip', () => {
               endLineNumber: 4,
               endColumn: 2,
             },
-            embeddedCandidate: null,
             testId: 'output-editor-pane-1',
           },
           {
@@ -329,7 +307,6 @@ describe('OutputPaneStrip', () => {
               endLineNumber: 7,
               endColumn: 2,
             },
-            embeddedCandidate: null,
             testId: 'output-editor-pane-2',
           },
         ]}
@@ -371,7 +348,6 @@ describe('OutputPaneStrip', () => {
           endLineNumber: 4,
           endColumn: 2,
         },
-        embeddedCandidate: null,
         testId: 'output-editor-pane-1',
       },
       {
@@ -385,7 +361,6 @@ describe('OutputPaneStrip', () => {
           endLineNumber: 7,
           endColumn: 2,
         },
-        embeddedCandidate: null,
         testId: 'output-editor-pane-2',
       },
     ] as const;
@@ -396,9 +371,6 @@ describe('OutputPaneStrip', () => {
         indentSize={2}
         leftVisiblePaneIndex={0}
         onNavigatePaneViewport={vi.fn()}
-        onPaneEmbeddedCandidateChange={vi.fn()}
-        onPanePrettifyInPane={vi.fn()}
-        onPanePrettifyReplace={vi.fn()}
         onPaneFocus={vi.fn()}
         onPaneHandleChange={vi.fn()}
         panes={[...panes]}
@@ -416,9 +388,6 @@ describe('OutputPaneStrip', () => {
         indentSize={2}
         leftVisiblePaneIndex={1}
         onNavigatePaneViewport={vi.fn()}
-        onPaneEmbeddedCandidateChange={vi.fn()}
-        onPanePrettifyInPane={vi.fn()}
-        onPanePrettifyReplace={vi.fn()}
         onPaneFocus={vi.fn()}
         onPaneHandleChange={vi.fn()}
         panes={[...panes]}

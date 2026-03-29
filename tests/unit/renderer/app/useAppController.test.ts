@@ -4,8 +4,8 @@ import type { RefObject } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { InputEditorHandle } from '../../../../src/renderer/components/InputEditor';
 import type { OutputEditorHandle } from '../../../../src/renderer/components/OutputEditor';
-import { useUiStore } from '../../../../src/renderer/state/uiStore';
 import { useAppController } from '../../../../src/renderer/app/useAppController';
+import { useUiStore } from '../../../../src/renderer/state/uiStore';
 
 const usePrettifierFlowMock = vi.fn();
 const usePreferencesFlowMock = vi.fn();
@@ -38,11 +38,6 @@ vi.mock('../../../../src/renderer/app/useMouseNavigationShortcuts', () => ({
 
 type HarnessHandle = {
   getController: () => ReturnType<typeof useAppController>;
-};
-
-type Deferred<T> = {
-  promise: Promise<T>;
-  resolve: (value: T) => void;
 };
 
 type HarnessProps = {
@@ -85,18 +80,6 @@ const createOutputEditorHandle = (
   ...overrides,
 });
 
-const createDeferred = <T>(): Deferred<T> => {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((resolvePromise) => {
-    resolve = resolvePromise;
-  });
-
-  return {
-    promise,
-    resolve,
-  };
-};
-
 describe('useAppController', () => {
   beforeEach(() => {
     usePrettifierFlowMock.mockReset();
@@ -109,17 +92,6 @@ describe('useAppController', () => {
       isLlmRunning: false,
       fallbackWaitState: null,
       cancelActiveFallback: vi.fn().mockResolvedValue(undefined),
-      prettifyEmbeddedContent: vi.fn((rawText: string) => ({
-        kind: 'applied',
-        localDetection: 'json',
-        outputText: rawText.includes('"hello"') ? '{\n  "hello": true\n}' : rawText,
-      })),
-      prettifyEmbeddedContentForPane: vi.fn(async (rawText: string) =>
-        rawText.includes('"hello"') ? '{\n  "hello": true\n}' : rawText,
-      ),
-      prettifyEmbeddedContentForReplace: vi.fn(async (rawText: string) =>
-        rawText.includes('"hello"') ? '{\n  "hello": true\n}' : rawText,
-      ),
       runPrettifier: vi.fn(),
       ingestInputText: vi.fn(),
       resetPrettifierState: vi.fn(),
@@ -137,6 +109,7 @@ describe('useAppController', () => {
       persistThemeMode: vi.fn().mockResolvedValue(undefined),
       persistFallbackAgentId: vi.fn().mockResolvedValue(undefined),
     });
+
     openWindowMock.mockReset().mockResolvedValue(undefined);
     dialogOpenFileMock.mockReset().mockResolvedValue(null);
     fileSaveMock.mockReset().mockResolvedValue(null);
@@ -228,11 +201,7 @@ describe('useAppController', () => {
 
     await act(async () => {
       await controller?.onThemeModeChange('dark');
-    });
-    await act(async () => {
       await controller?.onIndentSizeChange(6);
-    });
-    await act(async () => {
       await controller?.onFallbackAgentIdChange(null);
     });
     act(() => {
@@ -285,36 +254,9 @@ describe('useAppController', () => {
     ref.current?.getController().onOutputPaneHandleChange('output-root-pane', rootHandle);
     ref.current?.getController().onCollapseAll();
     ref.current?.getController().onExpandAll();
+
     expect(rootHandle.collapseAll).toHaveBeenCalledTimes(1);
     expect(rootHandle.expandAll).toHaveBeenCalledTimes(1);
-
-    act(() => {
-      ref.current?.getController().onOutputPaneEmbeddedCandidateChange('output-root-pane', {
-        payload: '{"hello":true}',
-        sourceRange: {
-          startLineNumber: 2,
-          startColumn: 12,
-          endLineNumber: 2,
-          endColumn: 29,
-        },
-      });
-    });
-
-    expect(ref.current?.getController().outputPanes).toHaveLength(1);
-    expect(ref.current?.getController().hasDerivedOutputPane).toBe(false);
-    expect(ref.current?.getController().visibleOutputPanePosition).toEqual({
-      current: 1,
-      total: 1,
-    });
-    expect(ref.current?.getController().activeOutputEmbeddedCandidate?.payload).toBe(
-      '{"hello":true}',
-    );
-
-    ref.current?.getController().onCollapseAll();
-    ref.current?.getController().onExpandAll();
-
-    expect(rootHandle.collapseAll).toHaveBeenCalledTimes(2);
-    expect(rootHandle.expandAll).toHaveBeenCalledTimes(2);
 
     useKeyboardShortcutsMock.mock.calls.at(-1)?.[0]?.openFind();
     expect(rootHandle.openFind).toHaveBeenCalledTimes(1);
@@ -328,7 +270,7 @@ describe('useAppController', () => {
     expect(clipboardCopyMock).toHaveBeenCalledWith('{\n  "hello": true\n}');
   });
 
-  it('clears embedded highlight state on output invalidation and current-window reset', () => {
+  it('resets pane and renderer state on current-window reset', () => {
     const inputEditorRef = createInputEditorRef();
     const ref = { current: null as HarnessHandle | null };
     const { rerender } = render(createElement(ControllerHarness, { inputEditorRef, ref }));
@@ -339,39 +281,9 @@ describe('useAppController', () => {
     rerender(createElement(ControllerHarness, { inputEditorRef, ref }));
 
     act(() => {
-      ref.current?.getController().onOutputPaneEmbeddedCandidateChange('output-root-pane', {
-        payload: '{"hello":true}',
-        sourceRange: {
-          startLineNumber: 2,
-          startColumn: 12,
-          endLineNumber: 2,
-          endColumn: 29,
-        },
-      });
-    });
-
-    expect(ref.current?.getController().activeOutputEmbeddedCandidate?.payload).toBe(
-      '{"hello":true}',
-    );
-
-    usePrettifierFlowMock.mockReturnValue({
-      ...usePrettifierFlowMock.mock.results[0]?.value,
-      outputText: '{\n  "changed": true\n}',
-    });
-
-    rerender(createElement(ControllerHarness, { inputEditorRef, ref }));
-    expect(ref.current?.getController().activeOutputEmbeddedCandidate).toBeNull();
-
-    act(() => {
-      ref.current?.getController().onOutputPaneEmbeddedCandidateChange('output-root-pane', {
-        payload: '{"changed":true}',
-        sourceRange: {
-          startLineNumber: 2,
-          startColumn: 14,
-          endLineNumber: 2,
-          endColumn: 32,
-        },
-      });
+      ref.current
+        ?.getController()
+        .onOutputPaneHandleChange('output-root-pane', createOutputEditorHandle());
       onResetCurrentWindowListener?.();
     });
 
@@ -379,346 +291,7 @@ describe('useAppController', () => {
     expect(useUiStore.getState().inputText).toBe('');
     expect(useUiStore.getState().ingestNotice).toBeNull();
     expect(ref.current?.getController().outputPanes).toHaveLength(1);
-    expect(ref.current?.getController().activeOutputEmbeddedCandidate).toBeNull();
     expect(usePrettifierFlowMock.mock.results[0]?.value.resetPrettifierState).toHaveBeenCalled();
-  });
-
-  it('prettifies the active embedded candidate into an independent pane', async () => {
-    const inputEditorRef = createInputEditorRef();
-    const ref = { current: null as HarnessHandle | null };
-    const { rerender } = render(createElement(ControllerHarness, { inputEditorRef, ref }));
-
-    act(() => {
-      useUiStore.setState({ paneMode: 'output' });
-    });
-    rerender(createElement(ControllerHarness, { inputEditorRef, ref }));
-
-    await act(async () => {
-      await ref.current?.getController().onOutputPanePrettifyInPane('output-root-pane', {
-        payload: '{"hello":true}',
-        sourceRange: {
-          startLineNumber: 2,
-          startColumn: 12,
-          endLineNumber: 2,
-          endColumn: 29,
-        },
-      });
-    });
-
-    expect(
-      usePrettifierFlowMock.mock.results[0]?.value.prettifyEmbeddedContent,
-    ).toHaveBeenCalledWith('{"hello":true}');
-    expect(
-      usePrettifierFlowMock.mock.results[0]?.value.prettifyEmbeddedContentForPane,
-    ).not.toHaveBeenCalled();
-    expect(ref.current?.getController().outputPanes).toHaveLength(2);
-    expect(ref.current?.getController().outputPanes[1]).toMatchObject({
-      paneId: 'output-pane-1',
-      value: '{\n  "hello": true\n}',
-      viewRange: null,
-    });
-    expect(ref.current?.getController().hasDerivedOutputPane).toBe(true);
-  });
-
-  it('ignores stale embedded prettify completions after a current-window reset', async () => {
-    const deferred = createDeferred<string>();
-    const prettifyEmbeddedContentForPane = vi.fn(() => deferred.promise);
-    usePrettifierFlowMock.mockReturnValue({
-      outputText: '{\n  "hello": true\n}',
-      isLlmRunning: false,
-      fallbackWaitState: null,
-      cancelActiveFallback: vi.fn().mockResolvedValue(undefined),
-      prettifyEmbeddedContent: vi.fn(() => ({
-        kind: 'failed',
-        localDetection: 'unsupported',
-        outputText: 'query Example { viewer { id } }',
-      })),
-      prettifyEmbeddedContentForPane,
-      prettifyEmbeddedContentForReplace: vi.fn(async (rawText: string) => rawText),
-      runPrettifier: vi.fn(),
-      ingestInputText: vi.fn(),
-      resetPrettifierState: vi.fn(),
-      isInputAlreadyPrettified: vi.fn().mockReturnValue(false),
-      reindentOutputIfPrettified: vi.fn().mockReturnValue(null),
-      restoreOutputFromSnapshot: vi.fn(),
-      alignOutputIndentAfterPersist: vi.fn(),
-    });
-    const inputEditorRef = createInputEditorRef();
-    const ref = { current: null as HarnessHandle | null };
-    const { rerender } = render(createElement(ControllerHarness, { inputEditorRef, ref }));
-
-    act(() => {
-      useUiStore.setState({ paneMode: 'output' });
-    });
-    rerender(createElement(ControllerHarness, { inputEditorRef, ref }));
-
-    const pendingAction = ref.current
-      ?.getController()
-      .onOutputPanePrettifyInPane('output-root-pane', {
-        payload: 'query Example { viewer { id } }',
-        sourceRange: {
-          startLineNumber: 2,
-          startColumn: 12,
-          endLineNumber: 2,
-          endColumn: 41,
-        },
-      });
-
-    act(() => {
-      onResetCurrentWindowListener?.();
-    });
-
-    deferred.resolve('query Example {\n  viewer {\n    id\n  }\n}');
-    await act(async () => {
-      await pendingAction;
-    });
-
-    expect(prettifyEmbeddedContentForPane).toHaveBeenCalledWith('query Example { viewer { id } }');
-    expect(ref.current?.getController().outputPanes).toHaveLength(1);
-    expect(ref.current?.getController().hasDerivedOutputPane).toBe(false);
-  });
-
-  it('still opens an independent pane when extracted content is unchanged after prettify', async () => {
-    usePrettifierFlowMock.mockReturnValue({
-      outputText: '{\n  "hello": true\n}',
-      isLlmRunning: false,
-      fallbackWaitState: null,
-      cancelActiveFallback: vi.fn().mockResolvedValue(undefined),
-      prettifyEmbeddedContent: vi.fn((rawText: string) => ({
-        kind: 'failed',
-        localDetection: 'unsupported',
-        outputText: rawText,
-      })),
-      prettifyEmbeddedContentForPane: vi.fn(async (rawText: string) => rawText),
-      prettifyEmbeddedContentForReplace: vi.fn(async (rawText: string) => rawText),
-      runPrettifier: vi.fn(),
-      ingestInputText: vi.fn(),
-      resetPrettifierState: vi.fn(),
-      isInputAlreadyPrettified: vi.fn().mockReturnValue(false),
-      reindentOutputIfPrettified: vi.fn().mockReturnValue(null),
-      restoreOutputFromSnapshot: vi.fn(),
-      alignOutputIndentAfterPersist: vi.fn(),
-    });
-
-    const inputEditorRef = createInputEditorRef();
-    const ref = { current: null as HarnessHandle | null };
-    const { rerender } = render(createElement(ControllerHarness, { inputEditorRef, ref }));
-
-    act(() => {
-      useUiStore.setState({ paneMode: 'output' });
-    });
-    rerender(createElement(ControllerHarness, { inputEditorRef, ref }));
-
-    await act(async () => {
-      await ref.current?.getController().onOutputPanePrettifyInPane('output-root-pane', {
-        payload: 'query Example { viewer { id } }',
-        sourceRange: {
-          startLineNumber: 2,
-          startColumn: 12,
-          endLineNumber: 2,
-          endColumn: 41,
-        },
-      });
-    });
-
-    expect(
-      usePrettifierFlowMock.mock.results.at(-1)?.value.prettifyEmbeddedContentForPane,
-    ).toHaveBeenCalledWith('query Example { viewer { id } }');
-    expect(ref.current?.getController().outputPanes).toHaveLength(2);
-    expect(ref.current?.getController().outputPanes[1]).toMatchObject({
-      paneId: 'output-pane-1',
-      value: 'query Example { viewer { id } }',
-      viewRange: null,
-    });
-  });
-
-  it('ignores an older embedded prettify completion when a newer action starts', async () => {
-    const firstDeferred = createDeferred<string>();
-    const prettifyEmbeddedContentForPane = vi
-      .fn()
-      .mockReturnValueOnce(firstDeferred.promise)
-      .mockResolvedValueOnce('query Example {\n  viewer {\n    id\n  }\n}');
-    usePrettifierFlowMock.mockReturnValue({
-      outputText: '{\n  "hello": true\n}',
-      isLlmRunning: false,
-      fallbackWaitState: null,
-      cancelActiveFallback: vi.fn().mockResolvedValue(undefined),
-      prettifyEmbeddedContent: vi.fn(() => ({
-        kind: 'failed',
-        localDetection: 'unsupported',
-        outputText: 'query Example { viewer { id } }',
-      })),
-      prettifyEmbeddedContentForPane,
-      prettifyEmbeddedContentForReplace: vi.fn(async (rawText: string) => rawText),
-      runPrettifier: vi.fn(),
-      ingestInputText: vi.fn(),
-      resetPrettifierState: vi.fn(),
-      isInputAlreadyPrettified: vi.fn().mockReturnValue(false),
-      reindentOutputIfPrettified: vi.fn().mockReturnValue(null),
-      restoreOutputFromSnapshot: vi.fn(),
-      alignOutputIndentAfterPersist: vi.fn(),
-    });
-    const inputEditorRef = createInputEditorRef();
-    const ref = { current: null as HarnessHandle | null };
-    const { rerender } = render(createElement(ControllerHarness, { inputEditorRef, ref }));
-
-    act(() => {
-      useUiStore.setState({ paneMode: 'output' });
-    });
-    rerender(createElement(ControllerHarness, { inputEditorRef, ref }));
-
-    const firstAction = ref.current
-      ?.getController()
-      .onOutputPanePrettifyInPane('output-root-pane', {
-        payload: 'query Example { viewer { id } }',
-        sourceRange: {
-          startLineNumber: 2,
-          startColumn: 12,
-          endLineNumber: 2,
-          endColumn: 41,
-        },
-      });
-    const secondAction = ref.current
-      ?.getController()
-      .onOutputPanePrettifyInPane('output-root-pane', {
-        payload: 'query Example { user { id } }',
-        sourceRange: {
-          startLineNumber: 2,
-          startColumn: 12,
-          endLineNumber: 2,
-          endColumn: 40,
-        },
-      });
-
-    await act(async () => {
-      await secondAction;
-    });
-
-    firstDeferred.resolve('query Example {\n  viewer {\n    id\n  }\n}');
-    await act(async () => {
-      await firstAction;
-    });
-
-    expect(prettifyEmbeddedContentForPane).toHaveBeenNthCalledWith(
-      1,
-      'query Example { viewer { id } }',
-    );
-    expect(prettifyEmbeddedContentForPane).toHaveBeenNthCalledWith(
-      2,
-      'query Example { user { id } }',
-    );
-    expect(ref.current?.getController().outputPanes).toHaveLength(2);
-    expect(ref.current?.getController().outputPanes[1]).toMatchObject({
-      paneId: 'output-pane-1',
-      value: 'query Example {\n  viewer {\n    id\n  }\n}',
-      viewRange: null,
-    });
-  });
-
-  it('still opens an independent pane when malformed extracted content falls back to passthrough text', async () => {
-    usePrettifierFlowMock.mockReturnValue({
-      outputText: '{\n  "hello": true\n}',
-      isLlmRunning: false,
-      fallbackWaitState: null,
-      cancelActiveFallback: vi.fn().mockResolvedValue(undefined),
-      prettifyEmbeddedContent: vi.fn((rawText: string) => ({
-        kind: 'failed',
-        localDetection: 'malformed',
-        outputText: rawText,
-      })),
-      prettifyEmbeddedContentForPane: vi.fn(async (rawText: string) => rawText),
-      prettifyEmbeddedContentForReplace: vi.fn(async (rawText: string) => rawText),
-      runPrettifier: vi.fn(),
-      ingestInputText: vi.fn(),
-      resetPrettifierState: vi.fn(),
-      isInputAlreadyPrettified: vi.fn().mockReturnValue(false),
-      reindentOutputIfPrettified: vi.fn().mockReturnValue(null),
-      restoreOutputFromSnapshot: vi.fn(),
-      alignOutputIndentAfterPersist: vi.fn(),
-    });
-
-    const inputEditorRef = createInputEditorRef();
-    const ref = { current: null as HarnessHandle | null };
-    const { rerender } = render(createElement(ControllerHarness, { inputEditorRef, ref }));
-
-    act(() => {
-      useUiStore.setState({ paneMode: 'output' });
-    });
-    rerender(createElement(ControllerHarness, { inputEditorRef, ref }));
-
-    await act(async () => {
-      await ref.current?.getController().onOutputPanePrettifyInPane('output-root-pane', {
-        payload: '{bad json',
-        sourceRange: {
-          startLineNumber: 2,
-          startColumn: 12,
-          endLineNumber: 2,
-          endColumn: 21,
-        },
-      });
-    });
-
-    expect(
-      usePrettifierFlowMock.mock.results.at(-1)?.value.prettifyEmbeddedContentForPane,
-    ).toHaveBeenCalledWith('{bad json');
-    expect(ref.current?.getController().outputPanes).toHaveLength(2);
-    expect(ref.current?.getController().outputPanes[1]).toMatchObject({
-      paneId: 'output-pane-1',
-      value: '{bad json',
-      viewRange: null,
-    });
-  });
-
-  it('replaces the root document through the normal input-output flow and closes panes', async () => {
-    const inputEditorRef = createInputEditorRef();
-    const ref = { current: null as HarnessHandle | null };
-    const { rerender } = render(createElement(ControllerHarness, { inputEditorRef, ref }));
-
-    act(() => {
-      useUiStore.setState({ paneMode: 'output' });
-    });
-    rerender(createElement(ControllerHarness, { inputEditorRef, ref }));
-
-    await act(async () => {
-      await ref.current?.getController().onOutputPanePrettifyInPane('output-root-pane', {
-        payload: '{"hello":true}',
-        sourceRange: {
-          startLineNumber: 2,
-          startColumn: 12,
-          endLineNumber: 2,
-          endColumn: 29,
-        },
-      });
-    });
-
-    expect(ref.current?.getController().outputPanes).toHaveLength(2);
-
-    await act(async () => {
-      await ref.current?.getController().onOutputPanePrettifyReplace('output-root-pane', {
-        payload: '{"hello":true}',
-        sourceRange: {
-          startLineNumber: 2,
-          startColumn: 12,
-          endLineNumber: 2,
-          endColumn: 29,
-        },
-      });
-    });
-
-    expect(
-      usePrettifierFlowMock.mock.results[0]?.value.prettifyEmbeddedContentForReplace,
-    ).toHaveBeenCalledWith('{"hello":true}');
-    expect(useUiStore.getState().inputText).toBe('{\n  "hello": true\n}');
-    expect(useUiStore.getState().paneMode).toBe('output');
-    expect(usePrettifierFlowMock.mock.results[0]?.value.runPrettifier).toHaveBeenCalledWith(
-      '{\n  "hello": true\n}',
-      'switch-output',
-      {
-        switchToOutputOnComplete: true,
-      },
-    );
-    expect(ref.current?.getController().outputPanes).toHaveLength(1);
-    expect(ref.current?.getController().hasDerivedOutputPane).toBe(false);
   });
 
   it('blocks output mode switches while fallback execution is active', () => {
@@ -732,13 +305,6 @@ describe('useAppController', () => {
         progressLines: ['working...'],
       },
       cancelActiveFallback: vi.fn().mockResolvedValue(undefined),
-      prettifyEmbeddedContent: vi.fn((rawText: string) => ({
-        kind: 'applied',
-        localDetection: 'json',
-        outputText: rawText,
-      })),
-      prettifyEmbeddedContentForPane: vi.fn(async (rawText: string) => rawText),
-      prettifyEmbeddedContentForReplace: vi.fn(async (rawText: string) => rawText),
       runPrettifier: vi.fn(),
       ingestInputText: vi.fn(),
       resetPrettifierState: vi.fn(),

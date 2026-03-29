@@ -37,11 +37,11 @@ const createOutputEditorHandle = (): OutputEditorHandle => ({
 });
 
 describe('useOutputPaneController', () => {
-  it('returns the root pane by default and never opens panes from embedded highlights', () => {
+  it('returns the root pane by default', () => {
     const ref = { current: null as HarnessHandle | null };
     render(
       createElement(OutputPaneHarness, {
-        outputText: '{\n  "root": "{\\"nested\\":true}"\n}',
+        outputText: '{\n  "root": true\n}',
         paneMode: 'output',
         ref,
       }),
@@ -51,42 +51,17 @@ describe('useOutputPaneController', () => {
     expect(ref.current?.getController().outputPanes[0]).toMatchObject({
       paneId: 'output-root-pane',
       testId: 'output-editor',
-      embeddedCandidate: null,
+      viewRange: null,
     });
     expect(ref.current?.getController().leftVisiblePaneIndex).toBe(0);
-
-    act(() => {
-      ref.current?.getController().onOutputPaneEmbeddedCandidateChange('output-root-pane', {
-        payload: '{"nested":true}',
-        sourceRange: {
-          startLineNumber: 2,
-          startColumn: 11,
-          endLineNumber: 2,
-          endColumn: 31,
-        },
-      });
-    });
-
-    expect(ref.current?.getController().outputPanes).toHaveLength(1);
-    expect(ref.current?.getController().outputPanes[0]?.embeddedCandidate).toMatchObject({
-      sourceRange: {
-        startLineNumber: 2,
-        startColumn: 11,
-        endLineNumber: 2,
-        endColumn: 31,
-      },
-    });
-    expect(ref.current?.getController().activeOutputEmbeddedCandidate?.payload).toBe(
-      '{"nested":true}',
-    );
     expect(ref.current?.getController().hasDerivedOutputPane).toBe(false);
   });
 
-  it('opens independent output panes and resets stale candidate state for replaced children', () => {
+  it('opens independent output panes and replaces descendant content from the reopened parent', () => {
     const ref = { current: null as HarnessHandle | null };
     render(
       createElement(OutputPaneHarness, {
-        outputText: '{\n  "root": "{\\"nested\\":true}"\n}',
+        outputText: '{\n  "root": true\n}',
         paneMode: 'output',
         ref,
       }),
@@ -96,32 +71,6 @@ describe('useOutputPaneController', () => {
       ref.current?.getController().onOpenOutputPane('output-root-pane', {
         kind: 'independent-text',
         value: '{\n  "nested": true\n}',
-      });
-    });
-
-    expect(ref.current?.getController().outputPanes).toHaveLength(2);
-    expect(ref.current?.getController().outputPanes[1]).toMatchObject({
-      paneId: 'output-pane-1',
-      documentId: 'output-pane-1:document-1',
-      value: '{\n  "nested": true\n}',
-      viewRange: null,
-      testId: 'output-editor-pane-1',
-    });
-    expect(ref.current?.getController().activeOutputPaneId).toBe('output-pane-1');
-    expect(ref.current?.getController().outputPaneFocusRequest).toEqual({
-      paneId: 'output-pane-1',
-      sequence: 1,
-    });
-
-    act(() => {
-      ref.current?.getController().onOutputPaneEmbeddedCandidateChange('output-pane-1', {
-        payload: '{"leaf":true}',
-        sourceRange: {
-          startLineNumber: 2,
-          startColumn: 3,
-          endLineNumber: 2,
-          endColumn: 17,
-        },
       });
       ref.current?.getController().onOpenOutputPane('output-pane-1', {
         kind: 'independent-text',
@@ -150,17 +99,15 @@ describe('useOutputPaneController', () => {
       documentId: 'output-pane-1:document-3',
       value: '{\n  "replacement": true\n}',
       viewRange: null,
-      embeddedCandidate: null,
     });
     expect(ref.current?.getController().activeOutputPaneId).toBe('output-pane-1');
-    expect(ref.current?.getController().activeOutputEmbeddedCandidate).toBeNull();
   });
 
   it('explicitly invalidates descendant panes when an upstream pane changes', () => {
     const ref = { current: null as HarnessHandle | null };
     render(
       createElement(OutputPaneHarness, {
-        outputText: '{\n  "root": "{\\"nested\\":true}"\n}',
+        outputText: '{\n  "root": true\n}',
         paneMode: 'output',
         ref,
       }),
@@ -169,20 +116,11 @@ describe('useOutputPaneController', () => {
     act(() => {
       ref.current?.getController().onOpenOutputPane('output-root-pane', {
         kind: 'independent-text',
-        value: '{\n  "nested": "{\\"leaf\\":true}"\n}',
+        value: '{\n  "nested": true\n}',
       });
       ref.current?.getController().onOpenOutputPane('output-pane-1', {
         kind: 'independent-text',
         value: '{\n  "leaf": true\n}',
-      });
-      ref.current?.getController().onOutputPaneEmbeddedCandidateChange('output-pane-2', {
-        payload: '{"leaf":true}',
-        sourceRange: {
-          startLineNumber: 2,
-          startColumn: 3,
-          endLineNumber: 2,
-          endColumn: 17,
-        },
       });
       ref.current?.getController().onNavigateOutputPaneViewport(-1);
     });
@@ -197,9 +135,8 @@ describe('useOutputPaneController', () => {
     expect(ref.current?.getController().outputPanes).toHaveLength(2);
     expect(ref.current?.getController().outputPanes[1]).toMatchObject({
       paneId: 'output-pane-1',
-      value: '{\n  "nested": "{\\"leaf\\":true}"\n}',
+      value: '{\n  "nested": true\n}',
     });
-    expect(ref.current?.getController().activeOutputEmbeddedCandidate).toBeNull();
     expect(ref.current?.getController().activeOutputPaneId).toBe('output-root-pane');
     expect(ref.current?.getController().leftVisiblePaneIndex).toBe(0);
     expect(ref.current?.getController().outputPaneFocusRequest).toEqual({
@@ -208,26 +145,17 @@ describe('useOutputPaneController', () => {
     });
   });
 
-  it('clears embedded highlight state on output invalidation and when leaving output mode', () => {
+  it('resets panes on output invalidation and when leaving output mode', () => {
     const ref = { current: null as HarnessHandle | null };
     const { rerender } = render(
       createElement(OutputPaneHarness, {
-        outputText: '{\n  "root": "{\\"nested\\":true}"\n}',
+        outputText: '{\n  "root": true\n}',
         paneMode: 'output',
         ref,
       }),
     );
 
     act(() => {
-      ref.current?.getController().onOutputPaneEmbeddedCandidateChange('output-root-pane', {
-        payload: '{"nested":true}',
-        sourceRange: {
-          startLineNumber: 2,
-          startColumn: 11,
-          endLineNumber: 2,
-          endColumn: 31,
-        },
-      });
       ref.current?.getController().onOpenOutputPane('output-root-pane', {
         kind: 'independent-text',
         value: '{\n  "nested": true\n}',
@@ -236,56 +164,40 @@ describe('useOutputPaneController', () => {
 
     rerender(
       createElement(OutputPaneHarness, {
-        outputText: '{\n  "changed": "{\\"next\\":true}"\n}',
+        outputText: '{\n  "changed": true\n}',
         paneMode: 'output',
         ref,
       }),
     );
 
     expect(ref.current?.getController().outputPanes).toHaveLength(1);
-    expect(ref.current?.getController().outputPanes[0]?.embeddedCandidate).toBeNull();
-    expect(ref.current?.getController().activeOutputEmbeddedCandidate).toBeNull();
-
-    act(() => {
-      ref.current?.getController().onOutputPaneEmbeddedCandidateChange('output-root-pane', {
-        payload: '{"next":true}',
-        sourceRange: {
-          startLineNumber: 2,
-          startColumn: 14,
-          endLineNumber: 2,
-          endColumn: 31,
-        },
-      });
-    });
 
     rerender(
       createElement(OutputPaneHarness, {
-        outputText: '{\n  "changed": "{\\"next\\":true}"\n}',
+        outputText: '{\n  "changed": true\n}',
         paneMode: 'input',
         ref,
       }),
     );
 
-    expect(ref.current?.getController().outputPanes[0]?.embeddedCandidate).toBeNull();
-    expect(ref.current?.getController().activeOutputEmbeddedCandidate).toBeNull();
+    expect(ref.current?.getController().outputPanes).toHaveLength(1);
 
     rerender(
       createElement(OutputPaneHarness, {
-        outputText: '{\n  "changed": "{\\"next\\":true}"\n}',
+        outputText: '{\n  "changed": true\n}',
         paneMode: 'output',
         ref,
       }),
     );
 
-    expect(ref.current?.getController().outputPanes[0]?.embeddedCandidate).toBeNull();
-    expect(ref.current?.getController().activeOutputEmbeddedCandidate).toBeNull();
+    expect(ref.current?.getController().outputPanes).toHaveLength(1);
   });
 
   it('routes active-pane lookup through the focused pane handle and emits focus requests for pane opens', () => {
     const ref = { current: null as HarnessHandle | null };
     render(
       createElement(OutputPaneHarness, {
-        outputText: '{\n  "root": "{\\"nested\\":true}"\n}',
+        outputText: '{\n  "root": true\n}',
         paneMode: 'output',
         ref,
       }),

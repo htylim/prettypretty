@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import type { IndentSize } from '../../shared/preferences';
 import type { TelemetryEventName } from '../../shared/telemetry';
 import type { PaneMode, ThemeMode } from '../../shared/types';
 import type { InputEditorHandle } from '../components/InputEditor';
-import type { OutputEmbeddedCandidate } from '../output/outputEmbeddedSelection';
 import { useUiStore } from '../state/uiStore';
 import type { FallbackAgentOption, FallbackWaitState, IngestSource } from './appDomain';
 import { reportRendererError } from './reportRendererError';
@@ -40,9 +39,6 @@ export type UseAppControllerResult = {
   outputDocumentId: string;
   outputPanes: ReturnType<typeof useOutputPaneController>['outputPanes'];
   activeOutputPaneId: string;
-  activeOutputEmbeddedCandidate: ReturnType<
-    typeof useOutputPaneController
-  >['activeOutputEmbeddedCandidate'];
   outputLeftVisiblePaneIndex: number;
   visibleOutputPanePosition: {
     current: number;
@@ -78,14 +74,6 @@ export type UseAppControllerResult = {
   onOpenFile: () => Promise<void>;
   onOutputPaneHandleChange: ReturnType<typeof useOutputPaneController>['onOutputPaneHandleChange'];
   onOutputPaneFocus: (paneId: string) => void;
-  onOutputPaneEmbeddedCandidateChange: ReturnType<
-    typeof useOutputPaneController
-  >['onOutputPaneEmbeddedCandidateChange'];
-  onOutputPanePrettifyInPane: (paneId: string, candidate: OutputEmbeddedCandidate) => Promise<void>;
-  onOutputPanePrettifyReplace: (
-    paneId: string,
-    candidate: OutputEmbeddedCandidate,
-  ) => Promise<void>;
   onCancelFallback: () => void;
   onConfirmFallback: () => void;
   onSelectFallbackAgent: (agentId: string) => void;
@@ -100,8 +88,6 @@ export const useAppController = ({
   inputEditorRef,
 }: UseAppControllerOptions): UseAppControllerResult => {
   const latestIndentSizeRequestIdRef = useRef(0);
-  const latestEmbeddedPrettifyRequestIdRef = useRef(0);
-  const embeddedPrettifyScopeKeyRef = useRef<string>('input:initial');
   const fallbackConfirmationResolverRef = useRef<((accepted: boolean) => void) | null>(null);
   const fallbackAgentSelectionResolverRef = useRef<((agentId: string | null) => void) | null>(null);
   const paneMode = useUiStore((state) => state.paneMode);
@@ -206,9 +192,6 @@ export const useAppController = ({
     isLlmRunning,
     fallbackWaitState,
     cancelActiveFallback,
-    prettifyEmbeddedContent,
-    prettifyEmbeddedContentForPane,
-    prettifyEmbeddedContentForReplace,
     runPrettifier,
     ingestInputText,
     resetPrettifierState,
@@ -233,7 +216,6 @@ export const useAppController = ({
     outputDocumentId,
     outputPanes,
     activeOutputPaneId,
-    activeOutputEmbeddedCandidate,
     leftVisiblePaneIndex: outputLeftVisiblePaneIndex,
     visibleOutputPanePosition: rawVisibleOutputPanePosition,
     hasDerivedOutputPane: hasVisibleDerivedOutputPane,
@@ -243,8 +225,6 @@ export const useAppController = ({
     getActiveOutputPaneHandle,
     onOutputPaneHandleChange: registerOutputPaneHandle,
     onOutputPaneFocus: focusVisibleOutputPane,
-    onOutputPaneEmbeddedCandidateChange: updateOutputPaneEmbeddedCandidate,
-    onOpenOutputPane: openOutputPane,
     onNavigateOutputPaneViewport: navigateOutputPaneViewport,
     onCloseOutputPane: closeDerivedOutputPane,
     resetOutputPanes,
@@ -252,21 +232,6 @@ export const useAppController = ({
     paneMode,
     outputText,
   });
-  const embeddedPrettifyScopeKey = `${paneMode}:${outputDocumentId}`;
-  const invalidateEmbeddedPrettifyRequests = useCallback((): void => {
-    latestEmbeddedPrettifyRequestIdRef.current += 1;
-  }, []);
-  const beginEmbeddedPrettifyRequest = useCallback((): number => {
-    const requestId = latestEmbeddedPrettifyRequestIdRef.current + 1;
-    latestEmbeddedPrettifyRequestIdRef.current = requestId;
-    return requestId;
-  }, []);
-  const isCurrentEmbeddedPrettifyRequest = useCallback((requestId: number): boolean => {
-    return requestId === latestEmbeddedPrettifyRequestIdRef.current;
-  }, []);
-  useLayoutEffect(() => {
-    embeddedPrettifyScopeKeyRef.current = embeddedPrettifyScopeKey;
-  }, [embeddedPrettifyScopeKey]);
   const hasContent = inputText.trim().length > 0;
   const isOutputMode = paneMode === 'output';
 
@@ -302,18 +267,10 @@ export const useAppController = ({
 
   const resetCurrentWindow = useCallback((): void => {
     cancelPendingFallbackPrompts();
-    embeddedPrettifyScopeKeyRef.current = 'reset:reset';
-    invalidateEmbeddedPrettifyRequests();
     resetPrettifierState();
     resetOutputPanes();
     reset();
-  }, [
-    cancelPendingFallbackPrompts,
-    invalidateEmbeddedPrettifyRequests,
-    reset,
-    resetOutputPanes,
-    resetPrettifierState,
-  ]);
+  }, [cancelPendingFallbackPrompts, reset, resetOutputPanes, resetPrettifierState]);
 
   const openNewWindow = useCallback((): void => {
     const api = getWindowApi();
@@ -442,75 +399,6 @@ export const useAppController = ({
     getActiveOutputPaneHandle()?.expandAll();
   }, [getActiveOutputPaneHandle, inputEditorRef, paneMode]);
 
-  const prettifyEmbeddedCandidateInPane = useCallback(
-    async (paneId: string, candidate: OutputEmbeddedCandidate): Promise<void> => {
-      const requestId = beginEmbeddedPrettifyRequest();
-      const localResult = prettifyEmbeddedContent(candidate.payload);
-      if (localResult.kind === 'applied') {
-        if (!isCurrentEmbeddedPrettifyRequest(requestId)) {
-          return;
-        }
-
-        openOutputPane(paneId, {
-          kind: 'independent-text',
-          value: localResult.outputText,
-        });
-        return;
-      }
-
-      const requestScopeKey = embeddedPrettifyScopeKeyRef.current;
-      const prettifiedValue = await prettifyEmbeddedContentForPane(candidate.payload);
-      if (
-        !isCurrentEmbeddedPrettifyRequest(requestId) ||
-        requestScopeKey !== embeddedPrettifyScopeKeyRef.current
-      ) {
-        return;
-      }
-
-      openOutputPane(paneId, {
-        kind: 'independent-text',
-        value: prettifiedValue,
-      });
-    },
-    [
-      beginEmbeddedPrettifyRequest,
-      isCurrentEmbeddedPrettifyRequest,
-      openOutputPane,
-      prettifyEmbeddedContent,
-      prettifyEmbeddedContentForPane,
-    ],
-  );
-
-  const prettifyEmbeddedCandidateAndReplace = useCallback(
-    async (_paneId: string, candidate: OutputEmbeddedCandidate): Promise<void> => {
-      const requestId = beginEmbeddedPrettifyRequest();
-      const requestScopeKey = embeddedPrettifyScopeKeyRef.current;
-      const replacementText = await prettifyEmbeddedContentForReplace(candidate.payload);
-      if (
-        !isCurrentEmbeddedPrettifyRequest(requestId) ||
-        requestScopeKey !== embeddedPrettifyScopeKeyRef.current
-      ) {
-        return;
-      }
-
-      resetOutputPanes();
-      setIngestNotice(null);
-      setInputText(replacementText);
-      await runPrettifier(replacementText, 'switch-output', {
-        switchToOutputOnComplete: true,
-      });
-    },
-    [
-      beginEmbeddedPrettifyRequest,
-      isCurrentEmbeddedPrettifyRequest,
-      prettifyEmbeddedContentForReplace,
-      resetOutputPanes,
-      runPrettifier,
-      setIngestNotice,
-      setInputText,
-    ],
-  );
-
   useEffect(() => {
     document.documentElement.dataset.theme = themeMode;
   }, [themeMode]);
@@ -565,7 +453,6 @@ export const useAppController = ({
     outputDocumentId,
     outputPanes,
     activeOutputPaneId,
-    activeOutputEmbeddedCandidate,
     outputLeftVisiblePaneIndex,
     visibleOutputPanePosition: isOutputMode && hasContent ? rawVisibleOutputPanePosition : null,
     outputPaneFocusRequest,
@@ -598,9 +485,6 @@ export const useAppController = ({
     onOpenFile: openFile,
     onOutputPaneHandleChange: registerOutputPaneHandle,
     onOutputPaneFocus: focusVisibleOutputPane,
-    onOutputPaneEmbeddedCandidateChange: updateOutputPaneEmbeddedCandidate,
-    onOutputPanePrettifyInPane: prettifyEmbeddedCandidateInPane,
-    onOutputPanePrettifyReplace: prettifyEmbeddedCandidateAndReplace,
     onCancelFallback: () => {
       if (fallbackModalState?.kind === 'agent-selection') {
         settleFallbackAgentSelection(null);

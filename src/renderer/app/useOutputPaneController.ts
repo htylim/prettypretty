@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
 import type { PaneMode } from '../../shared/types';
 import type { OutputEditorHandle } from '../components/OutputEditor';
 import type { OutputPaneViewModel } from '../components/OutputPaneStrip';
-import type { OutputEmbeddedCandidate } from '../output/outputEmbeddedSelection';
 import { getOutputDocumentId } from './appDomain';
 import {
   canNavigateOutputPaneViewportLeft,
@@ -29,7 +28,6 @@ type OutputPaneFocusRequest = {
 
 type OutputPaneControllerState = {
   chainState: ReturnType<typeof createOutputPaneChainState>;
-  embeddedCandidatesByPaneId: Record<string, OutputEmbeddedCandidate>;
   focusRequest: OutputPaneFocusRequest | null;
 };
 
@@ -40,7 +38,6 @@ type OutputPaneControllerAction = {
 
 const createOutputPaneControllerState = (): OutputPaneControllerState => ({
   chainState: createOutputPaneChainState(),
-  embeddedCandidatesByPaneId: {},
   focusRequest: null,
 });
 
@@ -60,7 +57,6 @@ export type UseOutputPaneControllerResult = {
   outputDocumentId: string;
   outputPanes: OutputPaneViewModel[];
   activeOutputPaneId: string;
-  activeOutputEmbeddedCandidate: OutputEmbeddedCandidate | null;
   leftVisiblePaneIndex: number;
   visibleOutputPanePosition: {
     current: number;
@@ -73,10 +69,6 @@ export type UseOutputPaneControllerResult = {
   getActiveOutputPaneHandle: () => OutputEditorHandle | null;
   onOutputPaneHandleChange: (paneId: string, handle: OutputEditorHandle | null) => void;
   onOutputPaneFocus: (paneId: string) => void;
-  onOutputPaneEmbeddedCandidateChange: (
-    paneId: string,
-    candidate: OutputEmbeddedCandidate | null,
-  ) => void;
   onOpenOutputPane: (parentPaneId: string, content: OutputPaneContentInput) => void;
   onInvalidateOutputPaneDescendants: (paneId: string) => void;
   onNavigateOutputPaneViewport: (stepDelta: number) => void;
@@ -84,55 +76,10 @@ export type UseOutputPaneControllerResult = {
   resetOutputPanes: () => void;
 };
 
-const areCandidatesEqual = (
-  left: OutputEmbeddedCandidate | null,
-  right: OutputEmbeddedCandidate | null,
-): boolean => {
-  return (
-    left?.payload === right?.payload &&
-    left?.sourceRange.startLineNumber === right?.sourceRange.startLineNumber &&
-    left?.sourceRange.startColumn === right?.sourceRange.startColumn &&
-    left?.sourceRange.endLineNumber === right?.sourceRange.endLineNumber &&
-    left?.sourceRange.endColumn === right?.sourceRange.endColumn
-  );
-};
-
-const omitPaneIds = <T>(
-  record: Record<string, T>,
-  paneIds: Iterable<string>,
-): Record<string, T> => {
-  const nextRecord = { ...record };
-  let hasChanges = false;
-
-  for (const paneId of paneIds) {
-    if (!(paneId in nextRecord)) {
-      continue;
-    }
-
-    delete nextRecord[paneId];
-    hasChanges = true;
-  }
-
-  return hasChanges ? nextRecord : record;
-};
-
-const getStaleDerivedPaneIds = (
-  previousChainState: ReturnType<typeof createOutputPaneChainState>,
-  nextChainState: ReturnType<typeof createOutputPaneChainState>,
-): string[] => {
-  const nextViewStateKeyByPaneId = new Map(
-    nextChainState.derivedPanes.map((pane) => [pane.paneId, pane.viewStateKey]),
-  );
-
-  return previousChainState.derivedPanes
-    .filter((pane) => nextViewStateKeyByPaneId.get(pane.paneId) !== pane.viewStateKey)
-    .map((pane) => pane.paneId);
-};
-
 /**
- * The pane controller owns transient renderer-only concerns: mounted handles,
- * current embedded selections, and focus requests that should happen after the
- * strip finishes animating into place.
+ * The pane controller owns transient renderer-only concerns: mounted handles
+ * and focus requests that should happen after the strip finishes animating into
+ * place.
  */
 export const useOutputPaneController = ({
   paneMode,
@@ -183,8 +130,6 @@ export const useOutputPaneController = ({
       viewStateKey: getRootOutputPaneViewStateKey(outputDocumentId),
       value: outputText,
       viewRange: null,
-      embeddedCandidate:
-        outputPaneControllerState.embeddedCandidatesByPaneId[ROOT_OUTPUT_PANE_ID] ?? null,
       testId: 'output-editor',
     };
 
@@ -196,12 +141,10 @@ export const useOutputPaneController = ({
         viewStateKey: pane.viewStateKey,
         value: pane.content.value,
         viewRange: getOutputPaneViewRange(pane.content),
-        embeddedCandidate:
-          outputPaneControllerState.embeddedCandidatesByPaneId[pane.paneId] ?? null,
         testId: `output-editor-pane-${index + 1}`,
       })),
     ];
-  }, [outputDocumentId, outputPaneChainState, outputPaneControllerState, outputText]);
+  }, [outputDocumentId, outputPaneChainState, outputText]);
 
   const registerOutputPaneHandle = useCallback(
     (paneId: string, handle: OutputEditorHandle | null): void => {
@@ -258,10 +201,6 @@ export const useOutputPaneController = ({
       updateOutputPaneControllerState({
         ...currentState,
         chainState: nextChainState,
-        embeddedCandidatesByPaneId: omitPaneIds(
-          currentState.embeddedCandidatesByPaneId,
-          getStaleDerivedPaneIds(currentState.chainState, nextChainState),
-        ),
         focusRequest,
       });
     },
@@ -273,36 +212,6 @@ export const useOutputPaneController = ({
       mutateOutputPaneChain((state) => focusOutputPane(state, paneId));
     },
     [mutateOutputPaneChain],
-  );
-
-  const updateOutputPaneEmbeddedCandidate = useCallback(
-    (paneId: string, candidate: OutputEmbeddedCandidate | null): void => {
-      const currentState = outputPaneControllerStateRef.current;
-      const currentCandidate = currentState.embeddedCandidatesByPaneId[paneId] ?? null;
-      const nextChainState = focusOutputPane(currentState.chainState, paneId);
-
-      if (
-        areCandidatesEqual(currentCandidate, candidate) &&
-        nextChainState === currentState.chainState
-      ) {
-        return;
-      }
-
-      const nextEmbeddedCandidatesByPaneId =
-        candidate === null
-          ? omitPaneIds(currentState.embeddedCandidatesByPaneId, [paneId])
-          : {
-              ...currentState.embeddedCandidatesByPaneId,
-              [paneId]: candidate,
-            };
-
-      updateOutputPaneControllerState({
-        ...currentState,
-        chainState: nextChainState,
-        embeddedCandidatesByPaneId: nextEmbeddedCandidatesByPaneId,
-      });
-    },
-    [updateOutputPaneControllerState],
   );
 
   const openOutputPane = useCallback(
@@ -390,9 +299,6 @@ export const useOutputPaneController = ({
     outputDocumentId,
     outputPanes,
     activeOutputPaneId: outputPaneChainState.activePaneId,
-    activeOutputEmbeddedCandidate:
-      outputPaneControllerState.embeddedCandidatesByPaneId[outputPaneChainState.activePaneId] ??
-      null,
     leftVisiblePaneIndex: outputPaneChainState.leftVisiblePaneIndex,
     visibleOutputPanePosition: getOutputPaneViewportPosition(outputPaneChainState),
     hasDerivedOutputPane: hasDerivedOutputPane(outputPaneChainState),
@@ -402,7 +308,6 @@ export const useOutputPaneController = ({
     getActiveOutputPaneHandle,
     onOutputPaneHandleChange: registerOutputPaneHandle,
     onOutputPaneFocus: focusVisibleOutputPane,
-    onOutputPaneEmbeddedCandidateChange: updateOutputPaneEmbeddedCandidate,
     onOpenOutputPane: openOutputPane,
     onInvalidateOutputPaneDescendants: invalidateDescendantOutputPanes,
     onNavigateOutputPaneViewport: navigateOutputPaneViewport,

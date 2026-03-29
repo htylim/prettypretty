@@ -109,32 +109,19 @@
 - Output mode search uses Monaco native find widget (triggered by the platform primary modifier plus `F` in output mode).
 - Paste inside Monaco find/replace inputs stays local to that widget and must not trigger app-level ingest/prettify flow.
 - Output mode fold/view state persists for the current document identity during the app session.
-- Output mode supports embedded-content detection on literal `Ctrl+click`:
-  - detection runs against the current output text model, not rendered DOM text,
-  - the click resolves one embedded structured payload candidate at the clicked source location when the source contains an extractable quoted payload or nested structured block,
-  - when nested candidates contain the clicked location, the outermost containing candidate wins,
-  - clicking unsupported text clears the embedded highlight and does not mutate output content.
-- Output mode right-click uses a renderer-owned context menu with `Prettify in Pane` and `Prettify & Replace`.
-- Output context-menu action state is selection-driven:
-  - when there is no non-empty Monaco selection, both actions are visible but disabled,
-  - when there is a non-empty selection, both actions operate on that exact selected text instead of inferring a target from the click position,
-  - selection normalization unwraps host literal delimiters and decodes escapes before formatting,
-  - if prettification cannot improve the payload, actions still use the normalized/pass-through result.
-- Output pane-strip platform is retained for embedded-content exploration:
+- Output mode no longer includes embedded-content detection, output-editor context-menu actions, or any renderer-owned `Prettify in Pane` / `Prettify & Replace` workflow.
+- Output pane-strip platform remains as generic split-pane infrastructure:
   - root-only output stays full width,
-  - once any derived pane exists, the strip uses equal-width `50/50` panes with snapped horizontal viewport movement,
-  - `Prettify in Pane` opens an independent right-side pane for extracted/prettified content,
+  - if any future workflow creates derived panes, the strip uses equal-width `50/50` panes with snapped horizontal viewport movement,
   - derived panes behave like first-class output panes for focus, find, folding, and syntax detection.
-- Output mode shows a custom Monaco decoration highlight for the current embedded candidate; the highlight is not a native Monaco/browser text selection and does not change copy/save output text.
 - Output-pane modifier-click fold toggling is removed in this scope. Output folding remains available through inline fold controls and toolbar fold actions, with one inline button that switches between self-toggle and immediate-child fold state changes while literal `Ctrl` is held. Input-pane modifier-click folding remains unchanged.
-- Output `Expand`, `Collapse`, and `Cmd+F` target the active visible output pane. Normal click focus and embedded-highlight updates retarget that active pane. `Save` and `Copy` remain rooted to the full root output text.
+- Output `Expand`, `Collapse`, and `Cmd+F` target the active visible output pane. `Save` and `Copy` remain rooted to the full root output text.
 - Output panes form a strict left-to-right dependency chain. If any pane's represented content changes, every pane to its right closes immediately and the strip normalizes focus plus viewport to the remaining chain.
-- Toolbar split navigation shows a centered `x of y` label between the left/right buttons only while an output pane is visible. The label reports snapped viewport positions, not mounted pane count: root-only and root-plus-first-derived both show `1 of 1`, opening the second/third derived panes yields `2 of 2` and `3 of 3`, and moving one step left from the end yields `2 of 3`.
+- Toolbar split navigation shows a centered `x of y` label between the left/right buttons only while an output pane is visible. The label reports snapped viewport positions, not mounted pane count: root-only and root-plus-first-derived both show `1 of 1`, opening the second/third derived panes yields `2 of 2` and `3 of 3`, and moving one step left from the end yields `2 of 3`. In the current product flow, the label remains `1 of 1` because no output-editor action opens derived panes.
 - Output split navigation shortcuts:
   - literal `Ctrl+Left` / `Ctrl+Right`: move the split viewport one pane left/right in output mode,
   - literal `Ctrl+Wheel` / `Ctrl+trackpad scroll`: move the split viewport by snapped pane steps in output mode,
   - `Escape`: pop the rightmost derived pane in output mode when a split chain is open and Monaco did not already consume the key.
-- Output embedded-highlight state clears when output mode exits, when the root output document changes, and when the current document window is reset.
 - Output-mode prettify indentation and Monaco tab/guide indentation are sourced from the same persisted preference value (`indentSize`) so they stay synchronized.
 - If output mode currently displays already-prettified text, changing `indentSize` reindents the visible output locally by line-leading whitespace remap (no new prettifier/fallback request).
 - If output is passthrough/non-prettified, changing `indentSize` does not mutate existing output text.

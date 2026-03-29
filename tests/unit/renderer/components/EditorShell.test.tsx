@@ -53,7 +53,6 @@ const createOutputPanes = (): OutputPaneViewModel[] => [
     viewStateKey: 'output-root-pane:doc-1',
     value: '{"a":1}',
     viewRange: null,
-    embeddedCandidate: null,
     testId: 'output-editor',
   },
 ];
@@ -79,9 +78,6 @@ const createProps = (
   onCancelFallbackWait: vi.fn(),
   onOutputPaneHandleChange: vi.fn(),
   onOutputPaneFocus: vi.fn(),
-  onOutputPaneEmbeddedCandidateChange: vi.fn(),
-  onOutputPanePrettifyInPane: vi.fn(),
-  onOutputPanePrettifyReplace: vi.fn(),
   onNavigateOutputPaneViewport: vi.fn(),
   ...overrides,
 });
@@ -230,7 +226,6 @@ describe('EditorShell', () => {
                 endLineNumber: 6,
                 endColumn: 2,
               },
-              embeddedCandidate: null,
               testId: 'output-editor-pane-1',
             },
           ],

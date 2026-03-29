@@ -8,7 +8,6 @@ import {
 import type { IndentSize } from '../../shared/preferences';
 import type { PaneMode, ThemeMode } from '../../shared/types';
 import type { FallbackWaitState, IngestSource } from '../app/appDomain';
-import type { OutputEmbeddedCandidate } from '../output/outputEmbeddedSelection';
 import { InputEditor, type InputEditorHandle } from './InputEditor';
 import {
   OutputPaneStrip,
@@ -47,15 +46,6 @@ type EditorShellProps = {
   onCancelFallbackWait: () => void;
   onOutputPaneHandleChange: (paneId: string, handle: OutputEditorHandle | null) => void;
   onOutputPaneFocus: (paneId: string) => void;
-  onOutputPaneEmbeddedCandidateChange: (
-    paneId: string,
-    candidate: OutputEmbeddedCandidate | null,
-  ) => void;
-  onOutputPanePrettifyInPane: (paneId: string, candidate: OutputEmbeddedCandidate) => Promise<void>;
-  onOutputPanePrettifyReplace: (
-    paneId: string,
-    candidate: OutputEmbeddedCandidate,
-  ) => Promise<void>;
   onNavigateOutputPaneViewport: (stepDelta: number) => void;
 };
 
@@ -78,9 +68,6 @@ export const EditorShell = ({
   onCancelFallbackWait,
   onOutputPaneHandleChange,
   onOutputPaneFocus,
-  onOutputPaneEmbeddedCandidateChange,
-  onOutputPanePrettifyInPane,
-  onOutputPanePrettifyReplace,
   onNavigateOutputPaneViewport,
 }: EditorShellProps) => {
   const shellRef = useRef<HTMLElement | null>(null);
@@ -202,11 +189,8 @@ export const EditorShell = ({
             indentSize={indentSize}
             leftVisiblePaneIndex={outputLeftVisiblePaneIndex}
             onNavigatePaneViewport={onNavigateOutputPaneViewport}
-            onPaneEmbeddedCandidateChange={onOutputPaneEmbeddedCandidateChange}
             onPaneFocus={onOutputPaneFocus}
             onPaneHandleChange={onOutputPaneHandleChange}
-            onPanePrettifyInPane={onOutputPanePrettifyInPane}
-            onPanePrettifyReplace={onOutputPanePrettifyReplace}
             panes={outputPanes}
             themeMode={themeMode}
           />

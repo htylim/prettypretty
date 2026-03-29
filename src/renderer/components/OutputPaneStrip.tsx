@@ -3,7 +3,6 @@ import type { RefCallback, WheelEvent as ReactWheelEvent } from 'react';
 import type { IndentSize } from '../../shared/preferences';
 import type { ThemeMode } from '../../shared/types';
 import type { OutputPaneSourceRange } from '../app/outputPaneDomain';
-import type { OutputEmbeddedCandidate } from '../output/outputEmbeddedSelection';
 import { OutputEditor, type OutputEditorHandle } from './OutputEditor';
 
 export type OutputPaneViewModel = {
@@ -12,7 +11,6 @@ export type OutputPaneViewModel = {
   viewStateKey: string;
   value: string;
   viewRange: OutputPaneSourceRange | null;
-  embeddedCandidate: OutputEmbeddedCandidate | null;
   testId: string;
 };
 
@@ -30,12 +28,6 @@ type OutputPaneStripProps = {
   indentSize: IndentSize;
   onPaneHandleChange: (paneId: string, handle: OutputEditorHandle | null) => void;
   onPaneFocus: (paneId: string) => void;
-  onPaneEmbeddedCandidateChange: (
-    paneId: string,
-    candidate: OutputEmbeddedCandidate | null,
-  ) => void;
-  onPanePrettifyInPane: (paneId: string, candidate: OutputEmbeddedCandidate) => Promise<void>;
-  onPanePrettifyReplace: (paneId: string, candidate: OutputEmbeddedCandidate) => Promise<void>;
   onNavigatePaneViewport: (stepDelta: number) => void;
 };
 
@@ -70,9 +62,6 @@ export const OutputPaneStrip = ({
   indentSize,
   onPaneHandleChange,
   onPaneFocus,
-  onPaneEmbeddedCandidateChange,
-  onPanePrettifyInPane,
-  onPanePrettifyReplace,
   onNavigatePaneViewport,
 }: OutputPaneStripProps) => {
   const stripRef = useRef<HTMLDivElement | null>(null);
@@ -375,21 +364,11 @@ export const OutputPaneStrip = ({
             <OutputEditor
               ref={createHandleRef(pane.paneId)}
               documentId={pane.documentId}
-              embeddedCandidate={pane.embeddedCandidate}
               indentSize={indentSize}
-              onEmbeddedCandidateChange={(candidate) => {
-                onPaneEmbeddedCandidateChange(pane.paneId, candidate);
-              }}
               onFocus={() => {
                 if (pane.paneId !== activePaneId) {
                   onPaneFocus(pane.paneId);
                 }
-              }}
-              onPrettifyInPane={(candidate) => {
-                onPanePrettifyInPane(pane.paneId, candidate);
-              }}
-              onPrettifyReplace={(candidate) => {
-                onPanePrettifyReplace(pane.paneId, candidate);
               }}
               testId={pane.testId}
               themeMode={themeMode}

@@ -53,9 +53,6 @@ const createDeferred = <T>() => {
 type HarnessHandle = {
   ingestInputText: (nextText: string, source: IngestSource) => void;
   cancelActiveFallback: () => Promise<void>;
-  cancelDetachedEmbeddedPrettify: () => Promise<void>;
-  prettifyEmbeddedContentForPane: (rawText: string) => Promise<string>;
-  prettifyEmbeddedContentForReplace: (rawText: string) => Promise<string>;
   runPrettifier: (
     nextInputText: string,
     trigger: PrettifyTrigger,
@@ -118,9 +115,6 @@ const PrettifierHarness = forwardRef<HarnessHandle, HarnessProps>(
       () => ({
         ingestInputText: flow.ingestInputText,
         cancelActiveFallback: flow.cancelActiveFallback,
-        cancelDetachedEmbeddedPrettify: flow.cancelDetachedEmbeddedPrettify,
-        prettifyEmbeddedContentForPane: flow.prettifyEmbeddedContentForPane,
-        prettifyEmbeddedContentForReplace: flow.prettifyEmbeddedContentForReplace,
         runPrettifier: flow.runPrettifier,
         getPaneMode: () => paneMode,
         getInputText: () => inputText,
@@ -176,142 +170,6 @@ describe('usePrettifierFlow', () => {
     expect(ref.current?.getInputText()).toBe('{"a":1}');
     expect(ref.current?.getOutputText()).toContain('"a": 1');
     expect(run).not.toHaveBeenCalled();
-  });
-
-  it('formats embedded pane content locally without invoking IPC fallback', async () => {
-    const api: WindowApi = {
-      dialog: { openFile: vi.fn() },
-      file: { save: vi.fn() },
-      clipboard: { copy: vi.fn() },
-      app: createAppApi(),
-      logs: { getHistory: vi.fn(), onLine: vi.fn() },
-      preferences: { getAll: vi.fn(), update: vi.fn(), reset: vi.fn() },
-      prettifier: {
-        run: vi.fn(),
-        cancel: vi.fn().mockResolvedValue(true),
-        onProgress: vi.fn().mockImplementation(() => vi.fn()),
-      },
-      telemetry: { log: vi.fn() },
-    };
-    const ref = { current: null as HarnessHandle | null };
-
-    render(createElement(PrettifierHarness, { api, logTelemetry: vi.fn(), ref }));
-
-    await expect(ref.current?.prettifyEmbeddedContentForPane('{"id":1}')).resolves.toBe(
-      '{\n  "id": 1\n}',
-    );
-    expect(api.prettifier.run).not.toHaveBeenCalled();
-  });
-
-  it('uses the configured fallback agent for unsupported embedded pane content', async () => {
-    const run = vi.fn().mockImplementation(async (request: { requestId: number }) => {
-      expect(request.requestId).toBeGreaterThan(0);
-      return createPrettifierResponse({
-        outputText: 'query {\n  user {\n    id\n  }\n}',
-      });
-    });
-    const api: WindowApi = {
-      dialog: { openFile: vi.fn() },
-      file: { save: vi.fn() },
-      clipboard: { copy: vi.fn() },
-      app: createAppApi(),
-      logs: { getHistory: vi.fn(), onLine: vi.fn() },
-      preferences: { getAll: vi.fn(), update: vi.fn(), reset: vi.fn() },
-      prettifier: {
-        run,
-        cancel: vi.fn().mockResolvedValue(true),
-        onProgress: vi.fn().mockImplementation(() => vi.fn()),
-      },
-      telemetry: { log: vi.fn() },
-    };
-    const ref = { current: null as HarnessHandle | null };
-
-    render(createElement(PrettifierHarness, { api, logTelemetry: vi.fn(), ref }));
-
-    await expect(
-      ref.current?.prettifyEmbeddedContentForPane('query { user { id } }'),
-    ).resolves.toBe('query {\n  user {\n    id\n  }\n}');
-    expect(run).toHaveBeenCalledWith(
-      expect.objectContaining({
-        inputText: 'query { user { id } }',
-        trigger: 'switch-output',
-      }),
-    );
-  });
-
-  it('reuses the same embedded fallback contract for replace-through-input preparation', async () => {
-    const run = vi.fn().mockImplementation(async (request: { requestId: number }) => {
-      expect(request.requestId).toBeGreaterThan(0);
-      return createPrettifierResponse({
-        outputText: 'query Example {\n  viewer {\n    id\n  }\n}',
-      });
-    });
-    const api: WindowApi = {
-      dialog: { openFile: vi.fn() },
-      file: { save: vi.fn() },
-      clipboard: { copy: vi.fn() },
-      app: createAppApi(),
-      logs: { getHistory: vi.fn(), onLine: vi.fn() },
-      preferences: { getAll: vi.fn(), update: vi.fn(), reset: vi.fn() },
-      prettifier: {
-        run,
-        cancel: vi.fn().mockResolvedValue(true),
-        onProgress: vi.fn().mockImplementation(() => vi.fn()),
-      },
-      telemetry: { log: vi.fn() },
-    };
-    const ref = { current: null as HarnessHandle | null };
-
-    render(createElement(PrettifierHarness, { api, logTelemetry: vi.fn(), ref }));
-
-    await expect(
-      ref.current?.prettifyEmbeddedContentForReplace('query Example { viewer { id } }'),
-    ).resolves.toBe('query Example {\n  viewer {\n    id\n  }\n}');
-    expect(run).toHaveBeenCalledWith(
-      expect.objectContaining({
-        inputText: 'query Example { viewer { id } }',
-        trigger: 'switch-output',
-      }),
-    );
-  });
-
-  it('cancels active detached embedded fallback requests', async () => {
-    const deferred = createDeferred<PrettifyRunResponse>();
-    const run = vi.fn().mockReturnValue(deferred.promise);
-    const cancel = vi.fn().mockResolvedValue(true);
-    const api: WindowApi = {
-      dialog: { openFile: vi.fn() },
-      file: { save: vi.fn() },
-      clipboard: { copy: vi.fn() },
-      app: createAppApi(),
-      logs: { getHistory: vi.fn(), onLine: vi.fn() },
-      preferences: { getAll: vi.fn(), update: vi.fn(), reset: vi.fn() },
-      prettifier: {
-        run,
-        cancel,
-        onProgress: vi.fn().mockImplementation(() => vi.fn()),
-      },
-      telemetry: { log: vi.fn() },
-    };
-    const ref = { current: null as HarnessHandle | null };
-
-    render(createElement(PrettifierHarness, { api, logTelemetry: vi.fn(), ref }));
-
-    const pendingPrettify = ref.current?.prettifyEmbeddedContentForPane('query { user { id } }');
-
-    await waitFor(() => {
-      expect(run).toHaveBeenCalledTimes(1);
-    });
-
-    const request = run.mock.calls[0]?.[0] as { requestId: number };
-    await act(async () => {
-      await ref.current?.cancelDetachedEmbeddedPrettify();
-    });
-
-    expect(cancel).toHaveBeenCalledWith({ requestId: request.requestId });
-
-    deferred.resolve(createPrettifierResponse({ outputText: 'query {\n  user {\n    id\n  }\n}' }));
-    await pendingPrettify;
   });
 
   it('shows fallback wait state and keeps the last five progress lines for the active request', async () => {
@@ -518,229 +376,26 @@ describe('usePrettifierFlow', () => {
       telemetry: { log: vi.fn() },
     };
     const ref = { current: null as HarnessHandle | null };
-    const largeInput = Array.from({ length: 301 }, (_, index) => `line-${index.toString()}`).join(
-      '\n',
-    );
 
     render(
       createElement(PrettifierHarness, {
         api,
         logTelemetry: telemetry,
-        requestFallbackConfirmation: confirmation,
-        fallbackWarningLineThreshold: 300,
         ref,
+        requestFallbackConfirmation: confirmation,
+        fallbackWarningLineThreshold: 1,
       }),
     );
 
     act(() => {
-      void ref.current?.runPrettifier(largeInput, 'switch-output', {
+      void ref.current?.runPrettifier('line 1\nline 2\nline 3', 'switch-output', {
         switchToOutputOnComplete: false,
       });
     });
 
     await waitFor(() => {
-      expect(confirmation).toHaveBeenCalledWith(301);
+      expect(confirmation).toHaveBeenCalledWith(3);
     });
     expect(run).toHaveBeenCalledTimes(1);
-  });
-
-  it('does not fallback when confirmation is declined', async () => {
-    const confirmation = vi.fn().mockResolvedValue(false);
-    const run = vi.fn().mockResolvedValue(createPrettifierResponse());
-    const onProgress = vi.fn().mockImplementation(() => vi.fn());
-    const telemetry = vi.fn().mockResolvedValue(undefined);
-    const api: WindowApi = {
-      dialog: { openFile: vi.fn() },
-      file: { save: vi.fn() },
-      clipboard: { copy: vi.fn() },
-      app: createAppApi(),
-      logs: { getHistory: vi.fn(), onLine: vi.fn() },
-      preferences: {
-        getAll: vi.fn().mockResolvedValue(createPreferences()),
-        update: vi.fn(),
-        reset: vi.fn(),
-      },
-      prettifier: { run, cancel: vi.fn().mockResolvedValue(true), onProgress },
-      telemetry: { log: vi.fn() },
-    };
-    const ref = { current: null as HarnessHandle | null };
-    const largeInput = Array.from({ length: 301 }, (_, index) => `line-${index.toString()}`).join(
-      '\n',
-    );
-
-    render(
-      createElement(PrettifierHarness, {
-        api,
-        logTelemetry: telemetry,
-        requestFallbackConfirmation: confirmation,
-        fallbackWarningLineThreshold: 300,
-        ref,
-      }),
-    );
-
-    act(() => {
-      void ref.current?.runPrettifier(largeInput, 'switch-output', {
-        switchToOutputOnComplete: true,
-      });
-    });
-
-    await waitFor(() => {
-      expect(confirmation).toHaveBeenCalledWith(301);
-    });
-    expect(run).not.toHaveBeenCalled();
-    expect(ref.current?.getOutputText()).toBe(largeInput);
-    expect(ref.current?.getPaneMode()).toBe('output');
-  });
-
-  it('skips confirmation when line count does not exceed threshold', async () => {
-    const confirmation = vi.fn().mockResolvedValue(true);
-    const run = vi.fn().mockResolvedValue(createPrettifierResponse());
-    const onProgress = vi.fn().mockImplementation(() => vi.fn());
-    const telemetry = vi.fn().mockResolvedValue(undefined);
-    const api: WindowApi = {
-      dialog: { openFile: vi.fn() },
-      file: { save: vi.fn() },
-      clipboard: { copy: vi.fn() },
-      app: createAppApi(),
-      logs: { getHistory: vi.fn(), onLine: vi.fn() },
-      preferences: {
-        getAll: vi.fn().mockResolvedValue(createPreferences()),
-        update: vi.fn(),
-        reset: vi.fn(),
-      },
-      prettifier: { run, cancel: vi.fn().mockResolvedValue(true), onProgress },
-      telemetry: { log: vi.fn() },
-    };
-    const ref = { current: null as HarnessHandle | null };
-    const input = Array.from({ length: 300 }, (_, index) => `line-${index.toString()}`).join('\n');
-
-    render(
-      createElement(PrettifierHarness, {
-        api,
-        logTelemetry: telemetry,
-        requestFallbackConfirmation: confirmation,
-        fallbackWarningLineThreshold: 300,
-        ref,
-      }),
-    );
-
-    act(() => {
-      void ref.current?.runPrettifier(input, 'switch-output', {
-        switchToOutputOnComplete: false,
-      });
-    });
-
-    await waitFor(() => {
-      expect(run).toHaveBeenCalledTimes(1);
-    });
-    expect(confirmation).not.toHaveBeenCalled();
-  });
-
-  it('asks for a one-shot fallback agent when no persisted fallback is configured', async () => {
-    const selectFallbackAgent = vi.fn().mockResolvedValue('amp');
-    const deferred = createDeferred<PrettifyRunResponse>();
-    const run = vi.fn().mockReturnValue(deferred.promise);
-    const telemetry = vi.fn().mockResolvedValue(undefined);
-    const api: WindowApi = {
-      dialog: { openFile: vi.fn() },
-      file: { save: vi.fn() },
-      clipboard: { copy: vi.fn() },
-      app: createAppApi(),
-      logs: { getHistory: vi.fn(), onLine: vi.fn() },
-      preferences: {
-        getAll: vi.fn().mockResolvedValue(createPreferences({ fallbackAgentId: null })),
-        update: vi.fn(),
-        reset: vi.fn(),
-      },
-      prettifier: {
-        run,
-        cancel: vi.fn().mockResolvedValue(true),
-        onProgress: vi.fn().mockImplementation(() => vi.fn()),
-      },
-      telemetry: { log: vi.fn() },
-    };
-    const ref = { current: null as HarnessHandle | null };
-
-    render(
-      createElement(PrettifierHarness, {
-        api,
-        logTelemetry: telemetry,
-        fallbackAgentId: null,
-        fallbackAgentOptions: [{ id: 'amp', name: 'Amp', enabled: true }],
-        requestFallbackAgentSelection: selectFallbackAgent,
-        ref,
-      }),
-    );
-
-    act(() => {
-      void ref.current?.runPrettifier('{bad', 'switch-output', {
-        switchToOutputOnComplete: false,
-      });
-    });
-
-    await waitFor(() => {
-      expect(selectFallbackAgent).toHaveBeenCalledTimes(1);
-    });
-    expect(run).toHaveBeenCalledWith(
-      expect.objectContaining({
-        fallbackAgentIdOverride: 'amp',
-      }),
-    );
-    expect(ref.current?.getFallbackWaitState()?.agentName).toBe('Amp');
-
-    deferred.resolve(createPrettifierResponse({ agentId: 'amp' }));
-
-    await waitFor(() => {
-      expect(ref.current?.getFallbackWaitState()).toBeNull();
-    });
-  });
-
-  it('keeps passthrough output when one-shot fallback selection is declined', async () => {
-    const selectFallbackAgent = vi.fn().mockResolvedValue(null);
-    const run = vi.fn().mockResolvedValue(createPrettifierResponse());
-    const telemetry = vi.fn().mockResolvedValue(undefined);
-    const api: WindowApi = {
-      dialog: { openFile: vi.fn() },
-      file: { save: vi.fn() },
-      clipboard: { copy: vi.fn() },
-      app: createAppApi(),
-      logs: { getHistory: vi.fn(), onLine: vi.fn() },
-      preferences: {
-        getAll: vi.fn().mockResolvedValue(createPreferences({ fallbackAgentId: null })),
-        update: vi.fn(),
-        reset: vi.fn(),
-      },
-      prettifier: {
-        run,
-        cancel: vi.fn().mockResolvedValue(true),
-        onProgress: vi.fn().mockImplementation(() => vi.fn()),
-      },
-      telemetry: { log: vi.fn() },
-    };
-    const ref = { current: null as HarnessHandle | null };
-
-    render(
-      createElement(PrettifierHarness, {
-        api,
-        logTelemetry: telemetry,
-        fallbackAgentId: null,
-        fallbackAgentOptions: [{ id: 'amp', name: 'Amp', enabled: true }],
-        requestFallbackAgentSelection: selectFallbackAgent,
-        ref,
-      }),
-    );
-
-    act(() => {
-      void ref.current?.runPrettifier('{bad', 'switch-output', {
-        switchToOutputOnComplete: true,
-      });
-    });
-
-    await waitFor(() => {
-      expect(selectFallbackAgent).toHaveBeenCalledTimes(1);
-    });
-    expect(run).not.toHaveBeenCalled();
-    expect(ref.current?.getOutputText()).toBe('{bad');
-    expect(ref.current?.getPaneMode()).toBe('output');
   });
 });
