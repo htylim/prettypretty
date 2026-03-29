@@ -1,65 +1,80 @@
 # Dependencies and Tools
 
-Dependencies and tools used in this project. Use these when coding; avoid introducing alternatives unless documented.
+Use the existing stack unless there is a documented reason to add something new.
 
-## Runtime and UI
+## Runtime
 
-- **electron** — Desktop app shell, main process, window lifecycle, IPC.
-- **react** / **react-dom** — Renderer UI.
-- **zustand** — Client-side state (renderer).
-- **monaco-editor** — VS Code editor core for input/output rendering (syntax highlighting, gutter, folding, guides, theming).
-- **@monaco-editor/react** — React wrapper for Monaco integration in renderer components.
-- **json5** — Lightweight parser for JSON5/JS object-literal style structured input in local prettifier pipeline.
+- `electron`
+  - app shell
+  - window lifecycle
+  - IPC
+- `react`, `react-dom`
+  - renderer UI
+- `zustand`
+  - lightweight renderer store
+- `monaco-editor`, `@monaco-editor/react`
+  - input and output editors
+- `json5`
+  - local parsing support for JSON5 and JS/TS object-literal input
+- `react-icons`
+  - toolbar iconography
 
-## Build and Bundling
+## Build
 
-- **electron-vite** — Build pipeline: Vite for renderer/preload, Electron main.
-- **vite** — Dev server, HMR, bundling (used via electron-vite).
-- **typescript** — Typing and `tsc` for typecheck.
-- **@vitejs/plugin-react** — React Fast Refresh and JSX in Vite.
-- **ImageMagick (`magick`)** (system dependency) — Generates icon raster assets (`build/icon-master.png`, `build/icon.ico`) in `scripts/generate-app-icons.sh`.
+- `electron-vite`
+  - main/preload/renderer build pipeline
+- `vite`
+  - dev server and bundling
+- `typescript`
+  - type system and project builds
+- `@vitejs/plugin-react`
+  - React support for Vite
 
 ## Styling
 
-- **tailwindcss** — Utility-first CSS.
-- **@tailwindcss/postcss** — Tailwind v4 PostCSS integration.
-- **postcss** — CSS pipeline.
-- **autoprefixer** — Vendor prefixes.
+- `tailwindcss`
+- `@tailwindcss/postcss`
+- `postcss`
+- `autoprefixer`
+
+Visual tokens and shared component styling live in `src/renderer/styles/tailwind.css`.
 
 ## Testing
 
-- **vitest** — Unit tests (renderer and shared code).
-- **@vitest/coverage-v8** — Coverage reporting.
-- **@playwright/test** / **playwright** — Electron E2E tests.
-- **@testing-library/react** — React component tests.
-- **@testing-library/user-event** — User interaction simulation.
-- **@testing-library/jest-dom** — DOM matchers.
-- **jsdom** — DOM environment for unit tests.
+- `vitest`
+  - unit tests
+- `@testing-library/react`
+  - renderer/component tests
+- `@testing-library/user-event`
+  - interaction tests
+- `@testing-library/jest-dom`
+  - DOM assertions
+- `jsdom`
+  - unit-test browser environment
+- `playwright`, `@playwright/test`
+  - Electron end-to-end tests
 
-## Lint and Format
+## Lint, Format, Release
 
-- **eslint** — Linting.
-- **typescript-eslint** — TypeScript rules for ESLint.
-- **eslint-plugin-react-hooks** — React Hooks rules.
-- **eslint-plugin-react-refresh** — React Refresh rules.
-- **prettier** — Code formatting.
+- `eslint`
+- `typescript-eslint`
+- `prettier`
+- `husky`
+- `lint-staged`
+- `electron-builder`
 
-## Git and Release
+## System Tools
 
-- **husky** — Git hooks.
-- **lint-staged** — Run lint/format on staged files.
-- **@commitlint/cli** / **@commitlint/config-conventional** — Conventional commit lint tooling (currently not hook-enforced).
-- **electron-builder** — Packaging and distributables.
-- **app-builder-bin** (transitive via `electron-builder`) — Generates `build/icon.icns` in `scripts/generate-app-icons.sh`.
+- `pnpm`
+  - package manager
+- `magick`
+  - icon raster generation used by `scripts/generate-app-icons.sh`
 
-## Package Manager
+## Default Choices By Area
 
-- **pnpm** — Lockfile and scripts assume `pnpm`. Use `pnpm install`, `pnpm run <script>`, etc.
-
-## When Adding Code
-
-- **Renderer UI** → React, Tailwind; state → Zustand.
-- **Main/preload** → TypeScript, Electron APIs; no React.
-- **Shared types/IPC** → `src/shared`; no Node/React imports.
-- **Unit tests** → Vitest + Testing Library; E2E → Playwright.
-- **Lint/format** → ESLint + Prettier; run `pnpm check` before done.
+- Renderer UI: React + Tailwind
+- Renderer state: Zustand when shared state is needed
+- Main/preload: TypeScript + Electron APIs
+- Shared contracts and types: `src/shared`
+- Unit tests: Vitest
+- E2E tests: Playwright

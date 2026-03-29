@@ -1,136 +1,97 @@
-# UI Spec (Initial)
+# UI Spec
 
-## Layout
+## Windows
 
-- Main editing experience supports multiple independent document windows.
-- Each document window starts in the same blank empty state and owns its own input/output session state.
-- Optional secondary log window can be opened from macOS app menu (`View Log`, `Cmd+L`).
-- Top toolbar.
-- One editor pane below toolbar.
-- Input and output views are mutually exclusive.
+- The app supports multiple independent document windows.
+- Each document window owns its own input/output session state.
+- A separate log window can be opened from the macOS app menu.
 
-## Visual System Integration
+## Main Screen
 
-- Reusable visual rules and component styling are defined in `docs/design-style.md`.
-- Theme tokens are centralized in `src/renderer/styles/tailwind.css` and keyed by `:root` + `:root[data-theme='dark']`.
-- Product behavior supports two theme modes (`Light`, `Dark`) switchable from the toolbar.
+- A top toolbar
+- One editor region below it
+- Input and output modes are mutually exclusive
 
 ## Empty State
 
-- Centered single-line CTA: `Paste, Drop or Click`.
-- Empty-state CTA remains vertically centered within the editor shell across window resizes and responsive breakpoints.
-- On document-window launch and reset, the empty editor shell takes keyboard focus so immediate paste works without an extra click.
-- Only `Click` is interactive, visually underlined, and opens file picker via preload bridge.
-- Drop and paste are supported in editor shell.
+- Centered CTA: `Paste, Drop or Click`
+- `Click` opens the file picker
+- Empty state takes focus on launch and reset so paste works immediately
 
-## Toolbar Controls
+## Toolbar
 
-- `New`: open a new blank document window.
-- `Input/Output` mode control: segmented toggle visible at all times, with explicit active segment.
-- Pane/content sync rule: input pane visible means `Input` active, output pane visible means `Output` active.
-- Empty-content rule in input mode: `Input` stays active and `Output` is disabled until content exists.
-- Empty-content ingestion rule:
-  - empty open-file/drop payload keeps app in input mode and shows inline notice `File has no content.`,
-  - empty paste keeps app in input mode without that file-empty notice.
-- `Expand` and `Collapse`: always visible; enabled only when content exists.
-- `Expand`/`Collapse` are wired to unfold-all/fold-all actions on the currently active editor (input or output).
-- `Save` and `Copy`: always visible; disabled in input mode and enabled in output mode.
-- Keyboard shortcuts:
-  - `Cmd+N` on macOS / `Ctrl+N` on Windows/Linux: open a new blank document window.
-  - `Cmd+Shift+N` on macOS / `Ctrl+Shift+N` on Windows/Linux: reset only the current/focused document window to the initial empty state.
-  - `Cmd+I` on macOS / `Ctrl+I` on Windows/Linux: switch to `Input`.
-  - `Cmd+O` on macOS / `Ctrl+O` on Windows/Linux: switch to `Output` only when output mode is available (same enable/disable rule as `Output` segment).
-  - `Cmd+S` on macOS / `Ctrl+S` on Windows/Linux: trigger `Save` only in output mode.
-  - `Cmd+Shift+C` on macOS / `Ctrl+Shift+C` on Windows/Linux: trigger `Copy` only in output mode.
-  - `Cmd+F` on macOS / `Ctrl+F` on Windows/Linux: open Monaco find widget in output mode, regardless of current DOM focus.
-- Toolbar action visual treatment follows the design-style button pattern.
-- Theme mode control on the right: segmented `Light/Dark` toggle with explicit active segment.
-- Theme preference persistence: selected theme is stored through preload/main preferences APIs and restored on next app launch.
-- Indentation preference is user-configurable from a custom toolbar dropdown (`Indent: <size>`) with options `1..8` on the left.
-- Indentation preference persistence: selected `indentSize` is stored through preload/main preferences APIs and restored on next app launch.
-- Fallback agent control on the left: custom dropdown (not native `<select>`) with `No Fallback` plus one option per configured agent.
-- Dropdown trigger displays the selected agent name (or `No Fallback`) with a chevron indicator; no external label.
-- Disabled agents are visible in the dropdown panel but non-selectable (`<name> (Disabled)`).
-- Fallback preference persistence: selected fallback agent id (or no fallback) is stored through preload/main preferences APIs and restored on next app launch.
-- `Splits` group: always visible immediately after the fallback-agent control, includes a static `Splits` label plus `Navigate splits left`, `Navigate splits right`, and `Pop split` buttons.
-- `Pop split` is disabled when no derived output pane is open.
-- Split navigation buttons are enabled only when at least three panes exist and there is another snapped viewport position in that direction.
+- `New`
+  - opens a new document window
+- `Input` / `Output`
+  - segmented mode toggle
+  - `Output` is disabled until there is content
+- `Expand` / `Collapse`
+  - act on the active editor
+  - disabled when there is no content
+- `Save` / `Copy`
+  - enabled only in output mode
+- `Indent`
+  - custom dropdown with values `1..8`
+- `Fallback`
+  - custom dropdown with `No Fallback` plus configured agents
+- `Splits`
+  - left, right, and pop controls for the output pane strip
+  - current shipped flows do not open derived panes, so these usually stay effectively idle
+- `Light` / `Dark`
+  - segmented theme toggle
 
-## App Menu (macOS)
+## Shortcuts
 
-- `prettypretty` app menu includes `View Log`.
-- `View Log` has keyboard shortcut `Cmd+L`.
-- Selecting `View Log` opens/focuses a dedicated log window.
-- `File` menu includes `New Window` (`Cmd+N`) and `Reset Window` (`Cmd+Shift+N`).
-- `Reset Window` applies only to the focused document window; it does not affect other open document windows.
-- Closing a non-last window closes only that window.
-- Closing the last remaining app window exits the app.
-- The log window counts as an app window for lifetime purposes; if it remains open after all document windows are closed, the app stays running until that final window closes.
-- Log window content is raw JSONL and includes:
-  - startup/session history captured from app launch,
-  - live appended lines while the log window remains open.
+- `Cmd/Ctrl+N`
+  - new window
+- `Cmd/Ctrl+Shift+N`
+  - reset current document window
+- `Cmd/Ctrl+I`
+  - switch to input
+- `Cmd/Ctrl+O`
+  - switch to output when output is available
+- `Cmd/Ctrl+S`
+  - save output
+- `Cmd/Ctrl+Shift+C`
+  - copy output
+- `Cmd/Ctrl+F`
+  - open Monaco find in output mode
 
-## Editing Rules
+## Input and Output Behavior
 
-- Input pane: Monaco-based editable code editor.
-- Output pane: Monaco-based read-only code viewer.
-- Input and output Monaco instances are separate and do not share content/state.
-- Input mode Monaco uses the same preferences/settings as output mode, except output remains read-only and input remains editable.
-- Output is derived from input and updates with input changes.
-- Output is recomputed only when output mode is requested (ingestion that switches to output, or manual input->output switch), not on every input keystroke.
-- Unified ingestion flow: drop, paste, and click-open all set input through the same ingestion path.
-- Ingestion behavior:
-  - non-empty input: run prettifier first; switch to output only after processing completes.
-  - empty open/drop: remain input with inline notice.
-  - empty paste: remain input without file-empty notice.
-- Local parser chain order: strict JSON -> newline-delimited JSON (strict JSON per non-empty line) -> JSON5 (JS/TS object-literal style) -> Python-literal normalization + JSON5.
-- Malformed/unsupported local inputs trigger fallback agent execution via main-process IPC when configured.
-- If no fallback agent is configured but at least one enabled agent exists, malformed/unsupported local inputs open a modal that focuses the split fallback button by default: `Enter` runs the currently selected agent, while `ArrowDown`/`ArrowUp` opens the menu and changes the current selection. Selecting from the open menu updates the primary button label and closes the menu; it does not run the agent until the primary action is invoked.
-- If no fallback agent is configured and the one-shot modal is dismissed or canceled, output remains passthrough unchanged.
-- Manual typing behavior: updates input text without forcing output mode.
-- Output mode language detection is heuristic and parser-independent, with malformed JSON-like content preferring JSON highlighting.
-- Output mode line numbers are always visible in current scope.
-- Input mode keeps Monaco fold controls in the gutter.
-- Output mode hides Monaco gutter fold controls and renders inline fold buttons anchored to visible Monaco fold-start lines.
-- Output inline fold buttons are UI controls, not code text; they sit after the rendered line content, move with horizontal and vertical scroll, and disappear when Monaco reports no fold regions.
-- When an output block is collapsed, that same inline fold widget also shows a subtle preview overlay of the top content inside the block:
-  - preview text is anchored to the folded line, not injected into the Monaco model,
-  - preview styling stays visually subordinate to real code (muted + italic),
-  - preview text is capped to roughly `60` characters and ends with `...` when truncated.
-- Output inline fold button interaction:
-  - without modifiers, the button toggles only the clicked fold block,
-  - while literal `Ctrl` is held, that same button applies the direct-child action to the clicked block's immediate child foldable regions without toggling the clicked block itself,
-  - direct-child action rule:
-    - if at least one immediate child foldable block is expanded, the button enters `collapse children`,
-    - if all immediate child foldable blocks are collapsed, the button enters `expand children`,
-    - if no immediate child foldable blocks exist, keep the button visible but disabled while `Ctrl` is held,
-  - the direct-child mode keeps a subtle downward cue so it stays visually distinct from the default self-toggle mode.
-- Output mode minimap is enabled for document-level navigation.
-- Output mode search uses Monaco native find widget (triggered by the platform primary modifier plus `F` in output mode).
-- Paste inside Monaco find/replace inputs stays local to that widget and must not trigger app-level ingest/prettify flow.
-- Output mode fold/view state persists for the current document identity during the app session.
-- Output mode no longer includes embedded-content detection, output-editor context-menu actions, or any renderer-owned `Prettify in Pane` / `Prettify & Replace` workflow.
-- Output pane-strip platform remains as generic split-pane infrastructure:
-  - root-only output stays full width,
-  - if any future workflow creates derived panes, the strip uses equal-width `50/50` panes with snapped horizontal viewport movement,
-  - derived panes behave like first-class output panes for focus, find, folding, and syntax detection.
-- Output-pane modifier-click fold toggling is removed in this scope. Output folding remains available through inline fold controls and toolbar fold actions, with one inline button that switches between self-toggle and immediate-child fold state changes while literal `Ctrl` is held. Input-pane modifier-click folding remains unchanged.
-- Output `Expand`, `Collapse`, and `Cmd+F` target the active visible output pane. `Save` and `Copy` remain rooted to the full root output text.
-- Output panes form a strict left-to-right dependency chain. If any pane's represented content changes, every pane to its right closes immediately and the strip normalizes focus plus viewport to the remaining chain.
-- Toolbar split navigation shows a centered `x of y` label between the left/right buttons only while an output pane is visible. The label reports snapped viewport positions, not mounted pane count: root-only and root-plus-first-derived both show `1 of 1`, opening the second/third derived panes yields `2 of 2` and `3 of 3`, and moving one step left from the end yields `2 of 3`. In the current product flow, the label remains `1 of 1` because no output-editor action opens derived panes.
-- Output split navigation shortcuts:
-  - literal `Ctrl+Left` / `Ctrl+Right`: move the split viewport one pane left/right in output mode,
-  - literal `Ctrl+Wheel` / `Ctrl+trackpad scroll`: move the split viewport by snapped pane steps in output mode,
-  - `Escape`: pop the rightmost derived pane in output mode when a split chain is open and Monaco did not already consume the key.
-- Output-mode prettify indentation and Monaco tab/guide indentation are sourced from the same persisted preference value (`indentSize`) so they stay synchronized.
-- If output mode currently displays already-prettified text, changing `indentSize` reindents the visible output locally by line-leading whitespace remap (no new prettifier/fallback request).
-- If output is passthrough/non-prettified, changing `indentSize` does not mutate existing output text.
-- While fallback agent execution is pending, editors are hidden behind a dedicated wait screen with a status message (`Malformed <format>. Calling <agent>.`), spinner, and `CANCEL` action that aborts the active fallback run and returns to input mode.
-- Wait screen includes a rolling live status area that shows the last 5 fallback execution output lines for the active request only.
-- If fallback fails, output mode still opens after completion and renders passthrough/error behavior already defined by prettifier result handling.
-- Theme persistence behavior: renderer hydrates `themeMode` from persisted preferences at startup and uses optimistic updates with rollback on failed writes.
-- Indentation persistence behavior: renderer hydrates `indentSize` from persisted preferences at startup and uses it as the single runtime source for formatter + Monaco indentation.
-- Fallback preference behavior: renderer hydrates both `fallbackAgentId` and configured agent list from persisted preferences at startup and writes selection changes with optimistic UI + rollback on failed writes.
-- Large-content fallback guard: when malformed/unsupported input exceeds the persisted `fallbackWarningLineThreshold` (default `300` lines), renderer shows a confirmation modal (`Content is <N> lines. Use fallback agent?`) before starting fallback execution.
-- One-shot fallback modal behavior: pressing `Escape` always closes the modal without invoking fallback, even if the agent menu is open.
-- Current scope persists `fallbackWarningLineThreshold` in preferences with default `300`; there is no toolbar control for changing it yet.
+- Input uses an editable Monaco editor.
+- Output uses a read-only Monaco editor.
+- Open, drop, and paste use the same ingest path.
+- Output is recomputed only on ingest or explicit output-mode requests, not on every keystroke.
+- Empty open/drop keeps the app in input mode and shows `File has no content.`
+- Empty paste keeps the app in input mode without the file-empty notice.
+
+## Prettify Behavior
+
+- Local parser runs first.
+- Supported local formats:
+  - JSON
+  - NDJSON
+  - JSON5 / JS or TS object-literal style input
+  - Python-like dict literals
+- If local parsing succeeds, output updates immediately.
+- If local parsing fails and fallback is available, renderer calls main-process fallback execution.
+
+## Fallback Behavior
+
+- Fallback runs only through the main process.
+- If no default fallback agent is selected but enabled agents exist, the user can choose a one-shot agent for that run.
+- Large malformed inputs require confirmation before fallback starts.
+- While fallback is running:
+  - editors are hidden
+  - a wait screen is shown
+  - the user can cancel
+  - the wait screen shows the last 5 progress lines for the active request
+
+## Output Behavior
+
+- Output mode shows line numbers and a minimap.
+- Syntax highlighting is inferred from the rendered text.
+- Output uses inline fold controls instead of Monaco gutter fold controls.
+- Holding literal `Ctrl` changes the inline fold action to direct-child expand/collapse.
+- `Save` and `Copy` always operate on the root output text.

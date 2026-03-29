@@ -1,16 +1,15 @@
 # prettypretty
 
-`prettypretty` is a desktop Electron app for prettifying structured text input (JSON, newline-delimited JSON, JavaScript objects, Python-like dictionaries, and related formats).
+`prettypretty` is an Electron desktop app for turning structured text into readable output.
+It uses a local parser first and can fall back to configured CLI agents when local parsing fails.
 
-This repository currently contains **Step 1: project setup and minimal shell**.
+## Current Product Shape
 
-## Stack
-
-- Electron
-- React
-- TypeScript
-- Vite (`electron-vite`)
-- Tailwind CSS
+- Monaco input editor and read-only Monaco output editor
+- Local prettify for JSON, NDJSON, JSON5, JS/TS object literals, and Python-like dicts
+- Optional main-process fallback agent execution
+- Persisted theme, indent, and fallback-agent preferences
+- Multi-window document workflow and optional log window
 
 ## Prerequisites
 
@@ -27,39 +26,30 @@ pnpm dev
 ## Commands
 
 ```bash
-pnpm dev           # run Electron in development mode
-pnpm build         # build main/preload/renderer
-pnpm dist          # package app with electron-builder
-pnpm icon:generate # regenerate app icons in build/
-pnpm lint          # eslint
-pnpm format        # prettier write
-pnpm format:check  # prettier check
-pnpm typecheck     # TypeScript project typecheck
-pnpm test:unit     # Vitest unit tests
-pnpm test:e2e      # Playwright Electron tests
-pnpm test          # unit + e2e
-pnpm test:pairing  # enforce source-to-test file pairing
-pnpm check         # lint + format:check + typecheck + unit + pairing
+pnpm dev
+pnpm build
+pnpm dist
+pnpm test
+pnpm test:e2e
+pnpm check
 ```
 
-## App Icon Assets
+## Documentation
 
-- Electron packaging expects icons under `build/`:
-  - `build/icon.icns` (macOS)
-  - `build/icon.ico` (Windows)
-  - `build/icon.png` (Linux)
-- Regenerate all icon artifacts from the design source with:
-
-```bash
-pnpm icon:generate
-```
+- Use these as needed:
+- Use `docs/ui-spec.md` for product behavior.
+- Use `docs/design-style.md` for visual rules.
+- Use `docs/architecture.md` for code structure and ownership.
+- Use `docs/engineering-guidelines.md` for implementation and test expectations.
+- Use `docs/dependencies-and-tools.md` for stack choices.
+- `docs/specs/` contains implementation plans and historical decision context. It is not the source of truth for current architecture.
 
 ## Quality Gates
 
-- No numeric coverage threshold.
-- Coverage reports are generated for visibility.
+- `pnpm check` is the required non-E2E gate.
+- Run `pnpm test:e2e` for user-visible or Electron runtime changes.
 - Every renderer module/component must have a corresponding unit test file.
-- `pre-commit`: `lint-staged` + `pnpm check` + `pnpm test:e2e`
+- `pre-commit`: `pnpm lint-staged && pnpm check`
 - `pre-push`: no-op
 
 ## Security Baseline
@@ -67,4 +57,4 @@ pnpm icon:generate
 - `contextIsolation: true`
 - `nodeIntegration: false`
 - `sandbox: true`
-- Preload-only bridge to Electron/Node APIs.
+- Preload-only typed bridge to Electron/Node APIs.

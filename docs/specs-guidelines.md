@@ -54,7 +54,7 @@ Be explicit. Communicate clearly all the decisions. Use headings to separate the
 Checkboxes for what "done" means. Include:
 
 - Functional requirements
-- Quality gates (`uv run pytest`, `uv run pre-commit run --all-files`)
+- Quality gates
 - Edge cases
 
 ### 6. File Summary
@@ -92,9 +92,9 @@ Specs should strive to be **complete and unambiguous**. However:
 
 Always require:
 
-- `uv run pytest` - tests pass (unless the spec explicitly declares a bootstrap exception)
-- `uv run mypy src` - type checks pass
-- `uv run pre-commit run --all-files` - configured hooks pass
+- `pnpm check` is the required non-E2E gate.
+- Run `pnpm test:e2e` for user-visible or Electron runtime changes.
+- Every renderer module/component must have a corresponding unit test file.
 
 ### Naming
 

@@ -1,112 +1,42 @@
 # Learnings
 
-Purpose: capture mistakes and failure patterns to avoid repeating.  
-Do not add routine status updates, implementation history, or one-time decisions.
+These are the durable patterns worth keeping in mind when changing the codebase.
 
-## Keep/Drop Rule
+## Architecture
 
-- Keep: issues that caused regressions, rework, inconsistent behavior, or test instability.
-- Drop: project setup notes, neutral architecture choices, and "what we built" logs.
+- Keep the `main` / `preload` / `shared` / `renderer` boundaries clean.
+- Put IPC contracts and shared types in `src/shared`.
+- Keep `src/shared` free of React, Electron runtime ownership, and Node-only behavior.
 
-## Mistakes To Avoid
+## Renderer
 
-- Do not split input ingestion paths by trigger (`drop`, `paste`, `open file`); use one ingestion path or pane-switch behavior drifts.
-- Do not let keyboard shortcuts and toolbar controls diverge; both must use the same mode guards and enable/disable rules.
-- Do not route output fold/find actions to the root pane unconditionally once multiple output panes exist; track focused visible pane id separately from pane content so toolbar and shortcut routing stay deterministic.
-- Do not rely on partial class assertions for style tests; assert exact class contracts so variants cannot drift silently.
-- Do not style Monaco text metrics via external CSS selectors (for example `.view-lines`); set typography metrics in Monaco options or cursor/selection alignment can drift.
-- Do not let prettifier indentation and Monaco indentation settings come from different sources; both must read the same persisted preference value.
-- Do not mutate output text to implement search highlighting; use Monaco-native find/decorations so copy/save output remains accurate.
-- Do not implement code-anchored Monaco controls with viewport-anchored overlay widgets; when the affordance must move with code, anchor it to model positions and style it so it cannot be mistaken for source text.
-- Do not use Monaco exact-position content widgets with `allowEditorOverflow` for code-anchored controls that must follow horizontal scroll; Monaco does not subtract `scrollLeft` in that path, so the control appears pinned while text moves.
-- Do not stop at model-position anchoring for inline Monaco controls; tune vertical offset and post-line spacing against Monaco line metrics or the control will sit low in the line and crowd folded placeholder text.
-- Do not assume one horizontal offset works for both inline fold states; expanded controls can sit tighter to code, while collapsed controls may need extra right-side clearance from Monaco placeholder text.
-- Do not build collapsed fold previews from syntax-specific parsing or the rendered placeholder text; derive them from the Monaco model lines inside the folded region so the overlay stays language-agnostic and source-accurate.
-- Do not implement inline Monaco fold affordances with injected text; use content widgets so copied/saved output and syntax highlighting stay untouched.
-- Do not rely on the Monaco content-widget root node for flex row layout; Monaco injects an inline `display: block` host style, so multi-control inline widgets need a nested row container.
-- Do not derive direct-child fold actions from rendered text or visible indentation; use Monaco region parent indexes so immediate-child toggles stay correct even when the parent block itself is folded.
-- Do not duplicate inline fold UI just to expose direct-child actions; if product direction wants one anchor, swap the same button between self-toggle and child-toggle from explicit modifier state and keep both modes on the same Monaco-backed fold source.
-- Do not hide the inline direct-child affordance when a block has no immediate child fold regions; keep the shared button visible and disabled in `Ctrl` mode so the modifier-state transition stays predictable.
-- Do not treat bubbled paste events from Monaco find/replace widgets as shell-level ingest; allow widget-local paste or search can overwrite the active document.
-- Do not key output fold/view state to transient UI state; persist/restore by deterministic document identity.
-- Do not reuse a derived pane's old Monaco view-state key when replacing it with a new extracted block; regenerate the derived-pane key or the pane can reopen pre-folded instead of expanded.
-- Do not extend a single-output editor design with ad hoc `secondaryPane*` state; represent derived read-only panes as a parent-child chain so upstream reselection can truncate descendants cleanly.
-- Do not derive split-pane excerpts from only the visible folded text; resolve and extract Monaco model ranges so folded sources can open expanded in derived panes without data loss.
-- Do not create separate Monaco models for structural split panes when the UI must preserve source line numbers; share the root source model and apply pane-local hidden areas for derived views.
-- Do not assume every derived output pane should share the root Monaco model; extracted/prettified panes need their own document identity, while only source-range views should reuse the shared source model.
-- Do not trust Monaco `getRegionAtLine(...)` as the sole source of nested split selection in hidden-area derived panes; scan folding regions and pick the smallest containing region or recursive pane splits can silently no-op in real Electron runs.
-- Do not maintain separate Monaco option sets for input/output that can drift; use one shared base and derive editable/read-only variants.
-- Do not enable fold actions when there is no content; fold controls should be content-aware and no-op states should stay disabled.
-- Do not let Monaco option drift happen between input and output panes; keep one shared base options seam and make any intentional pane-specific overrides explicit and unit-tested.
-- Do not bypass Monaco built-ins with CSS overlays for editor primitives (for example minimap); use Monaco options for stability and compatibility.
-- Do not bind structural fold toggling to plain click in Monaco editors; keep default click behavior and require an explicit modifier (for example Cmd+click) when adding custom fold gestures.
-- Do not compute foldability from indentation-only helpers when Monaco already defines fold regions for the active language; wrap Monaco folding in one shared adapter and reuse it across inline controls and modifier gestures.
-- Do not persist app preferences in renderer localStorage or install directories; keep main-process ownership and store in Electron `app.getPath('userData')` for OS-correct, writable config behavior.
-- Do not implement optimistic preference writes without request sequencing; stale async failures can rollback newer user selections.
-- Do not parse JS/TS object-literal input with `eval`/`new Function`; use parser-based approaches to keep renderer execution safe.
-- Do not silently coerce unsupported parsed values (for example `NaN`/`Infinity`) during prettify; return original input if the value tree is not JSON-serializable.
-- Do not treat additive preference fields as corrupt-file cases by default; migrate missing/invalid optional fields to safe defaults when backward compatibility allows it.
-- Do not expose nested preference objects/arrays by shallow copy from the service cache; deep-clone them to avoid accidental external mutation of persisted state.
-- Do not rely on `iconutil` conversion in constrained/sandboxed environments for app icons; generate `.icns` through `app-builder-bin icon` with a size-labeled PNG input (`1024x1024.png`) to keep icon builds deterministic.
-- Do not rely on macOS default app menu labeling in dev mode; explicitly set application menu template label from `app.getName()` or the top-bar app menu can remain `Electron`.
-- Do not rely on `app.getName()` to drive macOS top-bar app menu label in dev mode; use a fixed app label (`prettypretty`) when deterministic branding is required.
-- Do not hardcode an editor executable for opening config files from app menus; use Electron `shell.openPath` so OS file associations select the default editor.
-- Do not tie app lifetime to the first-created document window when the product supports multiple windows; let Electron close individual windows normally and exit only from `window-all-closed`.
-- Do not open file/save dialogs without scoping them to the invoking `BrowserWindow`; unparented dialogs become ambiguous once multiple document windows are open.
-- Do not open fixed-size document windows at identical screen coordinates; cascade new windows from the focused window and clamp or wrap inside the display work area so the prior window stays discoverable.
-- Do not change default document window dimensions without updating cascade-placement tests and display-work-area fixtures; stagger expectations depend on the shared main-window size constants.
-- Do not derive multi-window placement context after an async await; capture the initiating window bounds before async preference or IPC work so later focus changes cannot redirect the new window.
-- Do not execute fallback LLM commands from renderer code or without hard timeout/output caps; keep process execution in main with typed status outcomes so failures degrade to passthrough instead of UI hangs.
-- Do not pass raw fallback prompt content through child process argv; use stdin-only transport for user text so local process inspection cannot expose prompts.
-- Do not spawn fallback agents without explicit app-shutdown cleanup and process-tree termination; killing only the direct child or relying on parent exit can leave agent subprocesses running after the app closes.
-- Do not clear a fallback wait screen without canceling the underlying request-scoped child process; superseded or user-canceled runs must terminate in main or background agent CLIs will keep consuming time and tokens after the UI stops waiting.
-- Do not rely on inherited GUI `PATH` when spawning fallback CLIs from Electron; resolve known absolute install paths (for example app bundle, `~/.local/bin`, Homebrew paths) before defaulting to bare command names.
-- Do not treat unchanged non-empty fallback output as an automatic failure; malformed inputs can be validly echoed by the fallback agent and should not downgrade to `failed-invalid-output`.
-- Do not reject fallback output solely because it is wrapped in markdown fences; unwrap fenced blocks and evaluate inner content so otherwise-valid agent responses are not dropped.
-- Do not switch to output editor before malformed-input fallback completes; keep editors hidden behind a dedicated waiting state so users never see raw malformed passthrough during in-flight fallback.
-- Do not stream fallback progress into renderer without request-id correlation; stale async lines from prior runs can overwrite the active wait-state if events are not gated by run id.
-- Do not collapse streamed fallback progress to a single visible line; keep a bounded rolling buffer in renderer state so users can see recent execution context without unbounded log growth.
-- Do not run prettifier/fallback on every input keystroke; trigger prettification only on explicit output-mode requests or cost and latency spike while typing.
-- Do not rerun prettifier/fallback when only indentation preference changes and output is already prettified; remap leading whitespace locally to avoid unnecessary agent calls and latency.
-- Do not include raw input/output/prompt bodies in verbose logs; log only bounded metadata (lengths, statuses, durations, ids) to keep diagnostics safe and readable.
-- Do not couple log event capture to verbose transport flags; keep session capture always on and use `-v` only to gate stdout emission.
-- Do not keep fallback agent default unset when fallback behavior is a primary test path; set a valid default agent id so malformed-input fallback is testable without manual profile edits.
-- Do not hide fallback configuration behind config-file edits when runtime agent switching is required; expose `fallbackAgentId` in toolbar UI with a `No Fallback` option and all configured agents so fallback behavior is testable in-session.
-- Do not use native `<select>` for toolbar dropdowns; OS-native rendering breaks visual consistency. Use a custom dropdown with click-to-open panel, outside-click/escape dismissal, and tokenized styling matching existing toolbar controls.
-- Do not keep stateful custom control behavior (open/close listeners, outside-click, escape handling) embedded in a broad layout component like `Toolbar`; extract a focused component to keep ownership, tests, and change risk localized.
-- Do not use `VITE_DEV_SERVER_URL` for dev-mode URL detection with electron-vite v5; the correct env var is `ELECTRON_RENDERER_URL`. Using the wrong name causes the main process to silently fall back to stale built files in `out/`, making dev changes invisible.
-- Do not default renderer theme state to light and wait for async preferences hydration; seed theme synchronously from main/preload before first render or dark-mode users see startup flicker.
-- Do not let renderer orchestration accumulate inside `App.tsx`; keep `App` as composition-only and move effectful flows into focused controller hooks (`useAppController`, `usePrettifierFlow`, `usePreferencesFlow`, `useKeyboardShortcuts`) with pure helpers in `appDomain`.
-- Do not assume mouse side-button navigation will surface through only one event path across platforms; bridge Electron `app-command` browser back/forward events and keep a deduplicated DOM button-`3`/`4` fallback or split-pane mouse navigation will be inconsistent.
-- Do not maintain separate local-prettifier parsing implementations in renderer and main; keep one shared parser core (`src/shared/localPrettifier.ts`) and reuse it across processes to prevent behavior drift.
-- Do not classify multi-record NDJSON as malformed just because whole-document `JSON.parse` fails; attempt strict per-line JSON parsing before falling back.
-- Do not issue an extra renderer `preferences.getAll()` call before fallback execution; use hydrated renderer fallback selection state to decide wait-screen behavior and let main own final fallback execution decisions.
-- Do not auto-run fallback agents on very large malformed inputs without explicit user confirmation; gate oversized fallback requests with a persisted line-threshold check to avoid accidental costly/slow agent runs.
-- Do not scatter ad-hoc `console.error` calls across renderer flows; route renderer failures through one shared reporter utility (`reportRendererError`) for consistent handling and easier evolution.
-- Do not trust IPC primitive payload types implicitly; validate string channels (for example save/copy text) at the main-process boundary and reject invalid payloads consistently.
-- Do not read arbitrary dropped/opened files into renderer state without size and text-type guardrails; keep file ingestion bounded and main-owned or large/binary payloads can freeze the app.
-- Do not treat shell-level paste as a global ingest gesture once a document exists; paste-as-ingest belongs only to the explicit empty-state entry path.
-- Do not rely on external globally-installed AI CLIs for fallback e2e coverage; configure a deterministic test-only fallback agent via preferences (for example `node -e ...`) so wait/progress/completion paths are stable in CI and local runs.
-- Do not let e2e tests leak preference mutations across runs; reset persisted preferences at test boundaries to keep app-launch defaults deterministic and avoid cross-test pollution.
-- Do not assume a newly created Electron document window will be paste-ready by default; explicitly focus the BrowserWindow/webContents and provide a real empty-state DOM focus target or first-launch `Cmd+V` can no-op until the user clicks.
-- Do not persist a temporary fallback choice just to support a one-off malformed-input retry; pass an explicit per-request fallback agent override through renderer IPC so the modal-selected agent applies only to that run.
-- Do not make split-button menu selection trigger the primary action; menu interaction should only change the current selection, and execution should remain exclusive to the primary button or `Enter` on the closed button state.
-- Do not default a destructive-cost fallback-confirmation modal to its cancel action or require extra keystrokes after arrowing through agents; focus the affirmative split action, let arrow keys navigate enabled agents directly, and keep `Escape` mapped to cancel the whole dialog.
-- Do not let late startup preference hydration overwrite newer user actions; initial async preference loads need stale-response guards just like optimistic writes do.
-- Do not start an optimistic preference mutation without invalidating any in-flight startup hydration first; otherwise a late `preferences:get-all` response can still overwrite the newer local state.
-- Do not duplicate optimistic preference-write sequencing or fallback/prettifier state-reset branches inline across multiple handlers; move those transitions behind named helpers or small flow changes become regression-prone.
-- Do not leave request-id ownership, cancellation rules, or modal resolver semantics implicit in async renderer flows; document those invariants at the helper boundary or later refactors will break stale-response guards.
-- Do not implement renderer keyboard shortcuts or modifier-based Monaco gestures with macOS-only `metaKey` checks when the app targets Windows/Linux too; centralize a platform-aware primary modifier helper.
-- Do not assume browser-navigation mice always arrive as native side-button events; some setups emit browser-style keyboard shortcuts (`primary+[ / primary+]`, `Alt+Arrow`) instead, so split navigation needs both native and shortcut paths.
-- Do not let an outer pane-strip scroller compete with Monaco pane scrolling; reserve strip movement for explicit split-modifier gestures and keep viewport movement snapped to whole-pane steps.
-- Do not rely on native `scrollLeft` tweening for split-pane viewport animation while Monaco panes mount or focus shifts; browser scroll/layout behavior can collapse the move into a jump. Animate a dedicated pane track and hand off pane focus only after the viewport transition finishes.
-- Do not truncate a derived-pane chain in controller state just because the current UI only shows one extra pane; keep the full chain and let the pane strip handle overflow so horizontal multi-pane work stays incremental.
-- Do not derive toolbar split-position labels from mounted pane count; define them from snapped viewport positions (`leftVisiblePaneIndex + 1` over `max(1, paneCount - 1)`) or root-only and first-derived states will overcount.
-- Do not hide output-pane descendant invalidation inside pane-open side effects; model the left-to-right dependency rule explicitly so upstream pane changes always remove right-side panes and normalize focus/viewport the same way.
-- Do not couple the pane-strip platform to one product workflow such as shared-source structural splits; keep pane layout/navigation generic so embedded prettify panes and any future pane content strategies reuse the same controller and strip.
-- Do not let output-pane formatting product logic run from the renderer; renderer should own pane layout and editor state only, while prettification runs through the main prettifier service over IPC.
-- Do not leave removed product workflows half-alive in the renderer; when a feature is rolled back, delete its gesture handlers, selection plumbing, styles, tests, and docs in the same pass.
-- Do not let a renderer log viewer append forever after reading a bounded main-session log; keep renderer retention capped too or long sessions become memory leaks.
-- Do not center editor-shell states with `height: 100%` when a responsive layout can switch the parent to `min-height`; use flex growth on the shell and child panes so centered content stays centered after resize.
-- Do not hide required local quality gates behind `pre-push` when the workflow expects commit-time feedback; run blocking validation in `pre-commit` or failures surface too late.
-- Do not put Playwright/Electron e2e in `pre-commit`; keep commit hooks to staged-file hygiene plus fast non-E2E checks or normal commits become too slow.
+- Keep `App.tsx` composition-only.
+- Put orchestration in focused controller hooks, not in view components.
+- Be explicit about request ids, cancellation, and stale-response guards in async renderer flows.
+- Avoid spreading the same state transition logic across multiple handlers.
+
+## Monaco
+
+- Use shared Monaco runtime helpers instead of duplicating setup logic.
+- Keep input/output editor options aligned unless there is a documented reason not to.
+- Treat Monaco integration as a real subsystem; changes there usually affect focus, view state, folding, and tests together.
+
+## Preferences and IPC
+
+- Main owns persisted preferences.
+- Renderer should use optimistic updates only with proper sequencing and rollback rules.
+- Validate IPC payloads at the main-process boundary, including primitive string payloads.
+
+## Prettifier and Fallback
+
+- Run the local parser first.
+- Execute fallback agents only in the main process.
+- Enforce timeout, output-size limits, and process cleanup for fallback runs.
+- Correlate fallback progress and completion by request id.
+
+## Testing and Docs
+
+- Every renderer module/component needs a unit test pair.
+- `pnpm check` is the baseline local gate.
+- Run `pnpm test:e2e` when behavior depends on Electron runtime, windows, menus, or preload.
+- Keep onboarding docs concise and current; move history and deep implementation detail out of the main docs.
