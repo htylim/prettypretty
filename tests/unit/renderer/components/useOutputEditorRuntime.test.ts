@@ -18,6 +18,7 @@ const {
   hiddenAreasDisposeMock,
   mouseDownDisposeMock,
   focusWidgetDisposeMock,
+  contextMenuDisposeMock,
   focusMock,
   getActionMock,
 } = vi.hoisted(() => ({
@@ -39,6 +40,7 @@ const {
   hiddenAreasDisposeMock: vi.fn(),
   mouseDownDisposeMock: vi.fn(),
   focusWidgetDisposeMock: vi.fn(),
+  contextMenuDisposeMock: vi.fn(),
   focusMock: vi.fn(),
   getActionMock: vi.fn(),
 }));
@@ -69,6 +71,21 @@ vi.mock('../../../../src/renderer/output/outputViewRange', () => ({
 
 let hiddenAreasListener: (() => void) | null = null;
 let focusWidgetListener: (() => void) | null = null;
+let contextMenuListener:
+  | ((event: {
+      event: {
+        preventDefault: () => void;
+        stopPropagation: () => void;
+        posx: number;
+        posy: number;
+      };
+      target: {
+        type: number;
+        position: { lineNumber: number; column: number } | null;
+      };
+    }) => void)
+  | null = null;
+let selectionIsEmpty = true;
 
 const editorMock = {
   getAction: (id: string): { run: () => Promise<void> } | undefined => {
@@ -104,9 +121,27 @@ const editorMock = {
     focusWidgetListener = listener;
     return { dispose: focusWidgetDisposeMock };
   },
+  onDidChangeCursorSelection: (listener: () => void): { dispose: () => void } => {
+    void listener;
+    return { dispose: vi.fn() };
+  },
+  getSelection: () => ({
+    isEmpty: () => selectionIsEmpty,
+  }),
+  onContextMenu: (listener: typeof contextMenuListener): { dispose: () => void } => {
+    contextMenuListener = listener;
+    return { dispose: contextMenuDisposeMock };
+  },
 } as unknown as MonacoEditor.IStandaloneCodeEditor;
 
-const monacoMock = {} as unknown as typeof import('monaco-editor');
+const monacoMock = {
+  editor: {
+    MouseTargetType: {
+      CONTENT_TEXT: 6,
+      CONTENT_EMPTY: 7,
+    },
+  },
+} as unknown as typeof import('monaco-editor');
 
 type RuntimeHandle = ReturnType<typeof useOutputEditorRuntime>;
 
@@ -115,6 +150,13 @@ type HarnessProps = {
   viewStateKey: string;
   viewRange?: OutputPaneSourceRange | null;
   onFocus?: () => void;
+  onContextMenu?: (request: {
+    anchorX: number;
+    anchorY: number;
+    isContentHit: boolean;
+    position: { lineNumber: number; column: number } | null;
+    hasSelection: boolean;
+  }) => void;
 };
 
 const RuntimeHarness = forwardRef<RuntimeHandle, HarnessProps>((props, ref) => {
@@ -131,6 +173,8 @@ describe('useOutputEditorRuntime', () => {
   beforeEach(() => {
     hiddenAreasListener = null;
     focusWidgetListener = null;
+    contextMenuListener = null;
+    selectionIsEmpty = true;
     prepareMonacoEditorRuntimeMock.mockClear();
     retainSharedEditorModelMock.mockClear();
     releaseSharedEditorModelMock.mockClear();
@@ -143,6 +187,7 @@ describe('useOutputEditorRuntime', () => {
     hiddenAreasDisposeMock.mockClear();
     mouseDownDisposeMock.mockClear();
     focusWidgetDisposeMock.mockClear();
+    contextMenuDisposeMock.mockClear();
     focusMock.mockClear();
     getActionMock.mockClear();
   });
@@ -211,6 +256,7 @@ describe('useOutputEditorRuntime', () => {
     expect(hiddenAreasDisposeMock).toHaveBeenCalledTimes(1);
     expect(mouseDownDisposeMock).toHaveBeenCalledTimes(1);
     expect(focusWidgetDisposeMock).toHaveBeenCalledTimes(1);
+    expect(contextMenuDisposeMock).toHaveBeenCalledTimes(1);
     expect(releaseSharedEditorModelMock).toHaveBeenCalledWith('output://source/doc-1');
   });
 
@@ -265,5 +311,72 @@ describe('useOutputEditorRuntime', () => {
     expect(setCollapseStateForFoldStartMock).toHaveBeenNthCalledWith(2, editorMock, 4, false);
     expect(getActionMock).not.toHaveBeenCalledWith('editor.foldAll');
     expect(getActionMock).not.toHaveBeenCalledWith('editor.unfoldAll');
+  });
+
+  it('reports context-menu hits with pane coordinates and selection state', () => {
+    const onContextMenu = vi.fn();
+    const ref = { current: null as RuntimeHandle | null };
+
+    render(
+      createElement(RuntimeHarness, {
+        documentId: 'doc-3',
+        onContextMenu,
+        viewStateKey: 'output-root-pane:doc-3',
+        ref,
+      }),
+    );
+
+    act(() => {
+      ref.current?.beforeMount(monacoMock);
+      ref.current?.onMount(editorMock, monacoMock);
+    });
+
+    act(() => {
+      contextMenuListener?.({
+        event: {
+          preventDefault: vi.fn(),
+          stopPropagation: vi.fn(),
+          posx: 42,
+          posy: 84,
+        },
+        target: {
+          type: 6,
+          position: { lineNumber: 3, column: 14 },
+        },
+      });
+    });
+
+    expect(onContextMenu).toHaveBeenCalledWith({
+      anchorX: 42,
+      anchorY: 84,
+      isContentHit: true,
+      position: { lineNumber: 3, column: 14 },
+      hasSelection: false,
+    });
+
+    selectionIsEmpty = false;
+
+    act(() => {
+      contextMenuListener?.({
+        event: {
+          preventDefault: vi.fn(),
+          stopPropagation: vi.fn(),
+          posx: 11,
+          posy: 22,
+        },
+        target: {
+          type: 2,
+          position: { lineNumber: 1, column: 1 },
+        },
+      });
+    });
+
+    expect(onContextMenu).toHaveBeenCalledWith({
+      anchorX: 11,
+      anchorY: 22,
+      isContentHit: false,
+      position: { lineNumber: 1, column: 1 },
+      hasSelection: true,
+    });
   });
 });

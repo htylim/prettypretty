@@ -15,6 +15,11 @@ import {
   type OutputPaneViewModel,
 } from './OutputPaneStrip';
 import type { OutputEditorHandle } from './OutputEditor';
+import { OutputContextMenu } from './OutputContextMenu';
+import {
+  getOutputContextMenuLabel,
+  type OutputContextMenuState,
+} from '../app/outputContextMenuDomain';
 
 // Empty-state paste shares the shell container with Monaco. Ignore paste events
 // coming from Monaco's find widget so search input keeps working normally.
@@ -36,6 +41,7 @@ type EditorShellProps = {
   activeOutputPaneId: string;
   outputLeftVisiblePaneIndex: number;
   outputPaneFocusRequest: OutputPaneFocusRequest | null;
+  outputContextMenuState: OutputContextMenuState | null;
   ingestNotice: string | null;
   fallbackWaitState: FallbackWaitState | null;
   inputEditorRef: RefObject<InputEditorHandle | null>;
@@ -46,6 +52,22 @@ type EditorShellProps = {
   onCancelFallbackWait: () => void;
   onOutputPaneHandleChange: (paneId: string, handle: OutputEditorHandle | null) => void;
   onOutputPaneFocus: (paneId: string) => void;
+  onOutputPaneContextMenu: (
+    paneId: string,
+    request: {
+      anchorX: number;
+      anchorY: number;
+      isContentHit: boolean;
+      position: {
+        lineNumber: number;
+        column: number;
+      } | null;
+      hasSelection: boolean;
+    },
+    value: string,
+  ) => void;
+  onDismissOutputContextMenu: () => void;
+  onTriggerOutputContextPrettify: () => void;
   onNavigateOutputPaneViewport: (stepDelta: number) => void;
 };
 
@@ -58,6 +80,7 @@ export const EditorShell = ({
   activeOutputPaneId,
   outputLeftVisiblePaneIndex,
   outputPaneFocusRequest,
+  outputContextMenuState,
   ingestNotice,
   fallbackWaitState,
   inputEditorRef,
@@ -68,6 +91,9 @@ export const EditorShell = ({
   onCancelFallbackWait,
   onOutputPaneHandleChange,
   onOutputPaneFocus,
+  onOutputPaneContextMenu,
+  onDismissOutputContextMenu,
+  onTriggerOutputContextPrettify,
   onNavigateOutputPaneViewport,
 }: EditorShellProps) => {
   const shellRef = useRef<HTMLElement | null>(null);
@@ -189,6 +215,7 @@ export const EditorShell = ({
             indentSize={indentSize}
             leftVisiblePaneIndex={outputLeftVisiblePaneIndex}
             onNavigatePaneViewport={onNavigateOutputPaneViewport}
+            onPaneContextMenu={onOutputPaneContextMenu}
             onPaneFocus={onOutputPaneFocus}
             onPaneHandleChange={onOutputPaneHandleChange}
             panes={outputPanes}
@@ -196,6 +223,15 @@ export const EditorShell = ({
           />
         </div>
       )}
+      <OutputContextMenu
+        anchorX={outputContextMenuState?.anchorX ?? 0}
+        anchorY={outputContextMenuState?.anchorY ?? 0}
+        disabled={outputContextMenuState?.target === null}
+        isOpen={outputContextMenuState !== null}
+        label={getOutputContextMenuLabel(outputContextMenuState?.target ?? null)}
+        onClose={onDismissOutputContextMenu}
+        onSelect={onTriggerOutputContextPrettify}
+      />
     </section>
   );
 };

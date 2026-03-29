@@ -94,6 +94,14 @@ describe('useAppController', () => {
       isLlmRunning: false,
       fallbackWaitState: null,
       cancelActiveFallback: vi.fn().mockResolvedValue(undefined),
+      runPrettifierRequest: vi.fn().mockResolvedValue({
+        status: 'applied-local',
+        outputText: '{\n  "query": "formatted"\n}',
+        localDetection: 'json',
+        fallbackStatus: 'not-attempted',
+        agentId: null,
+        durationMs: 1,
+      }),
       runPrettifier: vi.fn(),
       ingestInputText: vi.fn(),
       resetPrettifierState: vi.fn(),
@@ -272,6 +280,328 @@ describe('useAppController', () => {
     expect(clipboardCopyMock).toHaveBeenCalledWith('{\n  "hello": true\n}');
   });
 
+  it('opens a context menu target for JSON strings and expands the clicked pane into a child output pane', async () => {
+    const inputEditorRef = createInputEditorRef();
+    const ref = { current: null as HarnessHandle | null };
+    render(createElement(ControllerHarness, { inputEditorRef, ref }));
+
+    const controller = ref.current?.getController();
+    expect(controller?.outputContextMenuState).toBeNull();
+
+    act(() => {
+      controller?.onOutputPaneContextMenu(
+        'output-root-pane',
+        {
+          anchorX: 24,
+          anchorY: 36,
+          isContentHit: true,
+          position: { lineNumber: 2, column: 4 },
+          hasSelection: false,
+        },
+        '{\n  "query": "{\\n  field\\n}"\n}',
+      );
+    });
+
+    expect(ref.current?.getController().outputContextMenuState?.target).toMatchObject({
+      label: 'query',
+      decodedText: '{\n  field\n}',
+    });
+
+    act(() => {
+      controller?.onOutputPaneContextMenu(
+        'output-root-pane',
+        {
+          anchorX: 24,
+          anchorY: 36,
+          isContentHit: true,
+          position: { lineNumber: 2, column: 4 },
+          hasSelection: true,
+        },
+        '{\n  "query": "{\\n  field\\n}"\n}',
+      );
+    });
+
+    expect(ref.current?.getController().outputContextMenuState?.target).toBeNull();
+
+    act(() => {
+      controller?.onOutputPaneContextMenu(
+        'output-root-pane',
+        {
+          anchorX: 24,
+          anchorY: 36,
+          isContentHit: true,
+          position: { lineNumber: 2, column: 4 },
+          hasSelection: false,
+        },
+        '{\n  "query": "{\\n  field\\n}"\n}',
+      );
+    });
+
+    await act(async () => {
+      await ref.current?.getController().onTriggerOutputContextPrettify();
+    });
+
+    expect(usePrettifierFlowMock.mock.results[0]?.value.runPrettifierRequest).toHaveBeenCalledWith(
+      '{\n  field\n}',
+      'context-pane-prettify',
+    );
+    expect(ref.current?.getController().outputPanes).toHaveLength(2);
+    expect(ref.current?.getController().outputPanes[1]).toMatchObject({
+      paneId: 'output-pane-1',
+      value: '{\n  "query": "formatted"\n}',
+    });
+  });
+
+  it('resolves YAML block scalars through the output context menu and opens a child pane', async () => {
+    const inputEditorRef = createInputEditorRef();
+    const ref = { current: null as HarnessHandle | null };
+    render(createElement(ControllerHarness, { inputEditorRef, ref }));
+
+    const controller = ref.current?.getController();
+    const yamlText = 'name: hello-world';
+    const runPrettifierRequest = usePrettifierFlowMock.mock.results[0]?.value
+      ?.runPrettifierRequest as ReturnType<typeof vi.fn>;
+
+    act(() => {
+      controller?.onOutputPaneContextMenu(
+        'output-root-pane',
+        {
+          anchorX: 18,
+          anchorY: 24,
+          isContentHit: true,
+          position: { lineNumber: 1, column: 4 },
+          hasSelection: false,
+        },
+        yamlText,
+      );
+    });
+
+    expect(ref.current?.getController().outputContextMenuState?.target).toMatchObject({
+      label: 'name',
+      decodedText: 'hello-world',
+      paneDocumentLanguage: 'yaml',
+    });
+
+    await act(async () => {
+      runPrettifierRequest.mockResolvedValueOnce({
+        status: 'applied-local',
+        outputText: '{\n  "leaf": 1\n}',
+        localDetection: 'json',
+        fallbackStatus: 'not-attempted',
+        agentId: null,
+        durationMs: 1,
+      });
+      await ref.current?.getController().onTriggerOutputContextPrettify();
+    });
+
+    expect(runPrettifierRequest).toHaveBeenCalledWith('hello-world', 'context-pane-prettify');
+    expect(ref.current?.getController().outputPanes).toHaveLength(2);
+    expect(ref.current?.getController().outputPanes[1]).toMatchObject({
+      paneId: 'output-pane-1',
+      value: '{\n  "leaf": 1\n}',
+    });
+  });
+
+  it('resolves TypeScript string bindings through the output context menu and opens a child pane', async () => {
+    const inputEditorRef = createInputEditorRef();
+    const ref = { current: null as HarnessHandle | null };
+    render(createElement(ControllerHarness, { inputEditorRef, ref }));
+
+    const controller = ref.current?.getController();
+    const tsText = 'const query: string = "{\\"leaf\\":1}";';
+    const runPrettifierRequest = usePrettifierFlowMock.mock.results[0]?.value
+      ?.runPrettifierRequest as ReturnType<typeof vi.fn>;
+
+    act(() => {
+      controller?.onOutputPaneContextMenu(
+        'output-root-pane',
+        {
+          anchorX: 20,
+          anchorY: 28,
+          isContentHit: true,
+          position: { lineNumber: 1, column: 7 },
+          hasSelection: false,
+        },
+        tsText,
+      );
+    });
+
+    expect(ref.current?.getController().outputContextMenuState?.target).toMatchObject({
+      label: 'query',
+      decodedText: '{"leaf":1}',
+      paneDocumentLanguage: 'typescript',
+    });
+
+    await act(async () => {
+      runPrettifierRequest.mockResolvedValueOnce({
+        status: 'applied-local',
+        outputText: '{\n  "leaf": 1\n}',
+        localDetection: 'json',
+        fallbackStatus: 'not-attempted',
+        agentId: null,
+        durationMs: 1,
+      });
+      await ref.current?.getController().onTriggerOutputContextPrettify();
+    });
+
+    expect(runPrettifierRequest).toHaveBeenCalledWith('{"leaf":1}', 'context-pane-prettify');
+    expect(ref.current?.getController().outputPanes).toHaveLength(2);
+    expect(ref.current?.getController().outputPanes[1]).toMatchObject({
+      paneId: 'output-pane-1',
+      value: '{\n  "leaf": 1\n}',
+    });
+  });
+
+  it('resolves GraphQL block string arguments through the output context menu and opens a child pane', async () => {
+    const inputEditorRef = createInputEditorRef();
+    const ref = { current: null as HarnessHandle | null };
+    render(createElement(ControllerHarness, { inputEditorRef, ref }));
+
+    const controller = ref.current?.getController();
+    const graphqlText = 'mutation Update { update(payload: """\n  {\n    "leaf": 1\n  }\n""") }';
+    const runPrettifierRequest = usePrettifierFlowMock.mock.results[0]?.value
+      ?.runPrettifierRequest as ReturnType<typeof vi.fn>;
+
+    act(() => {
+      controller?.onOutputPaneContextMenu(
+        'output-root-pane',
+        {
+          anchorX: 26,
+          anchorY: 34,
+          isContentHit: true,
+          position: { lineNumber: 1, column: 27 },
+          hasSelection: false,
+        },
+        graphqlText,
+      );
+    });
+
+    expect(ref.current?.getController().outputContextMenuState?.target).toMatchObject({
+      label: 'payload',
+      decodedText: '{\n  "leaf": 1\n}',
+      paneDocumentLanguage: 'graphql',
+    });
+
+    await act(async () => {
+      runPrettifierRequest.mockResolvedValueOnce({
+        status: 'applied-local',
+        outputText: '{\n  "leaf": 1\n}',
+        localDetection: 'json',
+        fallbackStatus: 'not-attempted',
+        agentId: null,
+        durationMs: 1,
+      });
+      await ref.current?.getController().onTriggerOutputContextPrettify();
+    });
+
+    expect(runPrettifierRequest).toHaveBeenCalledWith('{\n  "leaf": 1\n}', 'context-pane-prettify');
+    expect(ref.current?.getController().outputPanes).toHaveLength(2);
+    expect(ref.current?.getController().outputPanes[1]).toMatchObject({
+      paneId: 'output-pane-1',
+      value: '{\n  "leaf": 1\n}',
+    });
+  });
+
+  it('resolves XML attribute payloads through the output context menu and opens a child pane', async () => {
+    const inputEditorRef = createInputEditorRef();
+    const ref = { current: null as HarnessHandle | null };
+    render(createElement(ControllerHarness, { inputEditorRef, ref }));
+
+    const controller = ref.current?.getController();
+    const xmlText = '<request payload="{&quot;leaf&quot;:1}" />';
+    const runPrettifierRequest = usePrettifierFlowMock.mock.results[0]?.value
+      ?.runPrettifierRequest as ReturnType<typeof vi.fn>;
+
+    act(() => {
+      controller?.onOutputPaneContextMenu(
+        'output-root-pane',
+        {
+          anchorX: 28,
+          anchorY: 36,
+          isContentHit: true,
+          position: { lineNumber: 1, column: 10 },
+          hasSelection: false,
+        },
+        xmlText,
+      );
+    });
+
+    expect(ref.current?.getController().outputContextMenuState?.target).toMatchObject({
+      label: 'payload',
+      decodedText: '{"leaf":1}',
+      paneDocumentLanguage: 'xml',
+    });
+
+    await act(async () => {
+      runPrettifierRequest.mockResolvedValueOnce({
+        status: 'applied-local',
+        outputText: '{\n  "leaf": 1\n}',
+        localDetection: 'json',
+        fallbackStatus: 'not-attempted',
+        agentId: null,
+        durationMs: 1,
+      });
+      await ref.current?.getController().onTriggerOutputContextPrettify();
+    });
+
+    expect(runPrettifierRequest).toHaveBeenCalledWith('{"leaf":1}', 'context-pane-prettify');
+    expect(ref.current?.getController().outputPanes).toHaveLength(2);
+    expect(ref.current?.getController().outputPanes[1]).toMatchObject({
+      paneId: 'output-pane-1',
+      value: '{\n  "leaf": 1\n}',
+    });
+  });
+
+  it('resolves SQL string literals through the output context menu and opens a child pane', async () => {
+    const inputEditorRef = createInputEditorRef();
+    const ref = { current: null as HarnessHandle | null };
+    render(createElement(ControllerHarness, { inputEditorRef, ref }));
+
+    const controller = ref.current?.getController();
+    const sqlText = 'select * from requests where payload = \'{"leaf":1}\';';
+    const runPrettifierRequest = usePrettifierFlowMock.mock.results[0]?.value
+      ?.runPrettifierRequest as ReturnType<typeof vi.fn>;
+
+    act(() => {
+      controller?.onOutputPaneContextMenu(
+        'output-root-pane',
+        {
+          anchorX: 30,
+          anchorY: 38,
+          isContentHit: true,
+          position: { lineNumber: 1, column: 30 },
+          hasSelection: false,
+        },
+        sqlText,
+      );
+    });
+
+    expect(ref.current?.getController().outputContextMenuState?.target).toMatchObject({
+      label: 'payload',
+      decodedText: '{"leaf":1}',
+      paneDocumentLanguage: 'sql',
+    });
+
+    await act(async () => {
+      runPrettifierRequest.mockResolvedValueOnce({
+        status: 'applied-local',
+        outputText: '{\n  "leaf": 1\n}',
+        localDetection: 'json',
+        fallbackStatus: 'not-attempted',
+        agentId: null,
+        durationMs: 1,
+      });
+      await ref.current?.getController().onTriggerOutputContextPrettify();
+    });
+
+    expect(runPrettifierRequest).toHaveBeenCalledWith('{"leaf":1}', 'context-pane-prettify');
+    expect(ref.current?.getController().outputPanes).toHaveLength(2);
+    expect(ref.current?.getController().outputPanes[1]).toMatchObject({
+      paneId: 'output-pane-1',
+      value: '{\n  "leaf": 1\n}',
+    });
+  });
+
   it('resets pane and renderer state on current-window reset', () => {
     const inputEditorRef = createInputEditorRef();
     const ref = { current: null as HarnessHandle | null };
@@ -307,6 +637,7 @@ describe('useAppController', () => {
         progressLines: ['working...'],
       },
       cancelActiveFallback: vi.fn().mockResolvedValue(undefined),
+      runPrettifierRequest: vi.fn().mockResolvedValue(null),
       runPrettifier: vi.fn(),
       ingestInputText: vi.fn(),
       resetPrettifierState: vi.fn(),

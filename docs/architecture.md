@@ -53,14 +53,19 @@
   - top-level renderer composition seam
 - `src/renderer/app/usePrettifierFlow.ts`
   - session-backed prettifier orchestration
+- `src/renderer/app/usePrettifierRequestFlow.ts`
+  - shared renderer prettify-request orchestration, including fallback prompts and cancelation
 - `src/renderer/app/usePreferencesFlow.ts`
   - preferences hydration and optimistic persistence
 - `src/renderer/app/useOutputPaneController.ts`
   - session-backed output-pane orchestration plus runtime focus/handle coordination
+- `src/renderer/app/outputContextMenuDomain.ts`
+  - renderer-owned output context-menu state helpers
 - `src/renderer/components/*`
   - view seams and focused renderer runtimes
 - `src/renderer/output/*`
   - Monaco runtime helpers shared by output mode
+  - output context-prettify target resolution for the supported syntax families
 
 ## Core Runtime Flows
 
@@ -76,9 +81,10 @@
 2. The document session owns renderer-visible input/output, wait, modal, and pane state.
 3. Renderer runs the shared local parser first.
 4. Pure prettifier session/domain helpers decide local success, passthrough, fallback prompts, and reindent transitions.
-5. If local parsing fails and fallback is allowed, the prettifier runtime calls main over IPC.
-6. Main executes the configured fallback agent and streams progress back by request id.
-7. Renderer shows a wait screen, supports cancel, and applies the final result or passthrough through session state.
+5. `usePrettifierRequestFlow` owns request ids, stale-response guards, fallback wait state, and IPC calls for both root-output prettify and pane-targeted prettify.
+6. If local parsing fails and fallback is allowed, the prettifier runtime calls main over IPC.
+7. Main executes the configured fallback agent and streams progress back by request id.
+8. Renderer shows a wait screen, supports cancel, and applies the final result or passthrough through session state or the targeted output pane.
 
 ### Preferences Flow
 
@@ -112,6 +118,10 @@
 - Monaco output behavior
   - start in `src/renderer/components/useOutputEditorRuntime.ts`
   - shared Monaco helpers stay in `src/renderer/output/*`
+- Output context menu behavior
+  - start in `src/renderer/components/useOutputEditorRuntime.ts`
+  - keep target resolution in `src/renderer/output/*`
+  - keep menu state and action orchestration in `src/renderer/app/*`
 - Split-pane viewport behavior
   - start in `src/renderer/components/useOutputPaneViewportRuntime.ts`
   - keep `src/renderer/components/OutputPaneStrip.tsx` render-only where possible

@@ -10,6 +10,7 @@ You are an experienced staff software engineer, a master craftman of clean code 
 - **`./docs/specs/*` can be ambiguous or incomplete** - Always ask clarifying questions.
 - **Code is the source of truth** - `./docs/specs/*` are not source of truth and may be stale after implementation.
 - **Do not read `./docs/specs/*` unless explicitly instructed** - Never use old specs as default guidance for current behavior or architecture. Use the codebase as the source of truth unless the user explicitly tells you to read a specific spec file.
+- **When writing a new spec, do not inspect older specs for similar features unless explicitly asked** - Existing or historical spec files must not influence product or architecture decisions unless the user explicitly asks for comparison, migration, or historical review.
 
 ## Project Documentation
 

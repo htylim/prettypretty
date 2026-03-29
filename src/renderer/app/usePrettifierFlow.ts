@@ -1,44 +1,35 @@
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback } from 'react';
 import type { IndentSize } from '../../shared/preferences';
-import type { PrettifyTrigger, PrettifierProgressEvent } from '../../shared/prettifier';
+import type { PrettifyRunResponse, PrettifyTrigger } from '../../shared/prettifier';
 import type { TelemetryEventName } from '../../shared/telemetry';
 import type { PaneMode } from '../../shared/types';
 import type { WindowApi } from '../../shared/window-api';
 import {
   EMPTY_FILE_NOTICE,
-  appendFallbackProgressLine,
   type FallbackAgentOption,
   type FallbackWaitState,
   type IngestSource,
-  getConfiguredFallbackAgentFromSelection,
   getIngestEventName,
   getIngestTrigger,
   isFileIngestSource,
 } from './appDomain';
-import { reportRendererError } from './reportRendererError';
 import {
-  selectFallbackWaitState,
   selectInputText,
   selectLastPrettifiedInput,
   selectOutputText,
   selectPaneMode,
 } from './session/documentSessionSelectors';
 import { useDocumentSession } from './session/useDocumentSession';
-import { usePrettifierRuntime } from './session/usePrettifierRuntime';
 import {
   applyLocalPrettifyOutput,
   applyPassthroughOutput,
   applyRemotePrettifyOutput,
   createEmptyOutputFormattingState,
-  createFallbackWaitState,
   createOutputReindentTransition,
-  getLineCount,
-  shouldPromptForFallbackConfirmation,
-  shouldRequestFallbackAgentSelection,
-  type OutputReindentSnapshot,
   type PrettifierSessionState,
+  type OutputReindentSnapshot,
 } from './session/prettifierSessionDomain';
-import { createPrettifierService } from '../prettifier/prettifierService';
+import { usePrettifierRequestFlow } from './usePrettifierRequestFlow';
 
 type PrettifierRunOptions = {
   switchToOutputOnComplete: boolean;
@@ -62,6 +53,10 @@ export type UsePrettifierFlowResult = {
   isLlmRunning: boolean;
   fallbackWaitState: FallbackWaitState | null;
   cancelActiveFallback: () => Promise<void>;
+  runPrettifierRequest: (
+    nextInputText: string,
+    trigger: PrettifyTrigger,
+  ) => Promise<PrettifyRunResponse | null>;
   runPrettifier: (
     nextInputText: string,
     trigger: PrettifyTrigger,
@@ -82,13 +77,6 @@ export type UsePrettifierFlowResult = {
   ) => void;
 };
 
-const isLatestPrettifyRequest = (
-  requestId: number,
-  latestRequestIdRef: { current: number },
-): boolean => {
-  return requestId === latestRequestIdRef.current;
-};
-
 /**
  * Owns renderer-side prettifier orchestration while session state stores the
  * visible output, wait state, and last-successful input.
@@ -103,74 +91,79 @@ export const usePrettifierFlow = ({
   requestFallbackAgentSelection,
   logTelemetry,
 }: UsePrettifierFlowOptions): UsePrettifierFlowResult => {
-  const latestPrettifyRequestIdRef = useRef(0);
-  const activeFallbackRequestIdRef = useRef<number | null>(null);
-  const prettifierService = useMemo(() => createPrettifierService(indentSize), [indentSize]);
-
   const paneMode = useDocumentSession(selectPaneMode);
   const inputText = useDocumentSession(selectInputText);
   const outputText = useDocumentSession(selectOutputText);
-  const fallbackWaitState = useDocumentSession(selectFallbackWaitState);
   const lastPrettifiedInput = useDocumentSession(selectLastPrettifiedInput);
   const setPaneMode = useDocumentSession((state) => state.setPaneMode);
   const setInputText = useDocumentSession((state) => state.setInputText);
   const setIngestNotice = useDocumentSession((state) => state.setIngestNotice);
   const setOutputText = useDocumentSession((state) => state.setOutputText);
   const setOutputFormattingState = useDocumentSession((state) => state.setOutputFormattingState);
-  const setFallbackWaitState = useDocumentSession((state) => state.setFallbackWaitState);
   const setLastPrettifiedInput = useDocumentSession((state) => state.setLastPrettifiedInput);
 
-  const isLlmRunning = fallbackWaitState !== null;
+  const requestFlow = usePrettifierRequestFlow({
+    indentSize,
+    fallbackWarningLineThreshold,
+    fallbackAgentId,
+    fallbackAgentOptions,
+    getWindowApi,
+    requestFallbackConfirmation,
+    requestFallbackAgentSelection,
+    logTelemetry,
+  });
 
   const applyTransientOutputState = useCallback(
     (nextState: PrettifierSessionState): void => {
       setOutputText(nextState.outputText);
       setOutputFormattingState(nextState.outputFormattingState);
-      setFallbackWaitState(nextState.fallbackWaitState);
       setLastPrettifiedInput(nextState.lastPrettifiedInput);
     },
-    [setFallbackWaitState, setLastPrettifiedInput, setOutputFormattingState, setOutputText],
+    [setLastPrettifiedInput, setOutputFormattingState, setOutputText],
   );
 
   const clearTransientOutputState = useCallback(
     (nextOutputText: string): void => {
-      latestPrettifyRequestIdRef.current += 1;
       setOutputText(nextOutputText);
       setOutputFormattingState(createEmptyOutputFormattingState());
-      setFallbackWaitState(null);
       setLastPrettifiedInput(null);
     },
-    [setFallbackWaitState, setLastPrettifiedInput, setOutputFormattingState, setOutputText],
+    [setLastPrettifiedInput, setOutputFormattingState, setOutputText],
   );
 
-  const takeActiveFallbackRequestId = useCallback((): number | null => {
-    const activeRequestId = activeFallbackRequestIdRef.current;
-    activeFallbackRequestIdRef.current = null;
-
-    return activeRequestId;
-  }, []);
-
-  const handlePrettifierProgress = useCallback(
-    (event: PrettifierProgressEvent): void => {
+  const applyPrettifyResponse = useCallback(
+    (response: PrettifyRunResponse): void => {
       const currentState = useDocumentSession.getState();
-      const waitState = currentState.fallbackWaitState;
-      if (!waitState || waitState.requestId !== event.requestId) {
+
+      if (response.status === 'applied-local') {
+        applyTransientOutputState(
+          applyLocalPrettifyOutput(
+            currentState,
+            currentState.outputText,
+            response.outputText,
+            indentSize,
+          ),
+        );
         return;
       }
 
-      setFallbackWaitState({
-        ...waitState,
-        progressLines: appendFallbackProgressLine(waitState.progressLines, event.line),
-      });
-    },
-    [setFallbackWaitState],
-  );
+      if (response.status === 'applied-fallback') {
+        applyTransientOutputState(
+          applyRemotePrettifyOutput(
+            currentState,
+            currentState.outputText,
+            response.outputText,
+            indentSize,
+            response.status,
+          ),
+        );
+        return;
+      }
 
-  const { runPrettifier: runPrettifierRequest, cancelPrettifierFallback: cancelFallbackRequest } =
-    usePrettifierRuntime({
-      getWindowApi,
-      onProgress: handlePrettifierProgress,
-    });
+      applyTransientOutputState(applyPassthroughOutput(currentState, response.outputText));
+    },
+    [applyTransientOutputState, indentSize],
+  );
 
   const showOutputIfRequested = useCallback(
     (shouldSwitchToOutput: boolean): void => {
@@ -183,38 +176,21 @@ export const usePrettifierFlow = ({
 
   const resetToInputState = useCallback(
     (notice?: string | null): void => {
-      const activeRequestId = takeActiveFallbackRequestId();
-      if (activeRequestId !== null) {
-        void cancelFallbackRequest(activeRequestId);
-      }
-
+      void requestFlow.cancelActiveFallback();
       clearTransientOutputState('');
       setPaneMode('input');
       if (notice !== undefined) {
         setIngestNotice(notice);
       }
     },
-    [
-      cancelFallbackRequest,
-      clearTransientOutputState,
-      setIngestNotice,
-      setPaneMode,
-      takeActiveFallbackRequestId,
-    ],
+    [clearTransientOutputState, requestFlow, setIngestNotice, setPaneMode],
   );
 
   const cancelActiveFallback = useCallback(async (): Promise<void> => {
-    if (activeFallbackRequestIdRef.current === null) {
-      return;
-    }
-
-    const activeRequestId = takeActiveFallbackRequestId();
+    await requestFlow.cancelActiveFallback();
     clearTransientOutputState('');
     setPaneMode('input');
-    if (activeRequestId !== null) {
-      await cancelFallbackRequest(activeRequestId);
-    }
-  }, [cancelFallbackRequest, clearTransientOutputState, setPaneMode, takeActiveFallbackRequestId]);
+  }, [clearTransientOutputState, requestFlow, setPaneMode]);
 
   const runPrettifier = useCallback(
     async (
@@ -222,190 +198,25 @@ export const usePrettifierFlow = ({
       trigger: PrettifyTrigger,
       options: PrettifierRunOptions,
     ): Promise<void> => {
-      if (activeFallbackRequestIdRef.current !== null) {
-        const previousRequestId = takeActiveFallbackRequestId();
-        if (previousRequestId !== null) {
-          void cancelFallbackRequest(previousRequestId);
-        }
-      }
-
-      const requestId = latestPrettifyRequestIdRef.current + 1;
-      latestPrettifyRequestIdRef.current = requestId;
       setOutputText(nextInputText);
       setOutputFormattingState(createEmptyOutputFormattingState());
-      setFallbackWaitState(null);
       setLastPrettifiedInput(null);
 
-      const localResult = prettifierService.prettifyDetailed(nextInputText);
-      void logTelemetry('renderer.prettifier.local.result', {
-        trigger,
-        inputLength: nextInputText.length,
-        localDetection: localResult.localDetection,
-        localResultKind: localResult.kind,
-      });
-
-      if (localResult.kind === 'applied') {
-        if (!isLatestPrettifyRequest(requestId, latestPrettifyRequestIdRef)) {
-          return;
-        }
-
-        applyTransientOutputState(
-          applyLocalPrettifyOutput(
-            useDocumentSession.getState(),
-            nextInputText,
-            localResult.outputText,
-            indentSize,
-          ),
-        );
-        showOutputIfRequested(options.switchToOutputOnComplete);
+      const response = await requestFlow.requestPrettifier(nextInputText, trigger);
+      if (!response) {
         return;
       }
 
-      const api = getWindowApi();
-      if (!api) {
-        if (!isLatestPrettifyRequest(requestId, latestPrettifyRequestIdRef)) {
-          return;
-        }
-
-        applyTransientOutputState(
-          applyPassthroughOutput(useDocumentSession.getState(), nextInputText),
-        );
-        showOutputIfRequested(options.switchToOutputOnComplete);
-        return;
-      }
-
-      const configuredFallbackAgent = getConfiguredFallbackAgentFromSelection(
-        fallbackAgentId,
-        fallbackAgentOptions,
-      );
-      const hasEnabledFallbackAgentOption = fallbackAgentOptions.some((option) => option.enabled);
-      let effectiveFallbackAgentId = fallbackAgentId;
-      let effectiveFallbackAgent = configuredFallbackAgent;
-
-      if (
-        shouldRequestFallbackAgentSelection(
-          configuredFallbackAgent.shouldWaitForFallback,
-          hasEnabledFallbackAgentOption,
-        )
-      ) {
-        effectiveFallbackAgentId = await requestFallbackAgentSelection();
-        if (!isLatestPrettifyRequest(requestId, latestPrettifyRequestIdRef)) {
-          return;
-        }
-
-        if (!effectiveFallbackAgentId) {
-          applyTransientOutputState(
-            applyPassthroughOutput(useDocumentSession.getState(), nextInputText),
-          );
-          showOutputIfRequested(options.switchToOutputOnComplete);
-          return;
-        }
-
-        effectiveFallbackAgent = getConfiguredFallbackAgentFromSelection(
-          effectiveFallbackAgentId,
-          fallbackAgentOptions,
-        );
-      }
-
-      if (!effectiveFallbackAgent.shouldWaitForFallback) {
-        applyTransientOutputState(
-          applyPassthroughOutput(useDocumentSession.getState(), nextInputText),
-        );
-        showOutputIfRequested(options.switchToOutputOnComplete);
-        return;
-      }
-
-      const lineCount = getLineCount(nextInputText);
-      const shouldPromptForFallback = shouldPromptForFallbackConfirmation(
-        lineCount,
-        fallbackWarningLineThreshold,
-        effectiveFallbackAgent.shouldWaitForFallback,
-      );
-
-      if (shouldPromptForFallback) {
-        const shouldUseFallbackAgent = await requestFallbackConfirmation(lineCount);
-        if (!isLatestPrettifyRequest(requestId, latestPrettifyRequestIdRef)) {
-          return;
-        }
-
-        if (!shouldUseFallbackAgent) {
-          applyTransientOutputState(
-            applyPassthroughOutput(useDocumentSession.getState(), nextInputText),
-          );
-          showOutputIfRequested(options.switchToOutputOnComplete);
-          return;
-        }
-      }
-
-      setFallbackWaitState(
-        createFallbackWaitState(requestId, nextInputText, effectiveFallbackAgent.agentName),
-      );
-      activeFallbackRequestIdRef.current = requestId;
-
-      try {
-        const response = await runPrettifierRequest({
-          requestId,
-          inputText: nextInputText,
-          indentSize,
-          trigger,
-          ...(effectiveFallbackAgentId && effectiveFallbackAgentId !== fallbackAgentId
-            ? { fallbackAgentIdOverride: effectiveFallbackAgentId }
-            : {}),
-        });
-
-        if (!isLatestPrettifyRequest(requestId, latestPrettifyRequestIdRef) || !response) {
-          return;
-        }
-
-        applyTransientOutputState(
-          applyRemotePrettifyOutput(
-            useDocumentSession.getState(),
-            nextInputText,
-            response.outputText,
-            indentSize,
-            response.status,
-          ),
-        );
-        showOutputIfRequested(options.switchToOutputOnComplete);
-      } catch (error) {
-        if (!isLatestPrettifyRequest(requestId, latestPrettifyRequestIdRef)) {
-          return;
-        }
-
-        applyTransientOutputState(
-          applyPassthroughOutput(useDocumentSession.getState(), nextInputText),
-        );
-        showOutputIfRequested(options.switchToOutputOnComplete);
-        reportRendererError('Failed to run prettifier fallback', error);
-      } finally {
-        if (activeFallbackRequestIdRef.current === requestId) {
-          activeFallbackRequestIdRef.current = null;
-        }
-
-        if (isLatestPrettifyRequest(requestId, latestPrettifyRequestIdRef)) {
-          setFallbackWaitState(null);
-        }
-      }
+      applyPrettifyResponse(response);
+      showOutputIfRequested(options.switchToOutputOnComplete);
     },
     [
-      applyTransientOutputState,
-      cancelFallbackRequest,
-      fallbackAgentId,
-      fallbackAgentOptions,
-      fallbackWarningLineThreshold,
-      getWindowApi,
-      indentSize,
-      logTelemetry,
-      requestFallbackAgentSelection,
-      requestFallbackConfirmation,
-      prettifierService,
-      runPrettifierRequest,
-      setFallbackWaitState,
+      applyPrettifyResponse,
+      requestFlow,
       setLastPrettifiedInput,
       setOutputFormattingState,
       setOutputText,
       showOutputIfRequested,
-      takeActiveFallbackRequestId,
     ],
   );
 
@@ -437,12 +248,9 @@ export const usePrettifierFlow = ({
   );
 
   const resetPrettifierState = useCallback(() => {
-    const activeRequestId = takeActiveFallbackRequestId();
-    if (activeRequestId !== null) {
-      void cancelFallbackRequest(activeRequestId);
-    }
+    void requestFlow.cancelActiveFallback();
     clearTransientOutputState('');
-  }, [cancelFallbackRequest, clearTransientOutputState, takeActiveFallbackRequestId]);
+  }, [clearTransientOutputState, requestFlow]);
 
   const isInputAlreadyPrettified = useCallback(
     (input: string): boolean => {
@@ -503,9 +311,10 @@ export const usePrettifierFlow = ({
 
   return {
     outputText,
-    isLlmRunning,
-    fallbackWaitState,
+    isLlmRunning: requestFlow.isLlmRunning,
+    fallbackWaitState: requestFlow.fallbackWaitState,
     cancelActiveFallback,
+    runPrettifierRequest: requestFlow.requestPrettifier,
     runPrettifier,
     ingestInputText,
     resetPrettifierState,

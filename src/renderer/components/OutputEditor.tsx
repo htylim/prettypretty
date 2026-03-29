@@ -7,6 +7,7 @@ import { detectOutputLanguage } from '../output/detectOutputLanguage';
 import { PRETTYPRETTY_DARK_THEME, PRETTYPRETTY_LIGHT_THEME } from '../output/monacoThemes';
 import { getOutputEditorOptions } from '../output/outputEditorConfig';
 import { useOutputEditorRuntime } from './useOutputEditorRuntime';
+import type { OutputEditorContextMenuRequest } from './useOutputEditorRuntime';
 
 export type OutputEditorHandle = {
   collapseAll: () => void;
@@ -23,6 +24,7 @@ type OutputEditorProps = {
   indentSize: IndentSize;
   viewRange?: OutputPaneSourceRange | null | undefined;
   onFocus?: (() => void) | undefined;
+  onContextMenu?: ((request: OutputEditorContextMenuRequest) => void) | undefined;
   testId?: string | undefined;
 };
 
@@ -40,6 +42,7 @@ export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
       indentSize,
       viewRange = null,
       onFocus,
+      onContextMenu,
       testId = 'output-editor',
     },
     ref,
@@ -52,6 +55,7 @@ export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
       viewStateKey,
       viewRange,
       onFocus,
+      onContextMenu,
     });
 
     useImperativeHandle(

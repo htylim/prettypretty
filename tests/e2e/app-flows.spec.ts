@@ -76,6 +76,21 @@ const resetPreferences = async (page: Page): Promise<void> => {
   });
 };
 
+const rightClickOutputLine = async (
+  page: Page,
+  testId: string,
+  lineIndex: number,
+  offsetX = 40,
+): Promise<void> => {
+  const line = page.locator(`[data-testid="${testId}"] .view-line`).nth(lineIndex);
+  const box = await line.boundingBox();
+  if (!box) {
+    throw new Error(`Unable to locate output line ${lineIndex} for ${testId}`);
+  }
+
+  await page.mouse.click(box.x + offsetX, box.y + box.height / 2, { button: 'right' });
+};
+
 test('supports ingest parity for drop and paste', async () => {
   const app = await launchApp();
   const page = await app.firstWindow();
@@ -153,13 +168,339 @@ test('uses passthrough output for malformed content when fallback is disabled', 
       };
     };
 
-    await bridge.prettypretty.preferences.update({ fallbackAgentId: null });
+    await bridge.prettypretty.preferences.update({
+      fallbackAgentId: null,
+      agents: [
+        {
+          id: 'amp',
+          name: 'Amp',
+          executable: 'amp',
+          argsTemplate: ['-x'],
+          promptTemplate: '{input}',
+          promptDelivery: 'stdin',
+          enabled: false,
+          timeoutMs: 30_000,
+          maxOutputBytes: 1_000_000,
+        },
+        {
+          id: 'codex',
+          name: 'Codex',
+          executable: 'codex',
+          argsTemplate: ['exec', '--skip-git-repo-check', '-'],
+          promptTemplate: '{input}',
+          promptDelivery: 'stdin',
+          enabled: false,
+          timeoutMs: 30_000,
+          maxOutputBytes: 1_000_000,
+        },
+      ],
+    });
   });
 
   await dispatchPaste(page, '{bad');
 
   await expect(page.getByTestId('output-editor')).toContainText('{bad');
   await expect(page.getByTestId('fallback-wait-screen')).toHaveCount(0);
+
+  await resetPreferences(page);
+  await app.close();
+});
+
+test('opens a recursive prettify child chain from JSON string scalars', async () => {
+  const app = await launchApp();
+  const page = await app.firstWindow();
+  await page.waitForLoadState('domcontentloaded');
+  await resetPreferences(page);
+
+  await dispatchPaste(
+    page,
+    JSON.stringify({
+      payload: JSON.stringify({
+        deeper: JSON.stringify({
+          leaf: 1,
+        }),
+      }),
+    }),
+  );
+
+  await expect(page.getByTestId('output-editor')).toContainText('"payload"');
+
+  await rightClickOutputLine(page, 'output-editor', 1, 80);
+  await expect(page.getByTestId('output-context-menu-prettify')).toHaveText('Prettify payload...');
+  await page.getByTestId('output-context-menu-prettify').click();
+
+  await expect(page.getByTestId('output-editor-pane-1')).toContainText('"deeper": "{');
+
+  await rightClickOutputLine(page, 'output-editor-pane-1', 1, 80);
+  await expect(page.getByTestId('output-context-menu-prettify')).toHaveText('Prettify deeper...');
+  await page.getByTestId('output-context-menu-prettify').click();
+
+  await expect(page.getByTestId('output-editor-pane-2')).toContainText('"leaf": 1');
+
+  await resetPreferences(page);
+  await app.close();
+});
+
+test('resolves YAML block scalars from the output context menu and opens a child pane', async () => {
+  const app = await launchApp();
+  const page = await app.firstWindow();
+  await page.waitForLoadState('domcontentloaded');
+  await resetPreferences(page);
+
+  await page.evaluate(async () => {
+    const bridge = globalThis as unknown as {
+      prettypretty: {
+        preferences: {
+          update: (patch: unknown) => Promise<unknown>;
+        };
+      };
+    };
+
+    await bridge.prettypretty.preferences.update({
+      fallbackAgentId: null,
+      agents: [
+        {
+          id: 'amp',
+          name: 'Amp',
+          executable: 'amp',
+          argsTemplate: ['-x'],
+          promptTemplate: '{input}',
+          promptDelivery: 'stdin',
+          enabled: false,
+          timeoutMs: 30_000,
+          maxOutputBytes: 1_000_000,
+        },
+        {
+          id: 'codex',
+          name: 'Codex',
+          executable: 'codex',
+          argsTemplate: ['exec', '--skip-git-repo-check', '-'],
+          promptTemplate: '{input}',
+          promptDelivery: 'stdin',
+          enabled: false,
+          timeoutMs: 30_000,
+          maxOutputBytes: 1_000_000,
+        },
+      ],
+    });
+  });
+  await page.reload();
+  await page.waitForLoadState('domcontentloaded');
+
+  await dispatchPaste(page, 'name: hello-world');
+
+  await expect(page.getByTestId('output-editor')).toContainText('name: hello-world');
+
+  await rightClickOutputLine(page, 'output-editor', 0, 10);
+  await expect(page.getByTestId('output-context-menu-prettify')).toHaveText('Prettify name...');
+  await page.getByTestId('output-context-menu-prettify').click();
+
+  await expect(page.getByTestId('output-editor-pane-1')).toContainText('hello-world');
+
+  await resetPreferences(page);
+  await app.close();
+});
+
+test('resolves JavaScript string bindings from the output context menu and opens a child pane', async () => {
+  const app = await launchApp();
+  const page = await app.firstWindow();
+  await page.waitForLoadState('domcontentloaded');
+  await resetPreferences(page);
+
+  await page.evaluate(async () => {
+    const bridge = globalThis as unknown as {
+      prettypretty: {
+        preferences: {
+          update: (patch: unknown) => Promise<unknown>;
+        };
+      };
+    };
+
+    await bridge.prettypretty.preferences.update({
+      fallbackAgentId: null,
+      agents: [
+        {
+          id: 'amp',
+          name: 'Amp',
+          executable: 'amp',
+          argsTemplate: ['-x'],
+          promptTemplate: '{input}',
+          promptDelivery: 'stdin',
+          enabled: false,
+          timeoutMs: 30_000,
+          maxOutputBytes: 1_000_000,
+        },
+        {
+          id: 'codex',
+          name: 'Codex',
+          executable: 'codex',
+          argsTemplate: ['exec', '--skip-git-repo-check', '-'],
+          promptTemplate: '{input}',
+          promptDelivery: 'stdin',
+          enabled: false,
+          timeoutMs: 30_000,
+          maxOutputBytes: 1_000_000,
+        },
+      ],
+    });
+  });
+  await page.reload();
+  await page.waitForLoadState('domcontentloaded');
+
+  await dispatchPaste(page, 'const query = "{\\"leaf\\":1}";');
+
+  await expect(page.getByTestId('output-editor')).toContainText('const query');
+
+  await rightClickOutputLine(page, 'output-editor', 0, 55);
+  await expect(page.getByTestId('output-context-menu-prettify')).toHaveText('Prettify query...');
+  await page.getByTestId('output-context-menu-prettify').click();
+
+  await expect(page.getByTestId('output-editor-pane-1')).toContainText('"leaf": 1');
+
+  await resetPreferences(page);
+  await app.close();
+});
+
+test('resolves GraphQL block string values from the output context menu and opens a child pane', async () => {
+  const app = await launchApp();
+  const page = await app.firstWindow();
+  await page.waitForLoadState('domcontentloaded');
+  await resetPreferences(page);
+
+  await page.evaluate(async () => {
+    const bridge = globalThis as unknown as {
+      prettypretty: {
+        preferences: {
+          update: (patch: unknown) => Promise<unknown>;
+        };
+      };
+    };
+
+    await bridge.prettypretty.preferences.update({ fallbackAgentId: null });
+  });
+
+  await dispatchPaste(
+    page,
+    'mutation Update {\n  update(payload: """\n    {\n      "leaf": 1\n    }\n  """)\n}',
+  );
+
+  await expect(page.getByTestId('output-editor')).toContainText('payload:');
+
+  await rightClickOutputLine(page, 'output-editor', 1, 90);
+  await expect(page.getByTestId('output-context-menu-prettify')).toHaveText('Prettify payload...');
+  await page.getByTestId('output-context-menu-prettify').click();
+
+  await expect(page.getByTestId('output-editor-pane-1')).toContainText('"leaf": 1');
+
+  await resetPreferences(page);
+  await app.close();
+});
+
+test('resolves XML attribute values from the output context menu and opens a child pane', async () => {
+  const app = await launchApp();
+  const page = await app.firstWindow();
+  await page.waitForLoadState('domcontentloaded');
+  await resetPreferences(page);
+
+  await page.evaluate(async () => {
+    const bridge = globalThis as unknown as {
+      prettypretty: {
+        preferences: {
+          update: (patch: unknown) => Promise<unknown>;
+        };
+      };
+    };
+
+    await bridge.prettypretty.preferences.update({ fallbackAgentId: null });
+  });
+
+  await dispatchPaste(page, '<request payload="{&quot;leaf&quot;:1}" />');
+
+  await expect(page.getByTestId('output-editor')).toContainText('payload=');
+
+  await rightClickOutputLine(page, 'output-editor', 0, 95);
+  await expect(page.getByTestId('output-context-menu-prettify')).toHaveText('Prettify payload...');
+  await page.getByTestId('output-context-menu-prettify').click();
+
+  await expect(page.getByTestId('output-editor-pane-1')).toContainText('"leaf": 1');
+
+  await resetPreferences(page);
+  await app.close();
+});
+
+test('resolves SQL quoted string literals from the output context menu and opens a child pane', async () => {
+  const app = await launchApp();
+  const page = await app.firstWindow();
+  await page.waitForLoadState('domcontentloaded');
+  await resetPreferences(page);
+
+  await page.evaluate(async () => {
+    const bridge = globalThis as unknown as {
+      prettypretty: {
+        preferences: {
+          update: (patch: unknown) => Promise<unknown>;
+        };
+      };
+    };
+
+    await bridge.prettypretty.preferences.update({
+      fallbackAgentId: null,
+      agents: [
+        {
+          id: 'amp',
+          name: 'Amp',
+          executable: 'amp',
+          argsTemplate: ['-x'],
+          promptTemplate: '{input}',
+          promptDelivery: 'stdin',
+          enabled: false,
+          timeoutMs: 30_000,
+          maxOutputBytes: 1_000_000,
+        },
+        {
+          id: 'codex',
+          name: 'Codex',
+          executable: 'codex',
+          argsTemplate: ['exec', '--skip-git-repo-check', '-'],
+          promptTemplate: '{input}',
+          promptDelivery: 'stdin',
+          enabled: false,
+          timeoutMs: 30_000,
+          maxOutputBytes: 1_000_000,
+        },
+      ],
+    });
+  });
+  await page.reload();
+  await page.waitForLoadState('domcontentloaded');
+
+  await dispatchPaste(page, 'select * from requests where payload = \'{"leaf":1}\';');
+
+  await expect(page.getByTestId('output-editor')).toContainText('payload =');
+
+  await rightClickOutputLine(page, 'output-editor', 0, 280);
+  await expect(page.getByTestId('output-context-menu-prettify')).toHaveText('Prettify payload...');
+  await page.getByTestId('output-context-menu-prettify').click();
+
+  await page.waitForSelector('[data-testid="output-editor-pane-1"]');
+  await expect(page.getByTestId('output-editor-pane-1')).toContainText('"leaf": 1');
+
+  await resetPreferences(page);
+  await app.close();
+});
+
+test('keeps the context-menu action disabled when the output editor has a selection', async () => {
+  const app = await launchApp();
+  const page = await app.firstWindow();
+  await page.waitForLoadState('domcontentloaded');
+  await resetPreferences(page);
+
+  await dispatchPaste(page, '{"payload":"{\\"leaf\\":1}"}');
+  await page.locator('[data-testid="output-editor"] .view-line').nth(1).click();
+  await page.keyboard.press(process.platform === 'darwin' ? 'Meta+A' : 'Control+A');
+
+  await rightClickOutputLine(page, 'output-editor', 1, 80);
+  await expect(page.getByTestId('output-context-menu-prettify')).toBeDisabled();
 
   await resetPreferences(page);
   await app.close();

@@ -76,6 +76,7 @@
   - Python-like dict literals
 - If local parsing succeeds, output updates immediately.
 - If local parsing fails and fallback is available, renderer calls main-process fallback execution.
+- Pane-targeted prettify support is phase-shipped by syntax family; shipped support covers JSON/NDJSON, YAML, JavaScript/TypeScript string literals, GraphQL string values, XML attribute/text payloads, and SQL quoted string literals.
 
 ## Fallback Behavior
 
@@ -95,3 +96,13 @@
 - Output uses inline fold controls instead of Monaco gutter fold controls.
 - Holding literal `Ctrl` changes the inline fold action to direct-child expand/collapse.
 - `Save` and `Copy` always operate on the root output text.
+- Right-clicking an output pane opens a context menu with `Prettify ...`.
+- The action is enabled only for semantic string scalars that decode to concrete non-empty text.
+- Any active selection in that pane disables the action.
+- `plaintext` and `markdown` keep the action disabled.
+- YAML supports quoted scalars, plain string scalars, and block scalars.
+- JavaScript and TypeScript support quoted string literals and template literals only when they have no interpolation.
+- GraphQL supports quoted string values and block string values.
+- XML supports attribute values plus direct text-node and CDATA payloads when the adapter can treat them as concrete string content.
+- SQL supports quoted string literals when the adapter can resolve a concrete string payload.
+- Triggering the action opens the result in the clicked pane's direct child.

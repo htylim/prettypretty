@@ -39,6 +39,13 @@ These are the durable patterns worth keeping in mind when changing the codebase.
 - Execute fallback agents only in the main process.
 - Enforce timeout, output-size limits, and process cleanup for fallback runs.
 - Correlate fallback progress and completion by request id.
+- For pane-targeted prettify flows, only enable the action for semantic string scalars that can be decoded to a concrete string value. If decoding is ambiguous or would no-op, keep the action disabled.
+- Keep pane-targeted prettify orchestration shared with root-output prettify so fallback prompts, wait state, and stale-response guards stay consistent.
+- Treat YAML plain scalars conservatively. Support quoted and block scalars directly, but keep ambiguous plain scalars disabled unless the adapter can prove they are semantic strings.
+- Use a syntax-aware parser for JavaScript/TypeScript target resolution so plain template literals can be distinguished from interpolated ones without string slicing heuristics.
+- For GraphQL, a lightweight token scan is enough when it only claims string values and block strings; keep labels tied to direct `name: value` pairs and leave other regions generic or disabled.
+- For XML, a raw-text structural scan is enough when it only claims quoted attribute values plus direct text or CDATA payloads, and it must bail out on malformed nesting instead of guessing.
+- For SQL, a lightweight scanner is enough when it only claims single-quoted string literals; keep label derivation conservative and bail out on malformed strings or comments.
 
 ## Testing and Docs
 
@@ -46,3 +53,4 @@ These are the durable patterns worth keeping in mind when changing the codebase.
 - `pnpm check` is the baseline local gate.
 - Run `pnpm test:e2e` when behavior depends on Electron runtime, windows, menus, or preload.
 - Keep onboarding docs concise and current; move history and deep implementation detail out of the main docs.
+- When drafting a new spec, treat current code and current docs as the source of truth. Historical spec files are archival context only and must not drive new architecture decisions unless explicitly requested.

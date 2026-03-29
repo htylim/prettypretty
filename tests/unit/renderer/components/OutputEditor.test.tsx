@@ -28,6 +28,7 @@ const {
   focusMouseDownDisposeMock,
   hiddenAreasDisposeMock,
   focusWidgetDisposeMock,
+  contextMenuDisposeMock,
 } = vi.hoisted(() => ({
   prepareMonacoEditorRuntimeMock: vi.fn(),
   retainSharedEditorModelMock: vi.fn(),
@@ -57,6 +58,7 @@ const {
   focusMouseDownDisposeMock: vi.fn(),
   hiddenAreasDisposeMock: vi.fn(),
   focusWidgetDisposeMock: vi.fn(),
+  contextMenuDisposeMock: vi.fn(),
 }));
 
 vi.mock('../../../../src/renderer/output/monacoEditorRuntime', () => ({
@@ -149,6 +151,14 @@ const editorMock = {
     focusWidgetListener = listener;
     return { dispose: focusWidgetDisposeMock };
   },
+  onDidChangeCursorSelection: (listener: () => void): { dispose: () => void } => {
+    void listener;
+    return { dispose: vi.fn() };
+  },
+  getSelection: () => ({
+    isEmpty: () => true,
+  }),
+  onContextMenu: () => ({ dispose: contextMenuDisposeMock }),
 } as unknown as MonacoEditor.IStandaloneCodeEditor;
 
 const monacoMock = {} as unknown as typeof import('monaco-editor');
@@ -213,6 +223,7 @@ describe('OutputEditor', () => {
     focusMouseDownDisposeMock.mockClear();
     hiddenAreasDisposeMock.mockClear();
     focusWidgetDisposeMock.mockClear();
+    contextMenuDisposeMock.mockClear();
   });
 
   it('renders Monaco in read-only mode with line numbers and a pane-specific model path', () => {

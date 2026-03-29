@@ -68,6 +68,7 @@ const createProps = (
   activeOutputPaneId: 'output-root-pane',
   outputLeftVisiblePaneIndex: 0,
   outputPaneFocusRequest: null,
+  outputContextMenuState: null,
   ingestNotice: null,
   fallbackWaitState: null,
   inputEditorRef: createInputEditorRef(),
@@ -78,6 +79,9 @@ const createProps = (
   onCancelFallbackWait: vi.fn(),
   onOutputPaneHandleChange: vi.fn(),
   onOutputPaneFocus: vi.fn(),
+  onOutputPaneContextMenu: vi.fn(),
+  onDismissOutputContextMenu: vi.fn(),
+  onTriggerOutputContextPrettify: vi.fn(),
   onNavigateOutputPaneViewport: vi.fn(),
   ...overrides,
 });

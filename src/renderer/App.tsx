@@ -53,6 +53,7 @@ export const App = () => {
           activeOutputPaneId={controller.activeOutputPaneId}
           outputLeftVisiblePaneIndex={controller.outputLeftVisiblePaneIndex}
           outputPaneFocusRequest={controller.outputPaneFocusRequest}
+          outputContextMenuState={controller.outputContextMenuState}
           ingestNotice={controller.ingestNotice}
           fallbackWaitState={controller.fallbackWaitState}
           inputEditorRef={inputEditorRef}
@@ -63,6 +64,9 @@ export const App = () => {
           onCancelFallbackWait={() => void controller.onCancelActiveFallback()}
           onOutputPaneHandleChange={controller.onOutputPaneHandleChange}
           onOutputPaneFocus={controller.onOutputPaneFocus}
+          onOutputPaneContextMenu={controller.onOutputPaneContextMenu}
+          onDismissOutputContextMenu={controller.onDismissOutputContextMenu}
+          onTriggerOutputContextPrettify={controller.onTriggerOutputContextPrettify}
           onNavigateOutputPaneViewport={controller.onNavigateOutputPaneViewport}
         />
       </div>

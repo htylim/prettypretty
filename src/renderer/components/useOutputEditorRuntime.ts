@@ -18,6 +18,18 @@ type OutputEditorRuntimeOptions = {
   viewStateKey: string;
   viewRange?: OutputPaneSourceRange | null | undefined;
   onFocus?: (() => void) | undefined;
+  onContextMenu?: ((request: OutputEditorContextMenuRequest) => void) | undefined;
+};
+
+export type OutputEditorContextMenuRequest = {
+  anchorX: number;
+  anchorY: number;
+  isContentHit: boolean;
+  position: {
+    lineNumber: number;
+    column: number;
+  } | null;
+  hasSelection: boolean;
 };
 
 export type OutputEditorRuntime = {
@@ -43,16 +55,20 @@ export const useOutputEditorRuntime = ({
   viewStateKey,
   viewRange = null,
   onFocus,
+  onContextMenu,
 }: OutputEditorRuntimeOptions): OutputEditorRuntime => {
   const editorRef = useRef<MonacoEditor.IStandaloneCodeEditor | null>(null);
   const currentViewStateKeyRef = useRef(viewStateKey);
   const latestViewStateKeyRef = useRef(viewStateKey);
   const focusHandlerRef = useRef<typeof onFocus>(onFocus);
+  const contextMenuHandlerRef = useRef<typeof onContextMenu>(onContextMenu);
   const sourceViewRangeRef = useRef(viewRange);
   const activeViewRangeRef = useRef(viewRange);
   const latestViewRangeRef = useRef(viewRange);
   const pendingEditorFocusRef = useRef(false);
   const hiddenAreaResetSourceRef = useRef({});
+  const hasSelectionRef = useRef(false);
+  const rightClickSelectionRef = useRef(false);
   const interactionDisposablesRef = useRef<Array<{ dispose: () => void }>>([]);
   const didCleanupRef = useRef(false);
 
@@ -61,6 +77,10 @@ export const useOutputEditorRuntime = ({
   useEffect(() => {
     focusHandlerRef.current = onFocus;
   }, [onFocus]);
+
+  useEffect(() => {
+    contextMenuHandlerRef.current = onContextMenu;
+  }, [onContextMenu]);
 
   useEffect(() => {
     latestViewStateKeyRef.current = viewStateKey;
@@ -199,6 +219,9 @@ export const useOutputEditorRuntime = ({
 
       const nextInteractionDisposables: Array<{ dispose: () => void }> = [
         registerInlineFoldControls(editor),
+        editor.onDidChangeCursorSelection((event) => {
+          hasSelectionRef.current = !event.selection.isEmpty();
+        }),
         editor.onDidChangeHiddenAreas(() => {
           applyOutputViewRange(
             editor,
@@ -206,11 +229,35 @@ export const useOutputEditorRuntime = ({
             hiddenAreaResetSourceRef.current,
           );
         }),
-        editor.onMouseDown(() => {
+        editor.onMouseDown((event) => {
+          if (event.event.rightButton) {
+            rightClickSelectionRef.current = hasSelectionRef.current;
+          } else {
+            rightClickSelectionRef.current = false;
+          }
           handleEditorFocus();
         }),
         editor.onDidFocusEditorWidget(() => {
           handleEditorFocus();
+        }),
+        editor.onContextMenu((event) => {
+          event.event.preventDefault();
+          event.event.stopPropagation();
+          contextMenuHandlerRef.current?.({
+            anchorX: event.event.posx,
+            anchorY: event.event.posy,
+            isContentHit:
+              event.target.type === monaco.editor.MouseTargetType.CONTENT_TEXT ||
+              event.target.type === monaco.editor.MouseTargetType.CONTENT_EMPTY,
+            position: event.target.position
+              ? {
+                  lineNumber: event.target.position.lineNumber,
+                  column: event.target.position.column,
+                }
+              : null,
+            hasSelection:
+              rightClickSelectionRef.current || !(editor.getSelection()?.isEmpty() ?? true),
+          });
         }),
       ];
 

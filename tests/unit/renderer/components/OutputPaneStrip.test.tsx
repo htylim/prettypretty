@@ -56,6 +56,7 @@ vi.mock('../../../../src/renderer/components/OutputEditor', async () => {
           testId?: string;
           value: string;
           viewRange?: { startLineNumber: number; endLineNumber: number } | null;
+          onContextMenu?: (request: unknown) => void;
         },
         ref: React.ForwardedRef<unknown>,
       ) => {
@@ -120,6 +121,7 @@ describe('OutputPaneStrip', () => {
         leftVisiblePaneIndex={0}
         onNavigatePaneViewport={vi.fn()}
         onPaneFocus={vi.fn()}
+        onPaneContextMenu={vi.fn()}
         onPaneHandleChange={vi.fn()}
         panes={[...createPanes()]}
         themeMode="light"
@@ -148,6 +150,7 @@ describe('OutputPaneStrip', () => {
         leftVisiblePaneIndex={0}
         onNavigatePaneViewport={vi.fn()}
         onPaneFocus={vi.fn()}
+        onPaneContextMenu={vi.fn()}
         onPaneHandleChange={vi.fn()}
         panes={[
           ...createPanes(),
@@ -205,6 +208,7 @@ describe('OutputPaneStrip', () => {
         leftVisiblePaneIndex={0}
         onNavigatePaneViewport={vi.fn()}
         onPaneFocus={vi.fn()}
+        onPaneContextMenu={vi.fn()}
         onPaneHandleChange={vi.fn()}
         panes={[
           ...createPanes(),
@@ -236,6 +240,7 @@ describe('OutputPaneStrip', () => {
         leftVisiblePaneIndex={0}
         onNavigatePaneViewport={onNavigatePaneViewport}
         onPaneFocus={vi.fn()}
+        onPaneContextMenu={vi.fn()}
         onPaneHandleChange={vi.fn()}
         panes={[
           ...createPanes(),
@@ -280,6 +285,7 @@ describe('OutputPaneStrip', () => {
         leftVisiblePaneIndex={1}
         onNavigatePaneViewport={onNavigatePaneViewport}
         onPaneFocus={vi.fn()}
+        onPaneContextMenu={vi.fn()}
         onPaneHandleChange={vi.fn()}
         panes={[
           ...createPanes(),
@@ -372,6 +378,7 @@ describe('OutputPaneStrip', () => {
         leftVisiblePaneIndex={0}
         onNavigatePaneViewport={vi.fn()}
         onPaneFocus={vi.fn()}
+        onPaneContextMenu={vi.fn()}
         onPaneHandleChange={vi.fn()}
         panes={[...panes]}
         themeMode="light"
@@ -389,6 +396,7 @@ describe('OutputPaneStrip', () => {
         leftVisiblePaneIndex={1}
         onNavigatePaneViewport={vi.fn()}
         onPaneFocus={vi.fn()}
+        onPaneContextMenu={vi.fn()}
         onPaneHandleChange={vi.fn()}
         panes={[...panes]}
         themeMode="light"

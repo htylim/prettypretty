@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import type { IndentSize } from '../../shared/preferences';
 import type { TelemetryEventName } from '../../shared/telemetry';
@@ -6,6 +6,9 @@ import type { PaneMode, ThemeMode } from '../../shared/types';
 import type { InputEditorHandle } from '../components/InputEditor';
 import type { FallbackAgentOption, FallbackWaitState, IngestSource } from './appDomain';
 import { reportRendererError } from './reportRendererError';
+import { detectOutputLanguage } from '../output/detectOutputLanguage';
+import type { OutputContextMenuState } from './outputContextMenuDomain';
+import { resolveContextPrettifyTarget } from '../output/contextPrettifyTarget';
 import {
   selectIndentSize,
   selectIngestNotice,
@@ -45,6 +48,7 @@ export type UseAppControllerResult = {
     total: number;
   } | null;
   outputPaneFocusRequest: ReturnType<typeof useOutputPaneController>['outputPaneFocusRequest'];
+  outputContextMenuState: OutputContextMenuState | null;
   fallbackWaitState: FallbackWaitState | null;
   fallbackWarningLineThreshold: number;
   fallbackModalState: FallbackModalState | null;
@@ -74,6 +78,22 @@ export type UseAppControllerResult = {
   onOpenFile: () => Promise<void>;
   onOutputPaneHandleChange: ReturnType<typeof useOutputPaneController>['onOutputPaneHandleChange'];
   onOutputPaneFocus: (paneId: string) => void;
+  onOutputPaneContextMenu: (
+    paneId: string,
+    request: {
+      anchorX: number;
+      anchorY: number;
+      isContentHit: boolean;
+      position: {
+        lineNumber: number;
+        column: number;
+      } | null;
+      hasSelection: boolean;
+    },
+    value: string,
+  ) => void;
+  onDismissOutputContextMenu: () => void;
+  onTriggerOutputContextPrettify: () => void;
   onCancelFallback: () => void;
   onConfirmFallback: () => void;
   onSelectFallbackAgent: (agentId: string) => void;
@@ -144,6 +164,7 @@ export const useAppController = ({
     fallbackWaitState,
     cancelActiveFallback,
     runPrettifier,
+    runPrettifierRequest,
     ingestInputText,
     resetPrettifierState,
     isInputAlreadyPrettified,
@@ -171,6 +192,7 @@ export const useAppController = ({
     canNavigateOutputPaneRight,
     outputPaneFocusRequest,
     getActiveOutputPaneHandle,
+    onOpenOutputPane,
     onOutputPaneHandleChange: registerOutputPaneHandle,
     onOutputPaneFocus: focusVisibleOutputPane,
     onNavigateOutputPaneViewport: navigateOutputPaneViewport,
@@ -180,6 +202,8 @@ export const useAppController = ({
     paneMode,
     outputText,
   });
+  const [outputContextMenuState, setOutputContextMenuState] =
+    useState<OutputContextMenuState | null>(null);
   const hasContent = inputText.trim().length > 0;
   const isOutputMode = paneMode === 'output';
 
@@ -215,6 +239,7 @@ export const useAppController = ({
 
   const resetCurrentWindow = useCallback((): void => {
     cancelPendingFallbackPrompts();
+    setOutputContextMenuState(null);
     resetPrettifierState();
     resetOutputPanes();
     reset();
@@ -295,6 +320,7 @@ export const useAppController = ({
 
       if (nextMode === 'input') {
         setPaneMode('input');
+        setOutputContextMenuState(null);
         return;
       }
 
@@ -346,6 +372,63 @@ export const useAppController = ({
 
     getActiveOutputPaneHandle()?.expandAll();
   }, [getActiveOutputPaneHandle, inputEditorRef, paneMode]);
+
+  const dismissOutputContextMenu = useCallback((): void => {
+    setOutputContextMenuState(null);
+  }, []);
+
+  const handleOutputPaneContextMenu = useCallback(
+    (
+      paneId: string,
+      request: {
+        anchorX: number;
+        anchorY: number;
+        isContentHit: boolean;
+        position: {
+          lineNumber: number;
+          column: number;
+        } | null;
+        hasSelection: boolean;
+      },
+      value: string,
+    ): void => {
+      const paneDocumentLanguage = detectOutputLanguage(value);
+      const target =
+        request.hasSelection || !request.isContentHit || request.position === null
+          ? null
+          : resolveContextPrettifyTarget(paneDocumentLanguage, value, request.position);
+
+      setOutputContextMenuState({
+        paneId,
+        anchorX: request.anchorX,
+        anchorY: request.anchorY,
+        target,
+      });
+    },
+    [],
+  );
+
+  const triggerOutputContextPrettify = useCallback(async (): Promise<void> => {
+    const contextMenuState = outputContextMenuState;
+    if (!contextMenuState?.target) {
+      dismissOutputContextMenu();
+      return;
+    }
+
+    dismissOutputContextMenu();
+    const response = await runPrettifierRequest(
+      contextMenuState.target.decodedText,
+      'context-pane-prettify',
+    );
+    if (!response) {
+      return;
+    }
+
+    onOpenOutputPane(contextMenuState.paneId, {
+      kind: 'independent-text',
+      value: response.outputText,
+    });
+  }, [dismissOutputContextMenu, onOpenOutputPane, outputContextMenuState, runPrettifierRequest]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = themeMode;
@@ -404,6 +487,7 @@ export const useAppController = ({
     outputLeftVisiblePaneIndex,
     visibleOutputPanePosition: isOutputMode && hasContent ? rawVisibleOutputPanePosition : null,
     outputPaneFocusRequest,
+    outputContextMenuState,
     fallbackWaitState,
     fallbackWarningLineThreshold,
     fallbackModalState,
@@ -433,6 +517,9 @@ export const useAppController = ({
     onOpenFile: openFile,
     onOutputPaneHandleChange: registerOutputPaneHandle,
     onOutputPaneFocus: focusVisibleOutputPane,
+    onOutputPaneContextMenu: handleOutputPaneContextMenu,
+    onDismissOutputContextMenu: dismissOutputContextMenu,
+    onTriggerOutputContextPrettify: triggerOutputContextPrettify,
     onCancelFallback: () => {
       if (fallbackModalState?.kind === 'agent-selection') {
         settleFallbackAgentSelection(null);

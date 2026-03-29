@@ -4,7 +4,12 @@ import type { IndentSize } from './preferences';
  * Identifies the user action that kicked off a prettify attempt so telemetry and
  * fallback behavior can distinguish ingestion from explicit pane switches.
  */
-export type PrettifyTrigger = 'ingest-open-file' | 'ingest-drop' | 'ingest-paste' | 'switch-output';
+export type PrettifyTrigger =
+  | 'ingest-open-file'
+  | 'ingest-drop'
+  | 'ingest-paste'
+  | 'switch-output'
+  | 'context-pane-prettify';
 
 /**
  * Describes how far the local parser got before the app either prettified the

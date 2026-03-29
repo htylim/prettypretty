@@ -10,6 +10,7 @@ const PRETTIFY_TRIGGERS: Set<PrettifyTrigger> = new Set([
   'ingest-drop',
   'ingest-paste',
   'switch-output',
+  'context-pane-prettify',
 ]);
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {

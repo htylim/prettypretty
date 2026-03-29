@@ -3,6 +3,7 @@ import type { ThemeMode } from '../../shared/types';
 import type { OutputEditorHandle } from './OutputEditor';
 import { OutputEditor } from './OutputEditor';
 import { type OutputPaneFocusRequest, type OutputPaneViewModel } from './outputPaneTypes';
+import type { OutputEditorContextMenuRequest } from './useOutputEditorRuntime';
 import { useOutputPaneViewportRuntime } from './useOutputPaneViewportRuntime';
 
 export type { OutputPaneFocusRequest, OutputPaneViewModel } from './outputPaneTypes';
@@ -16,6 +17,11 @@ type OutputPaneStripProps = {
   indentSize: IndentSize;
   onPaneHandleChange: (paneId: string, handle: OutputEditorHandle | null) => void;
   onPaneFocus: (paneId: string) => void;
+  onPaneContextMenu: (
+    paneId: string,
+    request: OutputEditorContextMenuRequest,
+    value: string,
+  ) => void;
   onNavigatePaneViewport: (stepDelta: number) => void;
 };
 
@@ -28,6 +34,7 @@ export const OutputPaneStrip = ({
   indentSize,
   onPaneHandleChange,
   onPaneFocus,
+  onPaneContextMenu,
   onNavigatePaneViewport,
 }: OutputPaneStripProps) => {
   const isSplit = panes.length > 1;
@@ -68,6 +75,9 @@ export const OutputPaneStrip = ({
               ref={createPaneHandleRef(pane.paneId)}
               documentId={pane.documentId}
               indentSize={indentSize}
+              onContextMenu={(request) => {
+                onPaneContextMenu(pane.paneId, request, pane.value);
+              }}
               onFocus={() => {
                 if (pane.paneId !== activePaneId) {
                   onPaneFocus(pane.paneId);
