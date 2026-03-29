@@ -249,7 +249,7 @@ describe('usePrettifierFlow', () => {
     expect(ref.current?.getOutputText()).toContain('"done": true');
   });
 
-  it('cancels the active fallback request and returns to input mode', async () => {
+  it('cancels the active fallback request and keeps passthrough output visible', async () => {
     const deferred = createDeferred<PrettifyRunResponse>();
     const getAll = vi.fn().mockResolvedValue(createPreferences());
     const run = vi.fn().mockReturnValue(deferred.promise);
@@ -275,7 +275,7 @@ describe('usePrettifierFlow', () => {
 
     act(() => {
       void ref.current?.runPrettifier('{bad', 'switch-output', {
-        switchToOutputOnComplete: false,
+        switchToOutputOnComplete: true,
       });
     });
 
@@ -289,14 +289,17 @@ describe('usePrettifierFlow', () => {
     });
 
     expect(cancel).toHaveBeenCalledWith({ requestId: request.requestId });
-    expect(ref.current?.getPaneMode()).toBe('input');
     expect(ref.current?.getIsLlmRunning()).toBe(false);
     expect(ref.current?.getFallbackWaitState()).toBeNull();
+    await waitFor(() => {
+      expect(ref.current?.getPaneMode()).toBe('output');
+    });
+    expect(ref.current?.getOutputText()).toBe('{bad');
 
     deferred.resolve(createPrettifierResponse({ fallbackStatus: 'failed-canceled' }));
 
     await waitFor(() => {
-      expect(ref.current?.getPaneMode()).toBe('input');
+      expect(ref.current?.getOutputText()).toBe('{bad');
     });
   });
 

@@ -692,7 +692,7 @@ describe('App', () => {
     });
   });
 
-  it('cancels the active fallback request from the wait screen', async () => {
+  it('cancels the active fallback request from the wait screen and keeps passthrough output visible', async () => {
     const user = userEvent.setup();
     const deferredRun = createDeferred<PrettifyRunResponse>();
     prettifierRunMock.mockReturnValue(deferredRun.promise);
@@ -716,13 +716,47 @@ describe('App', () => {
     await waitFor(() => {
       expect(screen.queryByTestId('fallback-wait-screen')).not.toBeInTheDocument();
     });
-    expect(screen.getByTestId('pane-segment-input')).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByTestId('input-editor')).toHaveValue('{bad');
+    expect(screen.getByTestId('pane-segment-output')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('output-editor')).toHaveTextContent('{bad');
 
     deferredRun.resolve(createPrettifierResponse({ fallbackStatus: 'failed-canceled' }));
 
     await waitFor(() => {
-      expect(screen.getByTestId('input-editor')).toHaveValue('{bad');
+      expect(screen.getByTestId('output-editor')).toHaveTextContent('{bad');
+    });
+  });
+
+  it('treats escape on the wait screen as cancel and keeps passthrough output visible', async () => {
+    const user = userEvent.setup();
+    const deferredRun = createDeferred<PrettifyRunResponse>();
+    prettifierRunMock.mockReturnValue(deferredRun.promise);
+
+    act(() => {
+      useUiStore.setState({
+        paneMode: 'input',
+        inputText: '{bad',
+        ingestNotice: null,
+      });
+    });
+
+    await renderApp();
+    await user.click(screen.getByTestId('pane-segment-output'));
+    expect(await screen.findByTestId('fallback-wait-screen')).toBeInTheDocument();
+
+    const request = prettifierRunMock.mock.calls[0]?.[0] as { requestId: number };
+    await user.keyboard('{Escape}');
+
+    expect(prettifierCancelMock).toHaveBeenCalledWith({ requestId: request.requestId });
+    await waitFor(() => {
+      expect(screen.queryByTestId('fallback-wait-screen')).not.toBeInTheDocument();
+    });
+    expect(screen.getByTestId('pane-segment-output')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('output-editor')).toHaveTextContent('{bad');
+
+    deferredRun.resolve(createPrettifierResponse({ fallbackStatus: 'failed-canceled' }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('output-editor')).toHaveTextContent('{bad');
     });
   });
 

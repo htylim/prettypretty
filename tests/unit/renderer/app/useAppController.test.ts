@@ -303,7 +303,6 @@ describe('useAppController', () => {
     });
 
     expect(ref.current?.getController().outputContextMenuState?.target).toMatchObject({
-      label: 'query',
       decodedText: '{\n  field\n}',
     });
 
@@ -377,7 +376,6 @@ describe('useAppController', () => {
     });
 
     expect(ref.current?.getController().outputContextMenuState?.target).toMatchObject({
-      label: 'name',
       decodedText: 'hello-world',
       paneDocumentLanguage: 'yaml',
     });
@@ -427,7 +425,6 @@ describe('useAppController', () => {
     });
 
     expect(ref.current?.getController().outputContextMenuState?.target).toMatchObject({
-      label: 'query',
       decodedText: '{"leaf":1}',
       paneDocumentLanguage: 'typescript',
     });
@@ -477,7 +474,6 @@ describe('useAppController', () => {
     });
 
     expect(ref.current?.getController().outputContextMenuState?.target).toMatchObject({
-      label: 'payload',
       decodedText: '{\n  "leaf": 1\n}',
       paneDocumentLanguage: 'graphql',
     });
@@ -527,7 +523,6 @@ describe('useAppController', () => {
     });
 
     expect(ref.current?.getController().outputContextMenuState?.target).toMatchObject({
-      label: 'payload',
       decodedText: '{"leaf":1}',
       paneDocumentLanguage: 'xml',
     });
@@ -577,7 +572,6 @@ describe('useAppController', () => {
     });
 
     expect(ref.current?.getController().outputContextMenuState?.target).toMatchObject({
-      label: 'payload',
       decodedText: '{"leaf":1}',
       paneDocumentLanguage: 'sql',
     });

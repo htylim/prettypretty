@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { createRef } from 'react';
 import type { ComponentProps } from 'react';
 import { describe, expect, it, vi } from 'vitest';
@@ -263,6 +264,30 @@ describe('EditorShell', () => {
     expect(screen.getByTestId('fallback-wait-line')).toHaveTextContent(/line 1\s+line 2/u);
 
     fireEvent.click(screen.getByTestId('fallback-wait-cancel'));
+    expect(onCancelFallbackWait).toHaveBeenCalledTimes(1);
+  });
+
+  it('treats escape on the fallback wait screen as cancel', async () => {
+    const user = userEvent.setup();
+    const onCancelFallbackWait = vi.fn();
+
+    render(
+      <EditorShell
+        {...createProps({
+          inputText: 'alpha',
+          fallbackWaitState: {
+            requestId: 1,
+            formatLabel: 'JSON',
+            agentName: 'Codex',
+            progressLines: [],
+          },
+          onCancelFallbackWait,
+        })}
+      />,
+    );
+
+    await user.keyboard('{Escape}');
+
     expect(onCancelFallbackWait).toHaveBeenCalledTimes(1);
   });
 

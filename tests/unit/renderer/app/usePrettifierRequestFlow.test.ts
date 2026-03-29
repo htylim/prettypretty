@@ -90,7 +90,7 @@ describe('usePrettifierRequestFlow', () => {
     expect(cancelPrettifierFallbackMock).not.toHaveBeenCalled();
   });
 
-  it('tracks fallback wait state and cancels the active request', async () => {
+  it('tracks fallback wait state and resolves explicit cancellation to passthrough output', async () => {
     const deferred = createDeferred<PrettifyRunResponse>();
     runPrettifierMock.mockReturnValueOnce(deferred.promise);
     const ref = { current: null as HarnessHandle | null };
@@ -131,7 +131,14 @@ describe('usePrettifierRequestFlow', () => {
       durationMs: 9,
     });
 
-    await expect(requestPromise).resolves.toBeNull();
+    await expect(requestPromise).resolves.toEqual({
+      status: 'passthrough-fallback-failed',
+      outputText: '{bad',
+      localDetection: 'malformed',
+      fallbackStatus: 'failed-canceled',
+      agentId: 'codex',
+      durationMs: expect.any(Number),
+    });
   });
 
   it('clears stale fallback wait state when a newer request supersedes an active fallback', async () => {

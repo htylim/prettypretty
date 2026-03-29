@@ -87,6 +87,7 @@
   - editors are hidden
   - a wait screen is shown
   - the user can cancel
+  - cancel keeps the original text visible as passthrough output for the active root output or targeted child pane
   - the wait screen shows the last 5 progress lines for the active request
 
 ## Output Behavior
@@ -96,7 +97,8 @@
 - Output uses inline fold controls instead of Monaco gutter fold controls.
 - Holding literal `Ctrl` changes the inline fold action to direct-child expand/collapse.
 - `Save` and `Copy` always operate on the root output text.
-- Right-clicking an output pane opens a context menu with `Prettify ...`.
+- Right-clicking an output pane opens a context menu with `Prettify...`.
+- Right-clicking outside an open output context menu dismisses it.
 - The action is enabled only for semantic string scalars that decode to concrete non-empty text.
 - Any active selection in that pane disables the action.
 - `plaintext` and `markdown` keep the action disabled.

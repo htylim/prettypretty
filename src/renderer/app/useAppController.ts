@@ -7,8 +7,10 @@ import type { InputEditorHandle } from '../components/InputEditor';
 import type { FallbackAgentOption, FallbackWaitState, IngestSource } from './appDomain';
 import { reportRendererError } from './reportRendererError';
 import { detectOutputLanguage } from '../output/detectOutputLanguage';
-import type { OutputContextMenuState } from './outputContextMenuDomain';
-import { resolveContextPrettifyTarget } from '../output/contextPrettifyTarget';
+import {
+  resolveContextPrettifyTarget,
+  type ContextPrettifyTarget,
+} from '../output/contextPrettifyTarget';
 import {
   selectIndentSize,
   selectIngestNotice,
@@ -30,6 +32,13 @@ type TelemetryMeta = Record<string, string | number | boolean | null>;
 
 type UseAppControllerOptions = {
   inputEditorRef: RefObject<InputEditorHandle | null>;
+};
+
+export type OutputContextMenuState = {
+  paneId: string;
+  anchorX: number;
+  anchorY: number;
+  target: ContextPrettifyTarget | null;
 };
 
 export type UseAppControllerResult = {

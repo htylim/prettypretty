@@ -1,10 +1,11 @@
 import { useEffect } from 'react';
 
+const PRETTIFY_MENU_LABEL = 'Prettify...';
+
 type OutputContextMenuProps = {
   isOpen: boolean;
   anchorX: number;
   anchorY: number;
-  label: string;
   disabled: boolean;
   onSelect: () => void;
   onClose: () => void;
@@ -14,7 +15,6 @@ export const OutputContextMenu = ({
   isOpen,
   anchorX,
   anchorY,
-  label,
   disabled,
   onSelect,
   onClose,
@@ -46,12 +46,20 @@ export const OutputContextMenu = ({
       className="output-context-menu-backdrop"
       data-testid="output-context-menu-backdrop"
       onClick={onClose}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
     >
       <div
         aria-label="Output context menu"
         className="output-context-menu"
         data-testid="output-context-menu"
         onClick={(event) => event.stopPropagation()}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+        }}
         role="menu"
         style={{ left: anchorX, top: anchorY }}
       >
@@ -68,7 +76,7 @@ export const OutputContextMenu = ({
           }}
           type="button"
         >
-          {label}
+          {PRETTIFY_MENU_LABEL}
         </button>
       </div>
     </div>

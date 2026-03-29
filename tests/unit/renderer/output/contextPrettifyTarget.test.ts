@@ -4,13 +4,12 @@ import { resolveContextPrettifyTarget } from '../../../../src/renderer/output/co
 const position = (lineNumber: number, column: number) => ({ lineNumber, column });
 
 describe('resolveContextPrettifyTarget', () => {
-  it('resolves a JSON key click to the associated string value and label', () => {
+  it('resolves a JSON key click to the associated string value', () => {
     const text = '{\n  "query": "{\\n  field\\n}"\n}';
 
     const target = resolveContextPrettifyTarget('json', text, position(2, 4));
 
     expect(target).toEqual({
-      label: 'query',
       decodedText: '{\n  field\n}',
       sourceRange: {
         startLineNumber: 2,
@@ -29,7 +28,6 @@ describe('resolveContextPrettifyTarget', () => {
     const target = resolveContextPrettifyTarget('json', text, position(2, 15));
 
     expect(target).toEqual({
-      label: 'name',
       decodedText: 'alpha\nbeta',
       sourceRange: {
         startLineNumber: 2,
@@ -48,7 +46,6 @@ describe('resolveContextPrettifyTarget', () => {
     const target = resolveContextPrettifyTarget('json', text, position(5, 15));
 
     expect(target).toEqual({
-      label: 'second',
       decodedText: 'two',
       sourceRange: {
         startLineNumber: 5,
@@ -65,26 +62,23 @@ describe('resolveContextPrettifyTarget', () => {
     const text = 'payload: "query {\\n  field\\n}"';
 
     expect(resolveContextPrettifyTarget('yaml', text, position(1, 4))).toMatchObject({
-      label: 'payload',
       decodedText: 'query {\n  field\n}',
       paneDocumentLanguage: 'yaml',
       sourceKind: 'string-scalar',
     });
     expect(resolveContextPrettifyTarget('yaml', text, position(1, 12))).toMatchObject({
-      label: 'payload',
       decodedText: 'query {\n  field\n}',
       paneDocumentLanguage: 'yaml',
       sourceKind: 'string-scalar',
     });
   });
 
-  it('decodes quoted YAML key labels before exposing them in the context target', () => {
+  it('resolves quoted YAML key clicks to the associated string value', () => {
     const text = '"payload \\"key\\"": hello-world';
 
     const target = resolveContextPrettifyTarget('yaml', text, position(1, 4));
 
     expect(target).toMatchObject({
-      label: 'payload "key"',
       decodedText: 'hello-world',
       paneDocumentLanguage: 'yaml',
       sourceKind: 'string-scalar',
@@ -95,7 +89,6 @@ describe('resolveContextPrettifyTarget', () => {
     const text = 'name: hello-world\ncount: 4\nactive: true';
 
     expect(resolveContextPrettifyTarget('yaml', text, position(1, 3))).toMatchObject({
-      label: 'name',
       decodedText: 'hello-world',
       paneDocumentLanguage: 'yaml',
       sourceKind: 'string-scalar',
@@ -115,13 +108,11 @@ describe('resolveContextPrettifyTarget', () => {
     const foldedText = 'summary: >\n  first line\n  second line\n\n  third line';
 
     expect(resolveContextPrettifyTarget('yaml', literalText, position(1, 4))).toMatchObject({
-      label: 'payload',
       decodedText: 'query ListShipments\n{\n  shipments\n}',
       paneDocumentLanguage: 'yaml',
       sourceKind: 'string-scalar',
     });
     expect(resolveContextPrettifyTarget('yaml', foldedText, position(1, 4))).toMatchObject({
-      label: 'summary',
       decodedText: 'first line second line\nthird line',
       paneDocumentLanguage: 'yaml',
       sourceKind: 'string-scalar',
@@ -132,13 +123,11 @@ describe('resolveContextPrettifyTarget', () => {
     const text = 'const query = "{\\"leaf\\":1}";';
 
     expect(resolveContextPrettifyTarget('javascript', text, position(1, 7))).toMatchObject({
-      label: 'query',
       decodedText: '{"leaf":1}',
       paneDocumentLanguage: 'javascript',
       sourceKind: 'string-scalar',
     });
     expect(resolveContextPrettifyTarget('javascript', text, position(1, 18))).toMatchObject({
-      label: 'query',
       decodedText: '{"leaf":1}',
       paneDocumentLanguage: 'javascript',
       sourceKind: 'string-scalar',
@@ -150,7 +139,6 @@ describe('resolveContextPrettifyTarget', () => {
     const interpolatedText = 'const query = `hello ${name}`;';
 
     expect(resolveContextPrettifyTarget('typescript', templateText, position(1, 7))).toMatchObject({
-      label: 'query',
       decodedText: 'query ListShipments\n{\n  shipments\n}',
       paneDocumentLanguage: 'typescript',
       sourceKind: 'string-scalar',
@@ -165,13 +153,11 @@ describe('resolveContextPrettifyTarget', () => {
     const text = 'query Search { search(query: "{\\"leaf\\":1}") }';
 
     expect(resolveContextPrettifyTarget('graphql', text, position(1, 23))).toMatchObject({
-      label: 'query',
       decodedText: '{"leaf":1}',
       paneDocumentLanguage: 'graphql',
       sourceKind: 'string-scalar',
     });
     expect(resolveContextPrettifyTarget('graphql', text, position(1, 31))).toMatchObject({
-      label: 'query',
       decodedText: '{"leaf":1}',
       paneDocumentLanguage: 'graphql',
       sourceKind: 'string-scalar',
@@ -182,13 +168,11 @@ describe('resolveContextPrettifyTarget', () => {
     const text = 'mutation Update { update(payload: """\n  {\n    "leaf": 1\n  }\n""", count: 4) }';
 
     expect(resolveContextPrettifyTarget('graphql', text, position(1, 27))).toMatchObject({
-      label: 'payload',
       decodedText: '{\n  "leaf": 1\n}',
       paneDocumentLanguage: 'graphql',
       sourceKind: 'string-scalar',
     });
     expect(resolveContextPrettifyTarget('graphql', text, position(2, 5))).toMatchObject({
-      label: 'payload',
       decodedText: '{\n  "leaf": 1\n}',
       paneDocumentLanguage: 'graphql',
       sourceKind: 'string-scalar',
@@ -207,13 +191,11 @@ describe('resolveContextPrettifyTarget', () => {
     const text = '<request payload="{&quot;leaf&quot;:1}" />';
 
     expect(resolveContextPrettifyTarget('xml', text, position(1, 10))).toMatchObject({
-      label: 'payload',
       decodedText: '{"leaf":1}',
       paneDocumentLanguage: 'xml',
       sourceKind: 'string-scalar',
     });
     expect(resolveContextPrettifyTarget('xml', text, position(1, 21))).toMatchObject({
-      label: 'payload',
       decodedText: '{"leaf":1}',
       paneDocumentLanguage: 'xml',
       sourceKind: 'string-scalar',
@@ -225,25 +207,21 @@ describe('resolveContextPrettifyTarget', () => {
     const cdataText = '<payload><![CDATA[{"leaf":1}]]></payload>';
 
     expect(resolveContextPrettifyTarget('xml', textNodeText, position(1, 2))).toMatchObject({
-      label: 'payload',
       decodedText: '{"leaf":1}',
       paneDocumentLanguage: 'xml',
       sourceKind: 'string-scalar',
     });
     expect(resolveContextPrettifyTarget('xml', textNodeText, position(1, 13))).toMatchObject({
-      label: 'payload',
       decodedText: '{"leaf":1}',
       paneDocumentLanguage: 'xml',
       sourceKind: 'string-scalar',
     });
     expect(resolveContextPrettifyTarget('xml', cdataText, position(1, 2))).toMatchObject({
-      label: 'payload',
       decodedText: '{"leaf":1}',
       paneDocumentLanguage: 'xml',
       sourceKind: 'string-scalar',
     });
     expect(resolveContextPrettifyTarget('xml', cdataText, position(1, 21))).toMatchObject({
-      label: 'payload',
       decodedText: '{"leaf":1}',
       paneDocumentLanguage: 'xml',
       sourceKind: 'string-scalar',
@@ -262,13 +240,11 @@ describe('resolveContextPrettifyTarget', () => {
     const text = 'select * from requests where payload = \'{"leaf":1}\';';
 
     expect(resolveContextPrettifyTarget('sql', text, position(1, 30))).toMatchObject({
-      label: 'payload',
       decodedText: '{"leaf":1}',
       paneDocumentLanguage: 'sql',
       sourceKind: 'string-scalar',
     });
     expect(resolveContextPrettifyTarget('sql', text, position(1, 42))).toMatchObject({
-      label: 'payload',
       decodedText: '{"leaf":1}',
       paneDocumentLanguage: 'sql',
       sourceKind: 'string-scalar',

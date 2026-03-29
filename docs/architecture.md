@@ -51,6 +51,7 @@
   - selectors, pure session domains, and focused runtime seams
 - `src/renderer/app/useAppController.ts`
   - top-level renderer composition seam
+  - owns renderer output context-menu view state
 - `src/renderer/app/usePrettifierFlow.ts`
   - session-backed prettifier orchestration
 - `src/renderer/app/usePrettifierRequestFlow.ts`
@@ -59,8 +60,6 @@
   - preferences hydration and optimistic persistence
 - `src/renderer/app/useOutputPaneController.ts`
   - session-backed output-pane orchestration plus runtime focus/handle coordination
-- `src/renderer/app/outputContextMenuDomain.ts`
-  - renderer-owned output context-menu state helpers
 - `src/renderer/components/*`
   - view seams and focused renderer runtimes
 - `src/renderer/output/*`
@@ -84,7 +83,7 @@
 5. `usePrettifierRequestFlow` owns request ids, stale-response guards, fallback wait state, and IPC calls for both root-output prettify and pane-targeted prettify.
 6. If local parsing fails and fallback is allowed, the prettifier runtime calls main over IPC.
 7. Main executes the configured fallback agent and streams progress back by request id.
-8. Renderer shows a wait screen, supports cancel, and applies the final result or passthrough through session state or the targeted output pane.
+8. Renderer shows a wait screen, supports cancel, and resolves the active request to either the final result or passthrough through session state or the targeted output pane.
 
 ### Preferences Flow
 

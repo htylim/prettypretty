@@ -76,6 +76,35 @@ const resetPreferences = async (page: Page): Promise<void> => {
   });
 };
 
+const updatePreferences = async (page: Page, patch: unknown): Promise<void> => {
+  await page.evaluate(async (nextPatch) => {
+    const bridge = globalThis as unknown as {
+      prettypretty: {
+        preferences: {
+          update: (nextPatch: unknown) => Promise<unknown>;
+        };
+      };
+    };
+
+    await bridge.prettypretty.preferences.update(nextPatch);
+  }, patch);
+};
+
+const createWaitingFallbackAgent = () => ({
+  id: 'e2e-agent',
+  name: 'E2E Agent',
+  executable: 'node',
+  argsTemplate: [
+    '-e',
+    "process.stdin.resume();process.stdin.on('data',()=>{});setTimeout(()=>{console.error('late-progress-line');console.log('{\"fromAgent\":true}');},5000);",
+  ],
+  promptTemplate: '{input}',
+  promptDelivery: 'stdin' as const,
+  enabled: true,
+  timeoutMs: 15_000,
+  maxOutputBytes: 10_000,
+});
+
 const rightClickOutputLine = async (
   page: Page,
   testId: string,
@@ -206,6 +235,114 @@ test('uses passthrough output for malformed content when fallback is disabled', 
   await app.close();
 });
 
+test('treats escape in the context-pane fallback selection modal as No and opens passthrough output', async () => {
+  let app = await launchApp();
+  let page = await app.firstWindow();
+  await page.waitForLoadState('domcontentloaded');
+  await resetPreferences(page);
+
+  await updatePreferences(page, {
+    fallbackAgentId: null,
+    agents: [createWaitingFallbackAgent()],
+  });
+
+  await app.close();
+  app = await launchApp();
+  page = await app.firstWindow();
+  await page.waitForLoadState('domcontentloaded');
+
+  await dispatchPaste(
+    page,
+    JSON.stringify({
+      payload: '{bad',
+    }),
+  );
+
+  await rightClickOutputLine(page, 'output-editor', 1, 80);
+  await page.getByTestId('output-context-menu-prettify').click();
+  await expect(page.getByTestId('fallback-confirmation-modal')).toBeVisible();
+
+  await page.keyboard.press('Escape');
+
+  await expect(page.getByTestId('fallback-confirmation-modal')).toHaveCount(0);
+  await expect(page.getByTestId('output-editor-pane-1')).toContainText('{bad');
+
+  await resetPreferences(page);
+  await app.close();
+});
+
+test('keeps passthrough text in the child pane when context-pane fallback is canceled from the wait screen', async () => {
+  let app = await launchApp();
+  let page = await app.firstWindow();
+  await page.waitForLoadState('domcontentloaded');
+  await resetPreferences(page);
+
+  await updatePreferences(page, {
+    agents: [createWaitingFallbackAgent()],
+    fallbackAgentId: 'e2e-agent',
+  });
+
+  await app.close();
+  app = await launchApp();
+  page = await app.firstWindow();
+  await page.waitForLoadState('domcontentloaded');
+
+  await dispatchPaste(
+    page,
+    JSON.stringify({
+      payload: '{bad',
+    }),
+  );
+
+  await rightClickOutputLine(page, 'output-editor', 1, 80);
+  await page.getByTestId('output-context-menu-prettify').click();
+  await expect(page.getByTestId('fallback-wait-screen')).toBeVisible();
+
+  await page.getByTestId('fallback-wait-cancel').click();
+
+  await expect(page.getByTestId('fallback-wait-screen')).toHaveCount(0);
+  await expect(page.getByTestId('output-editor-pane-1')).toContainText('{bad');
+
+  await resetPreferences(page);
+  await app.close();
+});
+
+test('treats escape on the context-pane fallback wait screen as cancel and keeps passthrough output', async () => {
+  let app = await launchApp();
+  let page = await app.firstWindow();
+  await page.waitForLoadState('domcontentloaded');
+  await resetPreferences(page);
+
+  await updatePreferences(page, {
+    agents: [createWaitingFallbackAgent()],
+    fallbackAgentId: 'e2e-agent',
+  });
+
+  await app.close();
+  app = await launchApp();
+  page = await app.firstWindow();
+  await page.waitForLoadState('domcontentloaded');
+
+  await dispatchPaste(
+    page,
+    JSON.stringify({
+      payload: '{bad',
+    }),
+  );
+
+  await rightClickOutputLine(page, 'output-editor', 1, 80);
+  await page.getByTestId('output-context-menu-prettify').click();
+  await expect(page.getByTestId('fallback-wait-screen')).toBeVisible();
+
+  await page.keyboard.press('Escape');
+
+  await expect(page.getByTestId('fallback-wait-screen')).toHaveCount(0);
+  await expect(page.getByTestId('output-editor-pane-1')).toContainText('{bad');
+
+  await resetPreferences(page);
+  await app.close();
+});
+
 test('opens a recursive prettify child chain from JSON string scalars', async () => {
   const app = await launchApp();
   const page = await app.firstWindow();
@@ -226,13 +363,13 @@ test('opens a recursive prettify child chain from JSON string scalars', async ()
   await expect(page.getByTestId('output-editor')).toContainText('"payload"');
 
   await rightClickOutputLine(page, 'output-editor', 1, 80);
-  await expect(page.getByTestId('output-context-menu-prettify')).toHaveText('Prettify payload...');
+  await expect(page.getByTestId('output-context-menu-prettify')).toHaveText('Prettify...');
   await page.getByTestId('output-context-menu-prettify').click();
 
   await expect(page.getByTestId('output-editor-pane-1')).toContainText('"deeper": "{');
 
   await rightClickOutputLine(page, 'output-editor-pane-1', 1, 80);
-  await expect(page.getByTestId('output-context-menu-prettify')).toHaveText('Prettify deeper...');
+  await expect(page.getByTestId('output-context-menu-prettify')).toHaveText('Prettify...');
   await page.getByTestId('output-context-menu-prettify').click();
 
   await expect(page.getByTestId('output-editor-pane-2')).toContainText('"leaf": 1');
@@ -292,7 +429,7 @@ test('resolves YAML block scalars from the output context menu and opens a child
   await expect(page.getByTestId('output-editor')).toContainText('name: hello-world');
 
   await rightClickOutputLine(page, 'output-editor', 0, 10);
-  await expect(page.getByTestId('output-context-menu-prettify')).toHaveText('Prettify name...');
+  await expect(page.getByTestId('output-context-menu-prettify')).toHaveText('Prettify...');
   await page.getByTestId('output-context-menu-prettify').click();
 
   await expect(page.getByTestId('output-editor-pane-1')).toContainText('hello-world');
@@ -352,7 +489,7 @@ test('resolves JavaScript string bindings from the output context menu and opens
   await expect(page.getByTestId('output-editor')).toContainText('const query');
 
   await rightClickOutputLine(page, 'output-editor', 0, 55);
-  await expect(page.getByTestId('output-context-menu-prettify')).toHaveText('Prettify query...');
+  await expect(page.getByTestId('output-context-menu-prettify')).toHaveText('Prettify...');
   await page.getByTestId('output-context-menu-prettify').click();
 
   await expect(page.getByTestId('output-editor-pane-1')).toContainText('"leaf": 1');
@@ -387,7 +524,7 @@ test('resolves GraphQL block string values from the output context menu and open
   await expect(page.getByTestId('output-editor')).toContainText('payload:');
 
   await rightClickOutputLine(page, 'output-editor', 1, 90);
-  await expect(page.getByTestId('output-context-menu-prettify')).toHaveText('Prettify payload...');
+  await expect(page.getByTestId('output-context-menu-prettify')).toHaveText('Prettify...');
   await page.getByTestId('output-context-menu-prettify').click();
 
   await expect(page.getByTestId('output-editor-pane-1')).toContainText('"leaf": 1');
@@ -419,7 +556,7 @@ test('resolves XML attribute values from the output context menu and opens a chi
   await expect(page.getByTestId('output-editor')).toContainText('payload=');
 
   await rightClickOutputLine(page, 'output-editor', 0, 95);
-  await expect(page.getByTestId('output-context-menu-prettify')).toHaveText('Prettify payload...');
+  await expect(page.getByTestId('output-context-menu-prettify')).toHaveText('Prettify...');
   await page.getByTestId('output-context-menu-prettify').click();
 
   await expect(page.getByTestId('output-editor-pane-1')).toContainText('"leaf": 1');
@@ -479,7 +616,7 @@ test('resolves SQL quoted string literals from the output context menu and opens
   await expect(page.getByTestId('output-editor')).toContainText('payload =');
 
   await rightClickOutputLine(page, 'output-editor', 0, 280);
-  await expect(page.getByTestId('output-context-menu-prettify')).toHaveText('Prettify payload...');
+  await expect(page.getByTestId('output-context-menu-prettify')).toHaveText('Prettify...');
   await page.getByTestId('output-context-menu-prettify').click();
 
   await page.waitForSelector('[data-testid="output-editor-pane-1"]');

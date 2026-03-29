@@ -16,10 +16,7 @@ import {
 } from './OutputPaneStrip';
 import type { OutputEditorHandle } from './OutputEditor';
 import { OutputContextMenu } from './OutputContextMenu';
-import {
-  getOutputContextMenuLabel,
-  type OutputContextMenuState,
-} from '../app/outputContextMenuDomain';
+import type { OutputContextMenuState } from '../app/useAppController';
 
 // Empty-state paste shares the shell container with Monaco. Ignore paste events
 // coming from Monaco's find widget so search input keeps working normally.
@@ -117,6 +114,27 @@ export const EditorShell = ({
 
     shellRef.current?.focus();
   }, [fallbackWaitState, hasContent]);
+
+  useEffect(() => {
+    if (!fallbackWaitState) {
+      return;
+    }
+
+    const handleEscape = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      onCancelFallbackWait();
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [fallbackWaitState, onCancelFallbackWait]);
 
   const handleDrop: DragEventHandler<HTMLDivElement> = async (event) => {
     event.preventDefault();
@@ -228,7 +246,6 @@ export const EditorShell = ({
         anchorY={outputContextMenuState?.anchorY ?? 0}
         disabled={outputContextMenuState?.target === null}
         isOpen={outputContextMenuState !== null}
-        label={getOutputContextMenuLabel(outputContextMenuState?.target ?? null)}
         onClose={onDismissOutputContextMenu}
         onSelect={onTriggerOutputContextPrettify}
       />

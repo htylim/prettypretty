@@ -42,7 +42,6 @@ type NullNode = BaseNode & {
 
 type ObjectPropertyNode = {
   keyRange: OffsetRange;
-  keyText: string;
   value: JsonNode;
 };
 
@@ -64,7 +63,6 @@ type StringTargetNode = BaseNode & {
 };
 
 export type ContextPrettifyTarget = {
-  label: string | null;
   decodedText: string;
   sourceRange: SourceRange;
   paneDocumentLanguage: OutputLanguageId;
@@ -319,7 +317,6 @@ const createParser = (text: string) => {
 
       properties.push({
         keyRange: keyNode.range,
-        keyText: keyNode.decodedText,
         value,
       });
 
@@ -430,7 +427,6 @@ const createParser = (text: string) => {
 
 const createStringTarget = (
   node: StringTargetNode,
-  label: string | null,
   language: OutputLanguageId,
   toRange: (range: OffsetRange) => SourceRange,
 ): ContextPrettifyTarget | null => {
@@ -439,7 +435,6 @@ const createStringTarget = (
   }
 
   return {
-    label,
     decodedText: node.decodedText,
     sourceRange: toRange(node.range),
     paneDocumentLanguage: language,
@@ -452,28 +447,24 @@ const findTargetInNode = (
   clickedOffset: number,
   language: OutputLanguageId,
   toRange: (range: OffsetRange) => SourceRange,
-  inheritedLabel: string | null = null,
 ): ContextPrettifyTarget | null => {
   if (!containsOffset(node.range, clickedOffset)) {
     return null;
   }
 
   if (node.kind === 'string') {
-    return createStringTarget(node, inheritedLabel, language, toRange);
+    return createStringTarget(node, language, toRange);
   }
 
   if (node.kind === 'object') {
     for (const property of node.properties) {
       if (containsOffset(property.keyRange, clickedOffset)) {
         return property.value.kind === 'string'
-          ? createStringTarget(property.value, property.keyText, language, toRange)
+          ? createStringTarget(property.value, language, toRange)
           : null;
       }
 
-      const target =
-        property.value.kind === 'string'
-          ? findTargetInNode(property.value, clickedOffset, language, toRange, property.keyText)
-          : findTargetInNode(property.value, clickedOffset, language, toRange);
+      const target = findTargetInNode(property.value, clickedOffset, language, toRange);
       if (target) {
         return target;
       }
@@ -578,7 +569,6 @@ type YamlNullNode = {
 
 type YamlMappingPropertyNode = {
   keyRange: OffsetRange;
-  keyText: string;
   value: YamlNode;
 };
 
@@ -850,18 +840,6 @@ const decodeYamlDoubleQuotedScalar = (rawText: string): string | null => {
   }
 
   return decodedText;
-};
-
-const decodeYamlTargetLabel = (rawText: string): string | null => {
-  if (rawText.startsWith('"')) {
-    return decodeYamlDoubleQuotedScalar(rawText);
-  }
-
-  if (rawText.startsWith("'")) {
-    return decodeYamlSingleQuotedScalar(rawText);
-  }
-
-  return rawText.length > 0 ? rawText : null;
 };
 
 const YAML_SAFE_PLAIN_STRING_PATTERN = /^[A-Za-z_][A-Za-z0-9 _./-]*$/u;
@@ -1352,7 +1330,6 @@ const parseYamlNode = (lines: YamlLine[]): { node: YamlNode; nextLineIndex: numb
           start: keyStartOffset,
           end: keyEndOffset,
         },
-        keyText,
         value: resolvedValue,
       });
 
@@ -1399,39 +1376,24 @@ const findYamlTargetInNode = (
   clickedOffset: number,
   language: OutputLanguageId,
   toRange: (range: OffsetRange) => SourceRange,
-  inheritedLabel: string | null = null,
 ): ContextPrettifyTarget | null => {
   if (!containsOffset(node.range, clickedOffset)) {
     return null;
   }
 
   if (node.kind === 'string') {
-    return createStringTarget(node, inheritedLabel, language, toRange);
+    return createStringTarget(node, language, toRange);
   }
 
   if (node.kind === 'mapping') {
     for (const property of node.properties) {
       if (containsOffset(property.keyRange, clickedOffset)) {
         return property.value.kind === 'string'
-          ? createStringTarget(
-              property.value,
-              decodeYamlTargetLabel(property.keyText),
-              language,
-              toRange,
-            )
+          ? createStringTarget(property.value, language, toRange)
           : null;
       }
 
-      const target =
-        property.value.kind === 'string'
-          ? findYamlTargetInNode(
-              property.value,
-              clickedOffset,
-              language,
-              toRange,
-              decodeYamlTargetLabel(property.keyText),
-            )
-          : findYamlTargetInNode(property.value, clickedOffset, language, toRange);
+      const target = findYamlTargetInNode(property.value, clickedOffset, language, toRange);
       if (target) {
         return target;
       }
@@ -1516,18 +1478,12 @@ const getJsTsStringTargetNode = (
   };
 };
 
-const getJsTsNameInfo = (
+const getJsTsNameRange = (
   name: ts.DeclarationName | ts.PropertyName,
   sourceFile: ts.SourceFile,
-): {
-  label: string;
-  range: OffsetRange;
-} | null => {
+): OffsetRange | null => {
   if (ts.isIdentifier(name)) {
-    return {
-      label: name.text,
-      range: toTsOffsetRange(name, sourceFile),
-    };
+    return toTsOffsetRange(name, sourceFile);
   }
 
   if (
@@ -1535,17 +1491,11 @@ const getJsTsNameInfo = (
     ts.isNoSubstitutionTemplateLiteral(name) ||
     ts.isNumericLiteral(name)
   ) {
-    return {
-      label: name.text,
-      range: toTsOffsetRange(name, sourceFile),
-    };
+    return toTsOffsetRange(name, sourceFile);
   }
 
   if (ts.isPrivateIdentifier(name)) {
-    return {
-      label: name.text.slice(1),
-      range: toTsOffsetRange(name, sourceFile),
-    };
+    return toTsOffsetRange(name, sourceFile);
   }
 
   return null;
@@ -1557,7 +1507,6 @@ const findJsTsTargetInNode = (
   language: Extract<OutputLanguageId, 'javascript' | 'typescript'>,
   toRange: (range: OffsetRange) => SourceRange,
   sourceFile: ts.SourceFile,
-  inheritedLabel: string | null = null,
 ): ContextPrettifyTarget | null => {
   const nodeRange = toTsOffsetRange(node, sourceFile);
   if (!containsOffset(nodeRange, clickedOffset)) {
@@ -1570,16 +1519,14 @@ const findJsTsTargetInNode = (
 
   const stringTargetNode = getJsTsStringTargetNode(node, sourceFile);
   if (stringTargetNode) {
-    return createStringTarget(stringTargetNode, inheritedLabel, language, toRange);
+    return createStringTarget(stringTargetNode, language, toRange);
   }
 
   if (isNamedJsTsValueDeclaration(node) && node.initializer) {
-    const nameInfo = getJsTsNameInfo(node.name, sourceFile);
-    if (nameInfo && containsOffset(nameInfo.range, clickedOffset)) {
+    const nameRange = getJsTsNameRange(node.name, sourceFile);
+    if (nameRange && containsOffset(nameRange, clickedOffset)) {
       const namedTargetNode = getJsTsStringTargetNode(node.initializer, sourceFile);
-      return namedTargetNode
-        ? createStringTarget(namedTargetNode, nameInfo.label, language, toRange)
-        : null;
+      return namedTargetNode ? createStringTarget(namedTargetNode, language, toRange) : null;
     }
 
     const nestedTarget = findJsTsTargetInNode(
@@ -1588,7 +1535,6 @@ const findJsTsTargetInNode = (
       language,
       toRange,
       sourceFile,
-      nameInfo?.label ?? inheritedLabel,
     );
     if (nestedTarget) {
       return nestedTarget;
@@ -1603,14 +1549,7 @@ const findJsTsTargetInNode = (
   }
 
   for (const child of node.getChildren(sourceFile)) {
-    const target = findJsTsTargetInNode(
-      child,
-      clickedOffset,
-      language,
-      toRange,
-      sourceFile,
-      inheritedLabel,
-    );
+    const target = findJsTsTargetInNode(child, clickedOffset, language, toRange, sourceFile);
     if (target) {
       return target;
     }
@@ -1671,7 +1610,6 @@ type GraphqlToken =
 
 type GraphqlStringCandidate = {
   node: StringTargetNode;
-  label: string | null;
   keyRange: OffsetRange | null;
 };
 
@@ -1969,7 +1907,6 @@ const tokenizeGraphqlDocument = (text: string): GraphqlToken[] | null => {
 
 const createGraphqlStringCandidate = (
   token: Extract<GraphqlToken, { kind: 'string' }>,
-  label: string | null,
   keyRange: OffsetRange | null,
 ): GraphqlStringCandidate => {
   return {
@@ -1978,7 +1915,6 @@ const createGraphqlStringCandidate = (
       range: token.range,
       decodedText: token.decodedText,
     },
-    label,
     keyRange,
   };
 };
@@ -2002,7 +1938,6 @@ const getMatchingGraphqlPunctuation = (punctuation: string): string | null => {
 const scanGraphqlValue = (
   tokens: GraphqlToken[],
   startIndex: number,
-  label: string | null,
   keyRange: OffsetRange | null,
 ): {
   candidates: GraphqlStringCandidate[];
@@ -2020,7 +1955,7 @@ const scanGraphqlValue = (
 
   if (token.kind === 'string') {
     return {
-      candidates: [createGraphqlStringCandidate(token, label, keyRange)],
+      candidates: [createGraphqlStringCandidate(token, keyRange)],
       nextIndex: startIndex + 1,
       isClosed: true,
     };
@@ -2074,7 +2009,7 @@ const scanGraphqlTokens = (
     if (token.kind === 'name') {
       const nextToken = tokens[index + 1];
       if (nextToken?.kind === 'punct' && (nextToken.text === ':' || nextToken.text === '=')) {
-        const valueResult = scanGraphqlValue(tokens, index + 2, token.text, token.range);
+        const valueResult = scanGraphqlValue(tokens, index + 2, token.range);
         if (!valueResult.isClosed) {
           return {
             candidates: [],
@@ -2089,7 +2024,7 @@ const scanGraphqlTokens = (
     }
 
     if (token.kind === 'string') {
-      candidates.push(createGraphqlStringCandidate(token, null, null));
+      candidates.push(createGraphqlStringCandidate(token, null));
       index += 1;
       continue;
     }
@@ -2178,12 +2113,11 @@ const resolveGraphqlTarget = (
     return null;
   }
 
-  return createStringTarget(candidate.node, candidate.label, language, parser.toSourceRange);
+  return createStringTarget(candidate.node, language, parser.toSourceRange);
 };
 
 type XmlStringCandidate = {
   node: StringTargetNode;
-  label: string | null;
   keyRange: OffsetRange | null;
 };
 
@@ -2213,7 +2147,6 @@ type SqlToken =
 
 type SqlStringCandidate = {
   node: StringTargetNode;
-  label: string | null;
   keyRange: OffsetRange | null;
 };
 
@@ -2583,16 +2516,12 @@ const tokenizeSqlDocument = (documentText: string): SqlToken[] | null => {
   return tokens;
 };
 
-const getSqlNameInfo = (
-  tokens: SqlToken[],
-  endIndex: number,
-): { label: string; range: OffsetRange } | null => {
+const getSqlNameRange = (tokens: SqlToken[], endIndex: number): OffsetRange | null => {
   const lastToken = tokens[endIndex];
   if (!lastToken || lastToken.kind !== 'identifier') {
     return null;
   }
 
-  const segments = [lastToken.text];
   let start = lastToken.range.start;
   let index = endIndex;
 
@@ -2607,23 +2536,18 @@ const getSqlNameInfo = (
       break;
     }
 
-    segments.unshift(previousIdentifier.text);
     start = previousIdentifier.range.start;
     index -= 2;
   }
 
   return {
-    label: segments.join('.'),
-    range: {
-      start,
-      end: lastToken.range.end,
-    },
+    start,
+    end: lastToken.range.end,
   };
 };
 
 const createSqlStringCandidate = (
   token: Extract<SqlToken, { kind: 'string' }>,
-  label: string | null,
   keyRange: OffsetRange | null,
 ): SqlStringCandidate => {
   return {
@@ -2632,7 +2556,6 @@ const createSqlStringCandidate = (
       range: token.range,
       decodedText: token.decodedText,
     },
-    label,
     keyRange,
   };
 };
@@ -2646,28 +2569,25 @@ const buildSqlCandidates = (tokens: SqlToken[]): SqlStringCandidate[] => {
       continue;
     }
 
-    let label: string | null = null;
     let keyRange: OffsetRange | null = null;
     const previousToken = tokens[index - 1];
 
     if (previousToken?.kind === 'operator' && previousToken.text === '=') {
-      const nameInfo = getSqlNameInfo(tokens, index - 2);
-      if (nameInfo) {
-        label = nameInfo.label;
-        keyRange = nameInfo.range;
+      const nameRange = getSqlNameRange(tokens, index - 2);
+      if (nameRange) {
+        keyRange = nameRange;
       }
     } else if (
       previousToken?.kind === 'identifier' &&
       /^(like|ilike)$/iu.test(previousToken.text)
     ) {
-      const nameInfo = getSqlNameInfo(tokens, index - 2);
-      if (nameInfo) {
-        label = nameInfo.label;
-        keyRange = nameInfo.range;
+      const nameRange = getSqlNameRange(tokens, index - 2);
+      if (nameRange) {
+        keyRange = nameRange;
       }
     }
 
-    candidates.push(createSqlStringCandidate(token, label, keyRange));
+    candidates.push(createSqlStringCandidate(token, keyRange));
   }
 
   return candidates;
@@ -2724,7 +2644,7 @@ const resolveSqlTarget = (
     return null;
   }
 
-  return createStringTarget(candidate.node, candidate.label, language, parser.toSourceRange);
+  return createStringTarget(candidate.node, language, parser.toSourceRange);
 };
 
 const resolveXmlTarget = (
@@ -2806,7 +2726,6 @@ const resolveXmlTarget = (
         if (!currentElement.hasElementChild && currentElement.textCandidates.length === 1) {
           candidates.push({
             node: currentElement.textCandidates[0]!,
-            label: currentElement.name,
             keyRange: currentElement.nameRange,
           });
         }
@@ -2890,7 +2809,6 @@ const resolveXmlTarget = (
               },
               decodedText: decodedValue,
             },
-            label: attributeName.name,
             keyRange: attributeName.range,
           });
         }
@@ -2944,7 +2862,7 @@ const resolveXmlTarget = (
     return null;
   }
 
-  return createStringTarget(candidate.node, candidate.label, language, parser.toSourceRange);
+  return createStringTarget(candidate.node, language, parser.toSourceRange);
 };
 
 const createNoTargetResolver = (): ContextPrettifyTargetResolver => {

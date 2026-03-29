@@ -29,6 +29,8 @@ export const ConfirmationModal = ({
 
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
         onCancel();
       }
     };

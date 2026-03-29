@@ -13,16 +13,13 @@ describe('OutputContextMenu', () => {
         anchorY={240}
         disabled={false}
         isOpen={true}
-        label="Prettify query..."
         onClose={onClose}
         onSelect={onSelect}
       />,
     );
 
     expect(screen.getByTestId('output-context-menu')).toBeVisible();
-    expect(screen.getByTestId('output-context-menu-prettify')).toHaveTextContent(
-      'Prettify query...',
-    );
+    expect(screen.getByTestId('output-context-menu-prettify')).toHaveTextContent('Prettify...');
 
     fireEvent.click(screen.getByTestId('output-context-menu-prettify'));
     expect(onSelect).toHaveBeenCalledTimes(1);
@@ -38,12 +35,32 @@ describe('OutputContextMenu', () => {
         anchorY={0}
         disabled={true}
         isOpen={true}
-        label="Prettify ..."
         onClose={vi.fn()}
         onSelect={vi.fn()}
       />,
     );
 
     expect(screen.getByTestId('output-context-menu-prettify')).toBeDisabled();
+  });
+
+  it('dismisses on backdrop right-click but not on menu right-click', () => {
+    const onClose = vi.fn();
+
+    render(
+      <OutputContextMenu
+        anchorX={120}
+        anchorY={240}
+        disabled={false}
+        isOpen={true}
+        onClose={onClose}
+        onSelect={vi.fn()}
+      />,
+    );
+
+    fireEvent.contextMenu(screen.getByTestId('output-context-menu'));
+    expect(onClose).not.toHaveBeenCalled();
+
+    fireEvent.contextMenu(screen.getByTestId('output-context-menu-backdrop'));
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

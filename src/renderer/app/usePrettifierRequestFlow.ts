@@ -38,10 +38,17 @@ type UsePrettifierRequestFlowOptions = {
   logTelemetry: (name: TelemetryEventName, meta: TelemetryMeta) => Promise<void>;
 };
 
+type PendingFallbackRequest = {
+  requestId: number;
+  resolveInterruption: (response: PrettifyRunResponse | null) => void;
+  createCanceledResponse: () => PrettifyRunResponse;
+};
+
 export type UsePrettifierRequestFlowResult = {
   isLlmRunning: boolean;
   fallbackWaitState: FallbackWaitState | null;
   cancelActiveFallback: () => Promise<void>;
+  discardActiveFallback: () => Promise<void>;
   requestPrettifier: (
     nextInputText: string,
     trigger: PrettifyTrigger,
@@ -55,6 +62,15 @@ const isLatestPrettifyRequest = (
   return requestId === latestRequestIdRef.current;
 };
 
+const createDeferred = <T>() => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolver) => {
+    resolve = resolver;
+  });
+
+  return { promise, resolve };
+};
+
 export const usePrettifierRequestFlow = ({
   indentSize,
   fallbackWarningLineThreshold,
@@ -66,7 +82,7 @@ export const usePrettifierRequestFlow = ({
   logTelemetry,
 }: UsePrettifierRequestFlowOptions): UsePrettifierRequestFlowResult => {
   const latestPrettifyRequestIdRef = useRef(0);
-  const activeFallbackRequestIdRef = useRef<number | null>(null);
+  const activeFallbackRequestRef = useRef<PendingFallbackRequest | null>(null);
   const prettifierService = useMemo(() => createPrettifierService(indentSize), [indentSize]);
 
   const fallbackWaitState = useDocumentSession(selectFallbackWaitState);
@@ -96,37 +112,56 @@ export const usePrettifierRequestFlow = ({
       onProgress: handlePrettifierProgress,
     });
 
-  const takeActiveFallbackRequestId = useCallback((): number | null => {
-    const activeRequestId = activeFallbackRequestIdRef.current;
-    activeFallbackRequestIdRef.current = null;
+  const takeActiveFallbackRequest = useCallback((): PendingFallbackRequest | null => {
+    const activeRequest = activeFallbackRequestRef.current;
+    activeFallbackRequestRef.current = null;
 
-    return activeRequestId;
+    return activeRequest;
   }, []);
 
+  const interruptActiveFallback = useCallback(
+    async (outcome: 'passthrough' | 'discard'): Promise<void> => {
+      const activeRequest = takeActiveFallbackRequest();
+      if (!activeRequest) {
+        return;
+      }
+
+      if (outcome === 'passthrough') {
+        activeRequest.resolveInterruption(activeRequest.createCanceledResponse());
+      } else {
+        latestPrettifyRequestIdRef.current += 1;
+        activeRequest.resolveInterruption(null);
+      }
+
+      setFallbackWaitState(null);
+      await cancelFallbackRequest(activeRequest.requestId);
+    },
+    [cancelFallbackRequest, setFallbackWaitState, takeActiveFallbackRequest],
+  );
+
   const cancelActiveFallback = useCallback(async (): Promise<void> => {
-    if (activeFallbackRequestIdRef.current === null) {
+    if (activeFallbackRequestRef.current === null) {
       return;
     }
 
-    const activeRequestId = takeActiveFallbackRequestId();
-    latestPrettifyRequestIdRef.current += 1;
-    setFallbackWaitState(null);
-    if (activeRequestId !== null) {
-      await cancelFallbackRequest(activeRequestId);
+    await interruptActiveFallback('passthrough');
+  }, [interruptActiveFallback]);
+
+  const discardActiveFallback = useCallback(async (): Promise<void> => {
+    if (activeFallbackRequestRef.current === null) {
+      return;
     }
-  }, [cancelFallbackRequest, setFallbackWaitState, takeActiveFallbackRequestId]);
+
+    await interruptActiveFallback('discard');
+  }, [interruptActiveFallback]);
 
   const requestPrettifier = useCallback(
     async (
       nextInputText: string,
       trigger: PrettifyTrigger,
     ): Promise<PrettifyRunResponse | null> => {
-      if (activeFallbackRequestIdRef.current !== null) {
-        const previousRequestId = takeActiveFallbackRequestId();
-        if (previousRequestId !== null) {
-          setFallbackWaitState(null);
-          void cancelFallbackRequest(previousRequestId);
-        }
+      if (activeFallbackRequestRef.current !== null) {
+        void interruptActiveFallback('discard');
       }
 
       const requestId = latestPrettifyRequestIdRef.current + 1;
@@ -249,18 +284,33 @@ export const usePrettifierRequestFlow = ({
       setFallbackWaitState(
         createFallbackWaitState(requestId, nextInputText, effectiveFallbackAgent.agentName),
       );
-      activeFallbackRequestIdRef.current = requestId;
+      const interruption = createDeferred<PrettifyRunResponse | null>();
+      activeFallbackRequestRef.current = {
+        requestId,
+        resolveInterruption: interruption.resolve,
+        createCanceledResponse: () => ({
+          status: 'passthrough-fallback-failed',
+          outputText: nextInputText,
+          localDetection: localResult.localDetection,
+          fallbackStatus: 'failed-canceled',
+          agentId: effectiveFallbackAgentId,
+          durationMs: getDurationMs(),
+        }),
+      };
 
       try {
-        const response = await runPrettifierRequest({
-          requestId,
-          inputText: nextInputText,
-          indentSize,
-          trigger,
-          ...(effectiveFallbackAgentId && effectiveFallbackAgentId !== fallbackAgentId
-            ? { fallbackAgentIdOverride: effectiveFallbackAgentId }
-            : {}),
-        });
+        const response = await Promise.race([
+          runPrettifierRequest({
+            requestId,
+            inputText: nextInputText,
+            indentSize,
+            trigger,
+            ...(effectiveFallbackAgentId && effectiveFallbackAgentId !== fallbackAgentId
+              ? { fallbackAgentIdOverride: effectiveFallbackAgentId }
+              : {}),
+          }),
+          interruption.promise,
+        ]);
 
         if (!isLatestPrettifyRequest(requestId, latestPrettifyRequestIdRef) || !response) {
           return null;
@@ -282,8 +332,8 @@ export const usePrettifierRequestFlow = ({
           durationMs: getDurationMs(),
         };
       } finally {
-        if (activeFallbackRequestIdRef.current === requestId) {
-          activeFallbackRequestIdRef.current = null;
+        if (activeFallbackRequestRef.current?.requestId === requestId) {
+          activeFallbackRequestRef.current = null;
         }
 
         if (isLatestPrettifyRequest(requestId, latestPrettifyRequestIdRef)) {
@@ -292,11 +342,11 @@ export const usePrettifierRequestFlow = ({
       }
     },
     [
-      cancelFallbackRequest,
       fallbackAgentId,
       fallbackAgentOptions,
       fallbackWarningLineThreshold,
       getWindowApi,
+      interruptActiveFallback,
       indentSize,
       logTelemetry,
       prettifierService,
@@ -304,7 +354,6 @@ export const usePrettifierRequestFlow = ({
       requestFallbackConfirmation,
       runPrettifierRequest,
       setFallbackWaitState,
-      takeActiveFallbackRequestId,
     ],
   );
 
@@ -312,6 +361,7 @@ export const usePrettifierRequestFlow = ({
     isLlmRunning,
     fallbackWaitState,
     cancelActiveFallback,
+    discardActiveFallback,
     requestPrettifier,
   };
 };

@@ -176,7 +176,7 @@ export const usePrettifierFlow = ({
 
   const resetToInputState = useCallback(
     (notice?: string | null): void => {
-      void requestFlow.cancelActiveFallback();
+      void requestFlow.discardActiveFallback();
       clearTransientOutputState('');
       setPaneMode('input');
       if (notice !== undefined) {
@@ -188,9 +188,7 @@ export const usePrettifierFlow = ({
 
   const cancelActiveFallback = useCallback(async (): Promise<void> => {
     await requestFlow.cancelActiveFallback();
-    clearTransientOutputState('');
-    setPaneMode('input');
-  }, [clearTransientOutputState, requestFlow, setPaneMode]);
+  }, [requestFlow]);
 
   const runPrettifier = useCallback(
     async (
@@ -248,7 +246,7 @@ export const usePrettifierFlow = ({
   );
 
   const resetPrettifierState = useCallback(() => {
-    void requestFlow.cancelActiveFallback();
+    void requestFlow.discardActiveFallback();
     clearTransientOutputState('');
   }, [clearTransientOutputState, requestFlow]);
 
