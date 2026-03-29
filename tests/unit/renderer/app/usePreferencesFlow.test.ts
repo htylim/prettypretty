@@ -1,10 +1,12 @@
 import { act, render, waitFor } from '@testing-library/react';
 import { createElement, forwardRef, useCallback, useImperativeHandle, useState } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Preferences } from '../../../../src/shared/preferences';
 import type { ThemeMode } from '../../../../src/shared/types';
 import type { WindowApi } from '../../../../src/shared/window-api';
 import { usePreferencesFlow } from '../../../../src/renderer/app/usePreferencesFlow';
+import { createInitialDocumentSessionState } from '../../../../src/renderer/app/session/documentSessionDomain';
+import { useDocumentSession } from '../../../../src/renderer/app/session/useDocumentSession';
 
 const createPreferences = (overrides: Partial<Preferences> = {}): Preferences => ({
   version: 2,
@@ -123,6 +125,10 @@ const createDeferred = <T>() => {
 };
 
 describe('usePreferencesFlow', () => {
+  beforeEach(() => {
+    useDocumentSession.setState(createInitialDocumentSessionState());
+  });
+
   it('hydrates theme, indent size, fallback id, and fallback options from preferences', async () => {
     const getAll = vi.fn().mockResolvedValue(
       createPreferences({

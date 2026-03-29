@@ -1,7 +1,9 @@
 import { act, render } from '@testing-library/react';
 import { createElement, forwardRef, useImperativeHandle } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OutputEditorHandle } from '../../../../src/renderer/components/OutputEditor';
+import { createInitialDocumentSessionState } from '../../../../src/renderer/app/session/documentSessionDomain';
+import { useDocumentSession } from '../../../../src/renderer/app/session/useDocumentSession';
 import { useOutputPaneController } from '../../../../src/renderer/app/useOutputPaneController';
 
 type HarnessHandle = {
@@ -37,6 +39,10 @@ const createOutputEditorHandle = (): OutputEditorHandle => ({
 });
 
 describe('useOutputPaneController', () => {
+  beforeEach(() => {
+    useDocumentSession.setState(createInitialDocumentSessionState());
+  });
+
   it('returns the root pane by default', () => {
     const ref = { current: null as HarnessHandle | null };
     render(
@@ -53,6 +59,9 @@ describe('useOutputPaneController', () => {
       testId: 'output-editor',
       viewRange: null,
     });
+    expect(useDocumentSession.getState().outputPaneChainState).toEqual(
+      createInitialDocumentSessionState().outputPaneChainState,
+    );
     expect(ref.current?.getController().leftVisiblePaneIndex).toBe(0);
     expect(ref.current?.getController().hasDerivedOutputPane).toBe(false);
   });
@@ -79,6 +88,7 @@ describe('useOutputPaneController', () => {
     });
 
     expect(ref.current?.getController().outputPanes).toHaveLength(3);
+    expect(useDocumentSession.getState().outputPaneChainState.derivedPanes).toHaveLength(2);
     expect(ref.current?.getController().outputPanes[2]).toMatchObject({
       paneId: 'output-pane-2',
       documentId: 'output-pane-2:document-2',
@@ -94,6 +104,7 @@ describe('useOutputPaneController', () => {
     });
 
     expect(ref.current?.getController().outputPanes).toHaveLength(2);
+    expect(useDocumentSession.getState().outputPaneChainState.derivedPanes).toHaveLength(1);
     expect(ref.current?.getController().outputPanes[1]).toMatchObject({
       paneId: 'output-pane-1',
       documentId: 'output-pane-1:document-3',
@@ -133,6 +144,7 @@ describe('useOutputPaneController', () => {
     });
 
     expect(ref.current?.getController().outputPanes).toHaveLength(2);
+    expect(useDocumentSession.getState().outputPaneChainState.derivedPanes).toHaveLength(1);
     expect(ref.current?.getController().outputPanes[1]).toMatchObject({
       paneId: 'output-pane-1',
       value: '{\n  "nested": true\n}',
@@ -220,6 +232,7 @@ describe('useOutputPaneController', () => {
       paneId: 'output-pane-1',
       sequence: 1,
     });
+    expect(useDocumentSession.getState().outputPaneChainState.activePaneId).toBe('output-pane-1');
 
     act(() => {
       ref.current?.getController().onOutputPaneHandleChange('output-pane-1', childHandle);
@@ -233,6 +246,7 @@ describe('useOutputPaneController', () => {
       paneId: 'output-pane-2',
       sequence: 2,
     });
+    expect(useDocumentSession.getState().outputPaneChainState.activePaneId).toBe('output-pane-2');
 
     act(() => {
       ref.current?.getController().onOutputPaneHandleChange('output-pane-2', grandchildHandle);
@@ -248,6 +262,9 @@ describe('useOutputPaneController', () => {
       paneId: 'output-root-pane',
       sequence: 3,
     });
+    expect(useDocumentSession.getState().outputPaneChainState.activePaneId).toBe(
+      'output-root-pane',
+    );
     expect(ref.current?.getController().getActiveOutputPaneHandle()).toBe(rootHandle);
     expect(rootHandle.focus).not.toHaveBeenCalled();
     expect(childHandle.focus).not.toHaveBeenCalled();

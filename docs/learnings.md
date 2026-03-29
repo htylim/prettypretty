@@ -11,15 +11,21 @@ These are the durable patterns worth keeping in mind when changing the codebase.
 ## Renderer
 
 - Keep `App.tsx` composition-only.
+- Keep one window-local document session as the source of truth for renderer-visible state.
 - Put orchestration in focused controller hooks, not in view components.
 - Be explicit about request ids, cancellation, and stale-response guards in async renderer flows.
 - Avoid spreading the same state transition logic across multiple handlers.
+- Measure renderer refactors with one question: does this reduce the number of places you must read to explain one behavior?
+- Split pure decision logic from runtime hooks that own IPC, DOM timing, or imperative handles.
+- Keep view components as thin render/adapter seams when a behavior needs DOM or Monaco runtime bookkeeping.
 
 ## Monaco
 
 - Use shared Monaco runtime helpers instead of duplicating setup logic.
 - Keep input/output editor options aligned unless there is a documented reason not to.
 - Treat Monaco integration as a real subsystem; changes there usually affect focus, view state, folding, and tests together.
+- Keep Monaco runtime ownership in focused runtime seams, not spread across view components and controller hooks.
+- Keep viewport movement/focus timing and editor lifecycle/folding as separate seams; they change for different reasons and should not be explained from one giant component.
 
 ## Preferences and IPC
 

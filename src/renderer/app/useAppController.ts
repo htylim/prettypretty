@@ -1,17 +1,26 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import type { RefObject } from 'react';
 import type { IndentSize } from '../../shared/preferences';
 import type { TelemetryEventName } from '../../shared/telemetry';
 import type { PaneMode, ThemeMode } from '../../shared/types';
 import type { InputEditorHandle } from '../components/InputEditor';
-import { useUiStore } from '../state/uiStore';
 import type { FallbackAgentOption, FallbackWaitState, IngestSource } from './appDomain';
 import { reportRendererError } from './reportRendererError';
+import {
+  selectIndentSize,
+  selectIngestNotice,
+  selectInputText,
+  selectPaneMode,
+  selectThemeMode,
+} from './session/documentSessionSelectors';
+import { useDocumentSession } from './session/useDocumentSession';
 import { useKeyboardShortcuts } from './useKeyboardShortcuts';
 import { useMouseNavigationShortcuts } from './useMouseNavigationShortcuts';
 import { useOutputPaneController } from './useOutputPaneController';
 import { usePreferencesFlow } from './usePreferencesFlow';
+import { useFallbackModalRuntime } from './session/useFallbackModalRuntime';
 import { usePrettifierFlow } from './usePrettifierFlow';
+import type { FallbackModalState } from './session/prettifierSessionDomain';
 import { getWindowApi } from './windowApi';
 
 type TelemetryMeta = Record<string, string | number | boolean | null>;
@@ -19,15 +28,6 @@ type TelemetryMeta = Record<string, string | number | boolean | null>;
 type UseAppControllerOptions = {
   inputEditorRef: RefObject<InputEditorHandle | null>;
 };
-
-export type FallbackModalState =
-  | {
-      kind: 'large-content';
-      lineCount: number;
-    }
-  | {
-      kind: 'agent-selection';
-    };
 
 export type UseAppControllerResult = {
   paneMode: PaneMode;
@@ -80,28 +80,33 @@ export type UseAppControllerResult = {
 };
 
 /**
- * Top-level renderer controller. It wires together persisted preferences, UI
- * store state, prettifier orchestration, modal prompts, and window-level actions
- * so `App` can stay composition-only.
+ * Top-level renderer controller. It composes persisted preferences, document
+ * session state, renderer runtimes, and window-level actions so `App` can stay
+ * composition-only.
  */
 export const useAppController = ({
   inputEditorRef,
 }: UseAppControllerOptions): UseAppControllerResult => {
   const latestIndentSizeRequestIdRef = useRef(0);
-  const fallbackConfirmationResolverRef = useRef<((accepted: boolean) => void) | null>(null);
-  const fallbackAgentSelectionResolverRef = useRef<((agentId: string | null) => void) | null>(null);
-  const paneMode = useUiStore((state) => state.paneMode);
-  const themeMode = useUiStore((state) => state.themeMode);
-  const indentSize = useUiStore((state) => state.indentSize);
-  const inputText = useUiStore((state) => state.inputText);
-  const ingestNotice = useUiStore((state) => state.ingestNotice);
-  const reset = useUiStore((state) => state.reset);
-  const setPaneMode = useUiStore((state) => state.setPaneMode);
-  const setThemeMode = useUiStore((state) => state.setThemeMode);
-  const setIndentSize = useUiStore((state) => state.setIndentSize);
-  const setInputText = useUiStore((state) => state.setInputText);
-  const setIngestNotice = useUiStore((state) => state.setIngestNotice);
-  const [fallbackModalState, setFallbackModalState] = useState<FallbackModalState | null>(null);
+  const paneMode = useDocumentSession(selectPaneMode);
+  const themeMode = useDocumentSession(selectThemeMode);
+  const indentSize = useDocumentSession(selectIndentSize);
+  const inputText = useDocumentSession(selectInputText);
+  const ingestNotice = useDocumentSession(selectIngestNotice);
+  const reset = useDocumentSession((state) => state.reset);
+  const setPaneMode = useDocumentSession((state) => state.setPaneMode);
+  const setThemeMode = useDocumentSession((state) => state.setThemeMode);
+  const setIndentSize = useDocumentSession((state) => state.setIndentSize);
+  const setInputText = useDocumentSession((state) => state.setInputText);
+  const setIngestNotice = useDocumentSession((state) => state.setIngestNotice);
+  const {
+    fallbackModalState,
+    requestFallbackConfirmation,
+    requestFallbackAgentSelection,
+    cancelPendingFallbackPrompts,
+    settleFallbackConfirmation,
+    settleFallbackAgentSelection,
+  } = useFallbackModalRuntime();
 
   const logTelemetry = useCallback(
     async (name: TelemetryEventName, meta: TelemetryMeta): Promise<void> => {
@@ -133,60 +138,6 @@ export const useAppController = ({
     getWindowApi,
   });
 
-  // Only one fallback prompt may be unresolved at a time. New prompts cancel the
-  // old resolver first so stale modals cannot settle a newer request.
-  const cancelPendingFallbackPrompts = useCallback((): void => {
-    if (fallbackConfirmationResolverRef.current) {
-      fallbackConfirmationResolverRef.current(false);
-      fallbackConfirmationResolverRef.current = null;
-    }
-
-    if (fallbackAgentSelectionResolverRef.current) {
-      fallbackAgentSelectionResolverRef.current(null);
-      fallbackAgentSelectionResolverRef.current = null;
-    }
-
-    setFallbackModalState(null);
-  }, []);
-
-  const requestFallbackConfirmation = useCallback(
-    (lineCount: number): Promise<boolean> => {
-      return new Promise<boolean>((resolve) => {
-        cancelPendingFallbackPrompts();
-        fallbackConfirmationResolverRef.current = resolve;
-        setFallbackModalState({
-          kind: 'large-content',
-          lineCount,
-        });
-      });
-    },
-    [cancelPendingFallbackPrompts],
-  );
-
-  const settleFallbackConfirmation = useCallback((accepted: boolean): void => {
-    const resolver = fallbackConfirmationResolverRef.current;
-    fallbackConfirmationResolverRef.current = null;
-    setFallbackModalState(null);
-    resolver?.(accepted);
-  }, []);
-
-  const requestFallbackAgentSelection = useCallback((): Promise<string | null> => {
-    return new Promise<string | null>((resolve) => {
-      cancelPendingFallbackPrompts();
-      fallbackAgentSelectionResolverRef.current = resolve;
-      setFallbackModalState({
-        kind: 'agent-selection',
-      });
-    });
-  }, [cancelPendingFallbackPrompts]);
-
-  const settleFallbackAgentSelection = useCallback((agentId: string | null): void => {
-    const resolver = fallbackAgentSelectionResolverRef.current;
-    fallbackAgentSelectionResolverRef.current = null;
-    setFallbackModalState(null);
-    resolver?.(agentId);
-  }, []);
-
   const {
     outputText,
     isLlmRunning,
@@ -202,9 +153,6 @@ export const useAppController = ({
   } = usePrettifierFlow({
     indentSize,
     fallbackWarningLineThreshold,
-    setPaneMode,
-    setInputText,
-    setIngestNotice,
     fallbackAgentId,
     fallbackAgentOptions,
     getWindowApi,

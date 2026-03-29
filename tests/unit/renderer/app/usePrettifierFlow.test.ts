@@ -1,11 +1,20 @@
 import { act, render, waitFor } from '@testing-library/react';
-import { createElement, forwardRef, useCallback, useImperativeHandle, useState } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { createElement, forwardRef, useCallback, useImperativeHandle } from 'react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Preferences } from '../../../../src/shared/preferences';
 import type { PrettifyRunResponse, PrettifyTrigger } from '../../../../src/shared/prettifier';
 import type { PaneMode } from '../../../../src/shared/types';
 import type { WindowApi } from '../../../../src/shared/window-api';
 import type { FallbackWaitState, IngestSource } from '../../../../src/renderer/app/appDomain';
+import { createInitialDocumentSessionState } from '../../../../src/renderer/app/session/documentSessionDomain';
+import {
+  selectFallbackWaitState,
+  selectIngestNotice,
+  selectInputText,
+  selectPaneMode,
+  selectOutputText,
+} from '../../../../src/renderer/app/session/documentSessionSelectors';
+import { useDocumentSession } from '../../../../src/renderer/app/session/useDocumentSession';
 import { usePrettifierFlow } from '../../../../src/renderer/app/usePrettifierFlow';
 
 const createPreferences = (overrides: Partial<Preferences> = {}): Preferences => ({
@@ -92,16 +101,15 @@ const PrettifierHarness = forwardRef<HarnessHandle, HarnessProps>(
     },
     ref,
   ) => {
-    const [paneMode, setPaneMode] = useState<PaneMode>('input');
-    const [inputText, setInputText] = useState('');
-    const [ingestNotice, setIngestNotice] = useState<string | null>(null);
     const getWindowApi = useCallback(() => api, [api]);
+    const paneMode = useDocumentSession(selectPaneMode);
+    const inputText = useDocumentSession(selectInputText);
+    const outputText = useDocumentSession(selectOutputText);
+    const ingestNotice = useDocumentSession(selectIngestNotice);
+    const fallbackWaitState = useDocumentSession(selectFallbackWaitState);
     const flow = usePrettifierFlow({
       indentSize: 2,
       fallbackWarningLineThreshold,
-      setPaneMode,
-      setInputText,
-      setIngestNotice,
       fallbackAgentId,
       fallbackAgentOptions,
       getWindowApi,
@@ -118,12 +126,12 @@ const PrettifierHarness = forwardRef<HarnessHandle, HarnessProps>(
         runPrettifier: flow.runPrettifier,
         getPaneMode: () => paneMode,
         getInputText: () => inputText,
-        getOutputText: () => flow.outputText,
+        getOutputText: () => outputText,
         getIngestNotice: () => ingestNotice,
         getIsLlmRunning: () => flow.isLlmRunning,
-        getFallbackWaitState: () => flow.fallbackWaitState,
+        getFallbackWaitState: () => fallbackWaitState,
       }),
-      [flow, ingestNotice, inputText, paneMode],
+      [fallbackWaitState, flow, ingestNotice, inputText, outputText, paneMode],
     );
 
     return null;
@@ -141,6 +149,10 @@ const createAppApi = () => ({
 });
 
 describe('usePrettifierFlow', () => {
+  beforeEach(() => {
+    useDocumentSession.setState(createInitialDocumentSessionState());
+  });
+
   it('applies local prettifier result and switches to output on ingestion', async () => {
     const getAll = vi.fn().mockResolvedValue(createPreferences());
     const run = vi.fn().mockResolvedValue(createPrettifierResponse());

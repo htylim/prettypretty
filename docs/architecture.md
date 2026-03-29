@@ -46,20 +46,21 @@
 
 - `src/renderer/App.tsx`
   - composition only
+- `src/renderer/app/session/*`
+  - document-session source of truth for renderer-visible window state
+  - selectors, pure session domains, and focused runtime seams
 - `src/renderer/app/useAppController.ts`
-  - top-level renderer orchestration
+  - top-level renderer composition seam
 - `src/renderer/app/usePrettifierFlow.ts`
-  - ingest, local prettify, fallback orchestration, cancel/progress handling
+  - session-backed prettifier orchestration
 - `src/renderer/app/usePreferencesFlow.ts`
   - preferences hydration and optimistic persistence
 - `src/renderer/app/useOutputPaneController.ts`
-  - output-pane state, focus, and viewport management
-- `src/renderer/state/uiStore.ts`
-  - lightweight renderer UI store
+  - session-backed output-pane orchestration plus runtime focus/handle coordination
 - `src/renderer/components/*`
-  - view components
+  - view seams and focused renderer runtimes
 - `src/renderer/output/*`
-  - Monaco runtime helpers for output mode
+  - Monaco runtime helpers shared by output mode
 
 ## Core Runtime Flows
 
@@ -72,11 +73,12 @@
 ### Prettify Flow
 
 1. Renderer ingests text from open, drop, paste, or output-mode switch.
-2. Renderer runs the shared local parser first.
-3. If local parsing succeeds, renderer updates output immediately.
-4. If local parsing fails and fallback is allowed, renderer calls main over IPC.
-5. Main executes the configured fallback agent and streams progress back by request id.
-6. Renderer shows a wait screen, supports cancel, and applies the final result or passthrough.
+2. The document session owns renderer-visible input/output, wait, modal, and pane state.
+3. Renderer runs the shared local parser first.
+4. Pure prettifier session/domain helpers decide local success, passthrough, fallback prompts, and reindent transitions.
+5. If local parsing fails and fallback is allowed, the prettifier runtime calls main over IPC.
+6. Main executes the configured fallback agent and streams progress back by request id.
+7. Renderer shows a wait screen, supports cancel, and applies the final result or passthrough through session state.
 
 ### Preferences Flow
 
@@ -88,7 +90,8 @@
 ## Where To Work
 
 - New UI behavior
-  - start in `src/renderer/app/*`
+  - start in `src/renderer/app/session/*` when the behavior changes renderer-visible state ownership
+  - use `src/renderer/app/*` controller hooks for orchestration
   - wire view changes in `src/renderer/components/*`
 - New persisted preference
   - update `src/shared/preferences.ts`
@@ -103,19 +106,26 @@
 - Prettifier or fallback behavior
   - local/shared parsing lives in `src/shared/localPrettifier.ts`
   - main runtime behavior lives in `src/main/prettifier/*`
+  - renderer session/domain behavior lives in `src/renderer/app/session/prettifierSessionDomain.ts`
+  - renderer runtime seams live in `src/renderer/app/session/usePrettifierRuntime.ts` and `src/renderer/app/session/useFallbackModalRuntime.ts`
   - renderer orchestration lives in `src/renderer/app/usePrettifierFlow.ts`
 - Monaco output behavior
-  - start in `src/renderer/output/*` and `src/renderer/components/OutputEditor.tsx`
+  - start in `src/renderer/components/useOutputEditorRuntime.ts`
+  - shared Monaco helpers stay in `src/renderer/output/*`
+- Split-pane viewport behavior
+  - start in `src/renderer/components/useOutputPaneViewportRuntime.ts`
+  - keep `src/renderer/components/OutputPaneStrip.tsx` render-only where possible
 
 ## Complexity Hotspots
 
 These files carry the most behavioral density. Read them carefully before changing related features.
 
-- `src/renderer/app/useAppController.ts`
+- `src/renderer/app/session/documentSessionDomain.ts`
+- `src/renderer/app/session/prettifierSessionDomain.ts`
 - `src/renderer/app/usePrettifierFlow.ts`
-- `src/renderer/app/useOutputPaneController.ts`
-- `src/renderer/components/OutputPaneStrip.tsx`
-- `src/renderer/components/OutputEditor.tsx`
+- `src/renderer/app/outputPaneDomain.ts`
+- `src/renderer/components/useOutputPaneViewportRuntime.ts`
+- `src/renderer/components/useOutputEditorRuntime.ts`
 
 ## Rules That Matter
 
@@ -123,7 +133,9 @@ These files carry the most behavioral density. Read them carefully before changi
 - Keep renderer free of direct Electron and Node APIs.
 - Validate renderer-originated payloads at the main-process boundary.
 - Keep `App.tsx` thin.
-- Put reusable logic in pure helpers when possible; do not bury it in components.
+- Keep renderer-visible window state in the document session, not scattered across components.
+- Split pure behavior decisions from runtime effects and DOM/Monaco coordination.
+- Keep `OutputPaneStrip.tsx` and `OutputEditor.tsx` as thin render/adapter seams.
 
 ## Related Docs
 

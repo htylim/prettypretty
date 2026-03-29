@@ -2,6 +2,15 @@
 
 Reference note: any code shapes, constants, hook names, or type names in this spec are intent-only. They clarify the target architecture; they are not copy-paste implementation source.
 
+## Status
+
+Not planned as of March 29, 2026.
+
+- This spec is retained as a historical/future reference only.
+- Do not implement this spec as part of the current renderer modularization work.
+- Keep current split-pane UI controls and current split-pane behavior as they exist today.
+- Use [`0019-renderer-document-session-and-pane-runtime-boundaries.md`](/Users/hernantylim/Dev/sandbox/prettypretty/docs/specs/0019-renderer-document-session-and-pane-runtime-boundaries.md) for the current refactor-only work.
+
 ## 1. Current State
 
 - [`docs/specs/0016-output-structural-split-pane-stage-one.md`](/Users/hernantylim/Dev/sandbox/prettypretty/docs/specs/0016-output-structural-split-pane-stage-one.md) formalized the current stage-one output split behavior.

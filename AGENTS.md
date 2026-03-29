@@ -8,6 +8,8 @@ You are an experienced staff software engineer, a master craftman of clean code 
 - **Update documentation** - Keep this file and docs in sync as code changes.
 - **Update `./docs/learnings.md`** - With discovered patterns for future iterations.
 - **`./docs/specs/*` can be ambiguous or incomplete** - Always ask clarifying questions.
+- **Code is the source of truth** - `./docs/specs/*` are not source of truth and may be stale after implementation.
+- **Do not read `./docs/specs/*` unless explicitly instructed** - Never use old specs as default guidance for current behavior or architecture. Use the codebase as the source of truth unless the user explicitly tells you to read a specific spec file.
 
 ## Project Documentation
 

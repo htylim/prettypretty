@@ -4,7 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PrettifyRunResponse } from '../../../src/shared/prettifier';
 import type { Preferences } from '../../../src/shared/preferences';
 import { App } from '../../../src/renderer/App';
-import { useUiStore } from '../../../src/renderer/state/uiStore';
+import { createInitialDocumentSessionState } from '../../../src/renderer/app/session/documentSessionDomain';
+import { useDocumentSession } from '../../../src/renderer/app/session/useDocumentSession';
+
+const useUiStore = useDocumentSession;
 
 const openFileMock = vi.fn();
 const saveMock = vi.fn();
@@ -236,13 +239,7 @@ beforeEach(() => {
   });
 
   act(() => {
-    useUiStore.setState({
-      paneMode: 'input',
-      themeMode: 'light',
-      indentSize: 2,
-      inputText: '',
-      ingestNotice: null,
-    });
+    useUiStore.setState(createInitialDocumentSessionState());
   });
   onPrettifierProgressListener = null;
   onResetCurrentWindowListener = null;

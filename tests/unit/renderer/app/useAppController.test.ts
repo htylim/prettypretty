@@ -5,7 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { InputEditorHandle } from '../../../../src/renderer/components/InputEditor';
 import type { OutputEditorHandle } from '../../../../src/renderer/components/OutputEditor';
 import { useAppController } from '../../../../src/renderer/app/useAppController';
-import { useUiStore } from '../../../../src/renderer/state/uiStore';
+import { createInitialDocumentSessionState } from '../../../../src/renderer/app/session/documentSessionDomain';
+import { useDocumentSession } from '../../../../src/renderer/app/session/useDocumentSession';
 
 const usePrettifierFlowMock = vi.fn();
 const usePreferencesFlowMock = vi.fn();
@@ -86,6 +87,7 @@ describe('useAppController', () => {
     usePreferencesFlowMock.mockReset();
     useKeyboardShortcutsMock.mockReset();
     useMouseNavigationShortcutsMock.mockReset();
+    useDocumentSession.setState(createInitialDocumentSessionState());
 
     usePrettifierFlowMock.mockReturnValue({
       outputText: '{\n  "hello": true\n}',
@@ -166,7 +168,7 @@ describe('useAppController', () => {
     });
 
     act(() => {
-      useUiStore.setState({
+      useDocumentSession.setState({
         paneMode: 'input',
         themeMode: 'light',
         indentSize: 2,
@@ -221,7 +223,7 @@ describe('useAppController', () => {
       '{"next":1}',
       'paste',
     );
-    expect(useUiStore.getState().indentSize).toBe(6);
+    expect(useDocumentSession.getState().indentSize).toBe(6);
   });
 
   it('routes output collapse, expand, and find actions to the active output pane while save/copy stay root-scoped', async () => {
@@ -242,7 +244,7 @@ describe('useAppController', () => {
     expect(inputExpand).toHaveBeenCalledTimes(1);
 
     act(() => {
-      useUiStore.setState({ paneMode: 'output' });
+      useDocumentSession.setState({ paneMode: 'output' });
     });
     rerender(createElement(ControllerHarness, { inputEditorRef, ref }));
 
@@ -276,7 +278,7 @@ describe('useAppController', () => {
     const { rerender } = render(createElement(ControllerHarness, { inputEditorRef, ref }));
 
     act(() => {
-      useUiStore.setState({ paneMode: 'output' });
+      useDocumentSession.setState({ paneMode: 'output' });
     });
     rerender(createElement(ControllerHarness, { inputEditorRef, ref }));
 
@@ -287,9 +289,9 @@ describe('useAppController', () => {
       onResetCurrentWindowListener?.();
     });
 
-    expect(useUiStore.getState().paneMode).toBe('input');
-    expect(useUiStore.getState().inputText).toBe('');
-    expect(useUiStore.getState().ingestNotice).toBeNull();
+    expect(useDocumentSession.getState().paneMode).toBe('input');
+    expect(useDocumentSession.getState().inputText).toBe('');
+    expect(useDocumentSession.getState().ingestNotice).toBeNull();
     expect(ref.current?.getController().outputPanes).toHaveLength(1);
     expect(usePrettifierFlowMock.mock.results[0]?.value.resetPrettifierState).toHaveBeenCalled();
   });
@@ -315,7 +317,7 @@ describe('useAppController', () => {
     });
 
     act(() => {
-      useUiStore.setState({
+      useDocumentSession.setState({
         paneMode: 'input',
         inputText: '{bad',
       });
@@ -328,7 +330,7 @@ describe('useAppController', () => {
       ref.current?.getController().onPaneModeChange('output');
     });
 
-    expect(useUiStore.getState().paneMode).toBe('input');
+    expect(useDocumentSession.getState().paneMode).toBe('input');
     expect(usePrettifierFlowMock.mock.results[0]?.value.runPrettifier).not.toHaveBeenCalled();
   });
 

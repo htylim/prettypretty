@@ -1,10 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import type { MutableRefObject } from 'react';
 import type { IndentSize, Preferences } from '../../shared/preferences';
 import type { ThemeMode } from '../../shared/types';
 import type { WindowApi } from '../../shared/window-api';
 import { type FallbackAgentOption, toFallbackAgentOptions } from './appDomain';
 import { reportRendererError } from './reportRendererError';
+import {
+  selectFallbackAgentId,
+  selectFallbackAgentOptions,
+  selectFallbackWarningLineThreshold,
+} from './session/documentSessionSelectors';
+import { useDocumentSession } from './session/useDocumentSession';
 
 type UsePreferencesFlowOptions = {
   themeMode: ThemeMode;
@@ -47,9 +53,14 @@ export const usePreferencesFlow = ({
   const latestThemeRequestIdRef = useRef(0);
   const latestFallbackAgentRequestIdRef = useRef(0);
   const hydrationVersionRef = useRef(0);
-  const [fallbackAgentId, setFallbackAgentId] = useState<string | null>(null);
-  const [fallbackAgentOptions, setFallbackAgentOptions] = useState<FallbackAgentOption[]>([]);
-  const [fallbackWarningLineThreshold, setFallbackWarningLineThreshold] = useState(300);
+  const fallbackAgentId = useDocumentSession(selectFallbackAgentId);
+  const fallbackAgentOptions = useDocumentSession(selectFallbackAgentOptions);
+  const fallbackWarningLineThreshold = useDocumentSession(selectFallbackWarningLineThreshold);
+  const setFallbackAgentId = useDocumentSession((state) => state.setFallbackAgentId);
+  const setFallbackAgentOptions = useDocumentSession((state) => state.setFallbackAgentOptions);
+  const setFallbackWarningLineThreshold = useDocumentSession(
+    (state) => state.setFallbackWarningLineThreshold,
+  );
 
   const invalidateHydratedPreferences = useCallback((): void => {
     hydrationVersionRef.current += 1;
@@ -65,7 +76,13 @@ export const usePreferencesFlow = ({
       setFallbackAgentId(preferences.fallbackAgentId);
       setFallbackAgentOptions(toFallbackAgentOptions(preferences));
     },
-    [setIndentSize, setThemeMode],
+    [
+      setFallbackAgentId,
+      setFallbackAgentOptions,
+      setFallbackWarningLineThreshold,
+      setIndentSize,
+      setThemeMode,
+    ],
   );
 
   const persistThemeMode = useCallback(
@@ -136,7 +153,13 @@ export const usePreferencesFlow = ({
         reportRendererError('Failed to persist fallback agent preferences', error);
       }
     },
-    [fallbackAgentId, getWindowApi, invalidateHydratedPreferences],
+    [
+      fallbackAgentId,
+      getWindowApi,
+      invalidateHydratedPreferences,
+      setFallbackAgentId,
+      setFallbackAgentOptions,
+    ],
   );
 
   useEffect(() => {
