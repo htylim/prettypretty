@@ -60,5 +60,9 @@ These are the durable patterns worth keeping in mind when changing the codebase.
 - Every renderer module/component needs a unit test pair.
 - `pnpm check` is the baseline local gate.
 - Run `pnpm test:e2e` when behavior depends on Electron runtime, windows, menus, or preload.
+- If a change set is documentation-only, skip `pnpm check`, `pnpm test`, and `pnpm test:e2e`.
+- For Electron Playwright E2E, Playwright `use.headless` does not by itself hide `BrowserWindow` instances. Hidden-window runs need an app-level visibility contract in the main-process window factories.
+- In the current E2E suite, document creation, relaunch, log-window, and reset flows all run correctly with hidden windows as long as the test is not asserting `BrowserWindow.isVisible() === true`.
+- If Playwright test tags drive runtime behavior, resolve them from `testInfo.titlePath`, not only the leaf `testInfo.title`, so suite-level tagging and `--grep` selection stay aligned.
 - Keep onboarding docs concise and current; move history and deep implementation detail out of the main docs.
 - When drafting a new spec, treat current code and current docs as the source of truth. Historical spec files are archival context only and must not drive new architecture decisions unless explicitly requested.

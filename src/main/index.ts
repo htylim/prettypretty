@@ -13,6 +13,7 @@ import { PreferencesStore } from './preferences/preferencesStore';
 import { createAgentFallbackExecutor } from './prettifier/agentFallbackExecutor';
 import { createFallbackProcessRegistry } from './prettifier/fallbackProcessRegistry';
 import { createPrettifierService } from './prettifier/prettifierService';
+import { resolveE2EWindowMode } from './e2eWindowMode';
 import { openOrFocusLogWindow } from './windows/logWindow';
 import { createMainWindow, isMainWindow } from './windows/mainWindow';
 
@@ -32,6 +33,7 @@ const getDocumentWindowReferenceBounds = (window: BrowserWindow | null): Rectang
 
 const bootstrap = async (): Promise<void> => {
   const runtimeFlags = parseRuntimeFlags();
+  const e2eWindowMode = resolveE2EWindowMode();
   const sessionLogStore = new SessionLogStore(2_000);
   const logger = createLogger({
     verbose: runtimeFlags.verbose,
@@ -98,6 +100,7 @@ const bootstrap = async (): Promise<void> => {
     const initialThemeMode = await resolveInitialThemeMode();
     await createMainWindow(initialThemeMode, {
       referenceBounds,
+      windowMode: e2eWindowMode,
     });
     logger.info('app.window.created', {
       source,
@@ -128,7 +131,9 @@ const bootstrap = async (): Promise<void> => {
     },
     onResetWindow: resetFocusedDocumentWindow,
     onViewLog: () => {
-      void openOrFocusLogWindow(sessionLogStore).catch((error: unknown) => {
+      void openOrFocusLogWindow(sessionLogStore, {
+        windowMode: e2eWindowMode,
+      }).catch((error: unknown) => {
         logger.error('app.log-window.open-failed', {
           reason: error instanceof Error ? error.message : 'unknown',
         });

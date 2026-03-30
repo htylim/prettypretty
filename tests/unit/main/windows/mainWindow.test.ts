@@ -103,6 +103,8 @@ describe('createMainWindow', () => {
 
     const windowOptions = browserWindowConstructorMock.mock.calls[0]?.[0] as {
       backgroundColor: string;
+      show: boolean;
+      paintWhenInitiallyHidden: boolean;
       x?: number;
       y?: number;
       webPreferences: {
@@ -117,6 +119,8 @@ describe('createMainWindow', () => {
     expect(browserWindowOnMock).toHaveBeenCalledWith('app-command', expect.any(Function));
     expect(browserWindowOnMock).toHaveBeenCalledWith('swipe', expect.any(Function));
     expect(windowOptions.backgroundColor).toBe('#121316');
+    expect(windowOptions.show).toBe(true);
+    expect(windowOptions.paintWhenInitiallyHidden).toBe(true);
     expect(windowOptions.x).toBeUndefined();
     expect(windowOptions.y).toBeUndefined();
     expect(windowOptions.webPreferences.contextIsolation).toBe(true);
@@ -133,6 +137,23 @@ describe('createMainWindow', () => {
     expect(loadFileMock).toHaveBeenCalledTimes(1);
     expect(loadURLMock).not.toHaveBeenCalled();
     expect(isMainWindow(mainWindow)).toBe(true);
+  });
+
+  it('creates hidden E2E windows without focusing them', async () => {
+    const { createMainWindow } = await import('../../../../src/main/windows/mainWindow');
+    await createMainWindow('light', {
+      windowMode: 'hidden',
+    });
+
+    const windowOptions = browserWindowConstructorMock.mock.calls[0]?.[0] as {
+      show: boolean;
+      paintWhenInitiallyHidden: boolean;
+    };
+
+    expect(windowOptions.show).toBe(false);
+    expect(windowOptions.paintWhenInitiallyHidden).toBe(true);
+    expect(browserWindowFocusMock).not.toHaveBeenCalled();
+    expect(webContentsFocusMock).not.toHaveBeenCalled();
   });
 
   it('loads ELECTRON_RENDERER_URL when provided', async () => {

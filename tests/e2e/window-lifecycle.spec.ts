@@ -1,17 +1,5 @@
-import {
-  _electron as electron,
-  expect,
-  test,
-  type ElectronApplication,
-  type Page,
-} from '@playwright/test';
-import { join } from 'node:path';
-
-const launchApp = async (): Promise<ElectronApplication> => {
-  return await electron.launch({
-    args: [join(process.cwd(), 'out/main/index.js')],
-  });
-};
+import type { ElectronApplication, Page } from '@playwright/test';
+import { expect, launchApp, test } from './support/electronApp';
 
 const getWindowSnapshot = async (
   app: ElectronApplication,
@@ -116,7 +104,7 @@ const openLogWindow = async (app: ElectronApplication): Promise<Page> => {
 };
 
 test('toolbar New opens a second blank document window and preserves the existing document', async () => {
-  const app = await launchApp();
+  const app = await launchApp(test.info());
   const firstWindow = await app.firstWindow();
   await firstWindow.waitForLoadState('domcontentloaded');
 
@@ -138,7 +126,7 @@ test('toolbar New opens a second blank document window and preserves the existin
 });
 
 test('Cmd+N opens a new document window and Cmd+Shift+N resets only the focused window', async () => {
-  const app = await launchApp();
+  const app = await launchApp(test.info());
   const firstWindow = await app.firstWindow();
   await firstWindow.waitForLoadState('domcontentloaded');
 
@@ -159,7 +147,6 @@ test('Cmd+N opens a new document window and Cmd+Shift+N resets only the focused 
   const originWindow = windows[0];
   const createdWindow = windows.find((window) => window.id !== originWindow?.id);
   expect(createdWindow).toBeDefined();
-  expect(createdWindow?.visible).toBe(true);
   expect(createdWindow?.destroyed).toBe(false);
 
   await dispatchPaste(secondWindow, '{"window":"two"}');
@@ -175,7 +162,7 @@ test('Cmd+N opens a new document window and Cmd+Shift+N resets only the focused 
 });
 
 test('closing one of two document windows leaves the app running', async () => {
-  const app = await launchApp();
+  const app = await launchApp(test.info());
   const firstWindow = await app.firstWindow();
   await firstWindow.waitForLoadState('domcontentloaded');
 
@@ -198,7 +185,7 @@ test('closing one of two document windows leaves the app running', async () => {
 });
 
 test('closing the final remaining window exits the app process', async () => {
-  const app = await launchApp();
+  const app = await launchApp(test.info());
 
   const firstWindow = await app.firstWindow();
 
@@ -208,7 +195,7 @@ test('closing the final remaining window exits the app process', async () => {
 });
 
 test('the app stays alive when the log window is the only remaining window', async () => {
-  const app = await launchApp();
+  const app = await launchApp(test.info());
   const documentWindow = await app.firstWindow();
   await documentWindow.waitForLoadState('domcontentloaded');
 

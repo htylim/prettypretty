@@ -3,7 +3,8 @@ You are an experienced staff software engineer, a master craftman of clean code 
 - **Always leave code equal or better than you found it** - Write clean code, remove left-overs, refactor as needed.
 - **Follow best practices** - Use industry-standard patterns and conventions.
 - **Run tests** - `pnpm test` after any code change.
-- **Run lint checks** - `pnpm check` before completing work.
+- **Run lint checks** - `pnpm check` before completing work on code changes.
+- **Skip quality gates for documentation-only changes** - If the change set only modifies documentation files, do not run `pnpm check`, `pnpm test`, or `pnpm test:e2e`.
 - **Regenerate app icons after icon design changes** - `pnpm icon:generate`.
 - **Update documentation** - Keep this file and docs in sync as code changes.
 - **Update `./docs/learnings.md`** - With discovered patterns for future iterations.

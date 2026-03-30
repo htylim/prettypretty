@@ -1,11 +1,7 @@
-import { _electron as electron, expect, test } from '@playwright/test';
-import { join } from 'node:path';
+import { expect, launchApp, test } from './support/electronApp';
 
 test('preload bridge exposes app info', async () => {
-  const app = await electron.launch({
-    args: [join(process.cwd(), 'out/main/index.js')],
-  });
-
+  const app = await launchApp(test.info());
   const page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
   await page.waitForFunction(() =>
@@ -30,10 +26,7 @@ test('preload bridge exposes app info', async () => {
 });
 
 test('keeps the empty-state CTA centered after window resize', async () => {
-  const app = await electron.launch({
-    args: [join(process.cwd(), 'out/main/index.js')],
-  });
-
+  const app = await launchApp(test.info());
   const page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
   await page.setViewportSize({ width: 1000, height: 720 });

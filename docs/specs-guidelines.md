@@ -96,6 +96,10 @@ Always require:
 - Run `pnpm test:e2e` for user-visible or Electron runtime changes.
 - Every renderer module/component must have a corresponding unit test file.
 
+Exception for documentation-only work:
+
+- If the implementation only changes documentation files, do not require `pnpm check`, `pnpm test`, or `pnpm test:e2e`.
+
 ### Naming
 
 Use sequential numeric IDs with zero padding: `0001-project-setup.md`, `0002-db-scaffolding.md`, etc.

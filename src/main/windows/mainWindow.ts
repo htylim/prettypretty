@@ -9,6 +9,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { IPCChannels } from '../../shared/ipc-contracts';
 import type { ThemeMode } from '../../shared/types';
+import { shouldShowWindow, type E2EWindowMode } from '../e2eWindowMode';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const appIconPath = join(process.cwd(), 'build/icon.png');
@@ -96,6 +97,7 @@ const getStaggeredWindowPosition = (
 
 type CreateMainWindowOptions = {
   referenceBounds?: Rectangle | null;
+  windowMode?: E2EWindowMode;
 };
 
 export const createMainWindow = async (
@@ -103,12 +105,15 @@ export const createMainWindow = async (
   options: CreateMainWindowOptions = {},
 ): Promise<BrowserWindow> => {
   const referenceBounds = options.referenceBounds ?? getReferenceWindowBounds();
+  const shouldShowInitially = shouldShowWindow(options.windowMode ?? 'visible');
   const windowOptions: BrowserWindowConstructorOptions = {
     width: MAIN_WINDOW_WIDTH,
     height: MAIN_WINDOW_HEIGHT,
     minWidth: 960,
     minHeight: 640,
     title: 'prettypretty',
+    show: shouldShowInitially,
+    paintWhenInitiallyHidden: true,
     backgroundColor: getMainWindowBackgroundColor(initialThemeMode),
     ...getStaggeredWindowPosition(referenceBounds),
     webPreferences: {
@@ -152,8 +157,10 @@ export const createMainWindow = async (
     await win.loadFile(join(__dirname, '../renderer/index.html'));
   }
 
-  win.focus();
-  win.webContents.focus();
+  if (shouldShowInitially) {
+    win.focus();
+    win.webContents.focus();
+  }
 
   return win;
 };

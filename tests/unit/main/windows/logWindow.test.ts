@@ -105,6 +105,10 @@ describe('openOrFocusLogWindow', () => {
 
     await openOrFocusLogWindow(logStore as never);
     expect(browserWindowConstructorMock).toHaveBeenCalledTimes(1);
+    expect(browserWindowConstructorMock.mock.calls[0]?.[0]).toMatchObject({
+      show: true,
+      paintWhenInitiallyHidden: true,
+    });
     expect(loadFileMock).toHaveBeenCalledTimes(1);
     expect(subscribeMock).toHaveBeenCalledTimes(1);
 
@@ -134,5 +138,26 @@ describe('openOrFocusLogWindow', () => {
     expect(loadFileMock).not.toHaveBeenCalled();
     const loadedUrl = loadURLMock.mock.calls[0]?.[0] as string;
     expect(loadedUrl).toContain('window=log');
+  });
+
+  it('creates hidden log windows without focusing them on reuse', async () => {
+    const subscribeMock = vi.fn().mockImplementation(() => vi.fn());
+    const logStore: SessionLogStoreLike = {
+      subscribe: subscribeMock,
+    };
+    const { openOrFocusLogWindow } = await import('../../../../src/main/windows/logWindow');
+
+    await openOrFocusLogWindow(logStore as never, {
+      windowMode: 'hidden',
+    });
+    expect(browserWindowConstructorMock.mock.calls[0]?.[0]).toMatchObject({
+      show: false,
+      paintWhenInitiallyHidden: true,
+    });
+
+    await openOrFocusLogWindow(logStore as never, {
+      windowMode: 'hidden',
+    });
+    expect(focusMock).not.toHaveBeenCalled();
   });
 });

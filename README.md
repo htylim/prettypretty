@@ -33,6 +33,7 @@ pnpm build
 pnpm dist
 pnpm test
 pnpm test:e2e
+pnpm test:e2e:headless-only
 pnpm check
 ```
 
@@ -50,6 +51,11 @@ pnpm check
 
 - `pnpm check` is the required non-E2E gate.
 - Run `pnpm test:e2e` for user-visible or Electron runtime changes.
+- `pnpm test:e2e` still runs the full suite.
+- `pnpm test:e2e:headless-only` excludes tests tagged `@requires-visible-window`.
+- `@requires-visible-window` means the test must launch with a shown Electron window.
+- `@headless-migratable` is reserved for visible-only tests that look fixable later without product changes.
+- If a change set is documentation-only, skip `pnpm check`, `pnpm test`, and `pnpm test:e2e`.
 - Every renderer module/component must have a corresponding unit test file.
 - `pre-commit`: `pnpm lint-staged && pnpm check`
 - `pre-push`: no-op

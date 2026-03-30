@@ -253,6 +253,7 @@ describe('main process window lifecycle', () => {
     });
     terminateAllFallbackProcessesMock.mockReset().mockReturnValue(0);
     writeTextMock.mockReset();
+    process.argv = ['electron', 'app'];
   });
 
   it('creates one document window on startup and can open more via IPC and menu callbacks', async () => {
@@ -274,6 +275,20 @@ describe('main process window lifecycle', () => {
     getMenuItem('New Window').click?.(undefined as never, undefined, {} as never);
     await flushMicrotasks();
     expect(browserWindowConstructorMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('passes hidden E2E window mode through bootstrap window creation when requested', async () => {
+    process.argv = ['electron', 'app', '--prettypretty-e2e-window-mode=hidden'];
+
+    await loadMainEntry();
+
+    const firstWindowOptions = browserWindowConstructorMock.mock.calls[0]?.[0] as {
+      show?: boolean;
+      paintWhenInitiallyHidden?: boolean;
+    };
+
+    expect(firstWindowOptions.show).toBe(false);
+    expect(firstWindowOptions.paintWhenInitiallyHidden).toBe(true);
   });
 
   it('captures menu window bounds before async creation yields control', async () => {

@@ -42,3 +42,5 @@
 ## Update Rule
 
 If a change affects behavior, ownership, or the expected way to work in the repo, update the relevant doc in the same change.
+
+Documentation-only changes do not require `pnpm check`, `pnpm test`, or `pnpm test:e2e`.

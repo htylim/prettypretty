@@ -1,44 +1,5 @@
-import {
-  _electron as electron,
-  expect,
-  test,
-  type ElectronApplication,
-  type Page,
-} from '@playwright/test';
-import { join } from 'node:path';
-
-const wait = async (timeMs: number): Promise<void> => {
-  await new Promise((resolve) => setTimeout(resolve, timeMs));
-};
-
-const isTransientElectronLaunchError = (error: unknown): boolean => {
-  if (!(error instanceof Error)) {
-    return false;
-  }
-
-  return /Process failed to launch|waiting for event "window"/u.test(error.message);
-};
-
-const launchApp = async (): Promise<ElectronApplication> => {
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    try {
-      return await electron.launch({
-        args: [join(process.cwd(), 'out/main/index.js')],
-      });
-    } catch (error) {
-      if (!isTransientElectronLaunchError(error) || attempt === 4) {
-        throw error;
-      }
-
-      // Electron occasionally aborts during Playwright launch on macOS CI-like
-      // runs; bounded retries keep the suite deterministic without masking
-      // persistent app-start regressions.
-      await wait(250 * (attempt + 1));
-    }
-  }
-
-  throw new Error('unreachable');
-};
+import type { Page } from '@playwright/test';
+import { expect, launchApp, test } from './support/electronApp';
 
 const dispatchPaste = async (page: Page, text: string): Promise<void> => {
   await page.evaluate((pasteText) => {
@@ -148,7 +109,7 @@ const rightClickOutputLine = async (
 };
 
 test('supports ingest parity for drop and paste', async () => {
-  const app = await launchApp();
+  const app = await launchApp(test.info());
   const page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
   await resetPreferences(page);
@@ -165,7 +126,7 @@ test('supports ingest parity for drop and paste', async () => {
 });
 
 test('runs configured fallback agent for malformed input', async () => {
-  const app = await launchApp();
+  const app = await launchApp(test.info());
   const page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
   await resetPreferences(page);
@@ -210,7 +171,7 @@ test('runs configured fallback agent for malformed input', async () => {
 });
 
 test('uses passthrough output for malformed content when fallback is disabled', async () => {
-  const app = await launchApp();
+  const app = await launchApp(test.info());
   const page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
   await resetPreferences(page);
@@ -263,7 +224,7 @@ test('uses passthrough output for malformed content when fallback is disabled', 
 });
 
 test('prettifies graphql documents locally from direct input', async () => {
-  const app = await launchApp();
+  const app = await launchApp(test.info());
   const page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
   await resetPreferences(page);
@@ -282,7 +243,7 @@ test('prettifies graphql documents locally from direct input', async () => {
 });
 
 test('treats escape in the context-pane fallback selection modal as No and opens passthrough output', async () => {
-  let app = await launchApp();
+  let app = await launchApp(test.info());
   let page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
   await resetPreferences(page);
@@ -293,7 +254,7 @@ test('treats escape in the context-pane fallback selection modal as No and opens
   });
 
   await app.close();
-  app = await launchApp();
+  app = await launchApp(test.info());
   page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
 
@@ -318,7 +279,7 @@ test('treats escape in the context-pane fallback selection modal as No and opens
 });
 
 test('keeps passthrough text in the child pane when context-pane fallback is canceled from the wait screen', async () => {
-  let app = await launchApp();
+  let app = await launchApp(test.info());
   let page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
   await resetPreferences(page);
@@ -329,7 +290,7 @@ test('keeps passthrough text in the child pane when context-pane fallback is can
   });
 
   await app.close();
-  app = await launchApp();
+  app = await launchApp(test.info());
   page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
 
@@ -354,7 +315,7 @@ test('keeps passthrough text in the child pane when context-pane fallback is can
 });
 
 test('treats escape on the context-pane fallback wait screen as cancel and keeps passthrough output', async () => {
-  let app = await launchApp();
+  let app = await launchApp(test.info());
   let page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
   await resetPreferences(page);
@@ -365,7 +326,7 @@ test('treats escape on the context-pane fallback wait screen as cancel and keeps
   });
 
   await app.close();
-  app = await launchApp();
+  app = await launchApp(test.info());
   page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
 
@@ -390,7 +351,7 @@ test('treats escape on the context-pane fallback wait screen as cancel and keeps
 });
 
 test('opens a recursive prettify child chain from JSON string scalars', async () => {
-  const app = await launchApp();
+  const app = await launchApp(test.info());
   const page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
   await resetPreferences(page);
@@ -425,7 +386,7 @@ test('opens a recursive prettify child chain from JSON string scalars', async ()
 });
 
 test('resolves YAML block scalars from the output context menu and opens a child pane', async () => {
-  const app = await launchApp();
+  const app = await launchApp(test.info());
   const page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
   await resetPreferences(page);
@@ -485,7 +446,7 @@ test('resolves YAML block scalars from the output context menu and opens a child
 });
 
 test('resolves JavaScript string bindings from the output context menu and opens a child pane', async () => {
-  const app = await launchApp();
+  const app = await launchApp(test.info());
   const page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
   await resetPreferences(page);
@@ -545,7 +506,7 @@ test('resolves JavaScript string bindings from the output context menu and opens
 });
 
 test('resolves GraphQL block string values from the output context menu and opens a child pane', async () => {
-  const app = await launchApp();
+  const app = await launchApp(test.info());
   const page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
   await resetPreferences(page);
@@ -580,7 +541,7 @@ test('resolves GraphQL block string values from the output context menu and open
 });
 
 test('prettifies graphql query strings from json output context panes locally', async () => {
-  const app = await launchApp();
+  const app = await launchApp(test.info());
   const page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
   await resetPreferences(page);
@@ -624,7 +585,7 @@ test('prettifies graphql query strings from json output context panes locally', 
 });
 
 test('resolves XML attribute values from the output context menu and opens a child pane', async () => {
-  const app = await launchApp();
+  const app = await launchApp(test.info());
   const page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
   await resetPreferences(page);
@@ -657,7 +618,7 @@ test('resolves XML attribute values from the output context menu and opens a chi
 });
 
 test('resolves SQL quoted string literals from the output context menu and opens a child pane', async () => {
-  const app = await launchApp();
+  const app = await launchApp(test.info());
   const page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
   await resetPreferences(page);
@@ -718,7 +679,7 @@ test('resolves SQL quoted string literals from the output context menu and opens
 });
 
 test('keeps the context-menu action disabled when the output editor has a selection', async () => {
-  const app = await launchApp();
+  const app = await launchApp(test.info());
   const page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
   await resetPreferences(page);
@@ -735,7 +696,7 @@ test('keeps the context-menu action disabled when the output editor has a select
 });
 
 test('persists toolbar preferences across app relaunch', async () => {
-  const firstRun = await launchApp();
+  const firstRun = await launchApp(test.info());
   const firstPage = await firstRun.firstWindow();
   await firstPage.waitForLoadState('domcontentloaded');
   await resetPreferences(firstPage);
@@ -747,7 +708,7 @@ test('persists toolbar preferences across app relaunch', async () => {
   await firstPage.getByTestId('fallback-option-none').click();
   await firstRun.close();
 
-  const secondRun = await launchApp();
+  const secondRun = await launchApp(test.info());
   const secondPage = await secondRun.firstWindow();
   await secondPage.waitForLoadState('domcontentloaded');
 
@@ -763,7 +724,7 @@ test('persists toolbar preferences across app relaunch', async () => {
 });
 
 test('opens and reuses log window and streams telemetry log lines', async () => {
-  const app = await launchApp();
+  const app = await launchApp(test.info());
   const page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
   await resetPreferences(page);

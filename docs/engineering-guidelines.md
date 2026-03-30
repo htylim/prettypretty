@@ -19,6 +19,11 @@
 - A change is not done until the required checks pass.
 - Run `pnpm check` before completing work.
 - Run `pnpm test:e2e` for user-visible or Electron runtime changes.
+- `pnpm test:e2e` remains the full-suite Electron gate.
+- `pnpm test:e2e:headless-only` is the additive hidden-compatible subset and excludes `@requires-visible-window`.
+- `@requires-visible-window` marks tests that must run with a shown Electron window.
+- `@headless-migratable` marks visible-only tests that appear fixable later without product changes.
+- If a change set is documentation-only, skip `pnpm check`, `pnpm test`, and `pnpm test:e2e`.
 - Coverage is reported for visibility, not threshold-gated.
 
 ## Code Quality

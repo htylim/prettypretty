@@ -1,5 +1,5 @@
-import { _electron as electron, expect, test, type Locator, type Page } from '@playwright/test';
-import { join } from 'node:path';
+import type { Locator, Page } from '@playwright/test';
+import { expect, launchApp, test } from './support/electronApp';
 
 type RectSnapshot = {
   top: number;
@@ -197,10 +197,7 @@ const readCollapsedFoldPreview = async (
   }, lineNumber);
 
 test('launches app and renders main window', async () => {
-  const app = await electron.launch({
-    args: [join(process.cwd(), 'out/main/index.js')],
-  });
-
+  const app = await launchApp(test.info());
   const page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
   await expect(page.getByText('Paste, Drop or Click')).toBeVisible();
@@ -224,10 +221,7 @@ test('launches app and renders main window', async () => {
 });
 
 test('renders Monaco output editor and keeps collapse/expand stable in output mode', async () => {
-  const app = await electron.launch({
-    args: [join(process.cwd(), 'out/main/index.js')],
-  });
-
+  const app = await launchApp(test.info());
   const page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
   await resetPreferences(page);
@@ -266,10 +260,7 @@ test('renders Monaco output editor and keeps collapse/expand stable in output mo
 });
 
 test('shows a truncated preview overlay for collapsed output blocks', async () => {
-  const app = await electron.launch({
-    args: [join(process.cwd(), 'out/main/index.js')],
-  });
-
+  const app = await launchApp(test.info());
   const page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
   await resetPreferences(page);
@@ -299,10 +290,7 @@ test('shows a truncated preview overlay for collapsed output blocks', async () =
 });
 
 test('renders inline output fold controls and hides gutter fold controls', async () => {
-  const app = await electron.launch({
-    args: [join(process.cwd(), 'out/main/index.js')],
-  });
-
+  const app = await launchApp(test.info());
   const page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
   await resetPreferences(page);
@@ -338,10 +326,7 @@ test('renders inline output fold controls and hides gutter fold controls', async
 });
 
 test('holding Ctrl switches the inline fold control to direct-child behavior', async () => {
-  const app = await electron.launch({
-    args: [join(process.cwd(), 'out/main/index.js')],
-  });
-
+  const app = await launchApp(test.info());
   const page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
   await resetPreferences(page);
@@ -389,10 +374,7 @@ test('holding Ctrl switches the inline fold control to direct-child behavior', a
 });
 
 test('keeps the inline fold button anchored to the fold-start line across mode changes', async () => {
-  const app = await electron.launch({
-    args: [join(process.cwd(), 'out/main/index.js')],
-  });
-
+  const app = await launchApp(test.info());
   const page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
   await resetPreferences(page);
@@ -421,10 +403,7 @@ test('keeps the inline fold button anchored to the fold-start line across mode c
 });
 
 test('keeps inline fold controls aligned with Monaco TypeScript folding', async () => {
-  const app = await electron.launch({
-    args: [join(process.cwd(), 'out/main/index.js')],
-  });
-
+  const app = await launchApp(test.info());
   const page = await app.firstWindow();
   await page.waitForLoadState('domcontentloaded');
   await resetPreferences(page);
