@@ -12,6 +12,37 @@ const createLogger = () => ({
 });
 
 describe('prettifierService', () => {
+  it('treats plain text as applied-local and skips fallback execution', async () => {
+    const preferencesService = {
+      getAll: vi.fn().mockResolvedValue(createDefaultPreferences()),
+    };
+    const fallbackExecutor = {
+      execute: vi.fn(),
+      cancel: vi.fn().mockReturnValue(false),
+    };
+    const logger = createLogger();
+    const service = createPrettifierService({
+      preferencesService,
+      logger,
+      fallbackExecutor,
+    });
+
+    const response = await service.run({
+      requestId: 1,
+      inputText: 'hello world',
+      indentSize: 2,
+      trigger: 'switch-output',
+    });
+
+    expect(response).toMatchObject({
+      status: 'applied-local',
+      fallbackStatus: 'not-attempted',
+      localDetection: 'text',
+      outputText: 'hello world',
+    });
+    expect(fallbackExecutor.execute).not.toHaveBeenCalled();
+  });
+
   it('returns local result and does not call fallback executor when local parsing succeeds', async () => {
     const preferencesService = {
       getAll: vi.fn().mockResolvedValue(createDefaultPreferences()),

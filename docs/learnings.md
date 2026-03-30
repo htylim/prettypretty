@@ -46,6 +46,7 @@ These are the durable patterns worth keeping in mind when changing the codebase.
 - Keep pane-targeted prettify orchestration shared with root-output prettify so fallback prompts, wait state, and stale-response guards stay consistent.
 - Keep the output context-menu copy static when the action semantics do not change. Do not thread parser metadata through renderer state just to decorate one button label.
 - When a local format is text-native instead of JSON-serializable, give it a dedicated shared formatter helper and keep renderer/main prettifier services as thin adapters.
+- Unsupported-format absence is not malformed syntax. If shared local detection cannot justify a supported-format signal, return applied local `text` and skip fallback orchestration.
 - Keep indentation remapping in one shared helper when local formatters and renderer reindent flows need identical behavior.
 - Do not blindly reindent every prettified output when the user changes `indentSize`. Renderer session state should track whether leading-whitespace remapping is semantics-safe for that format.
 - Treat YAML plain scalars conservatively. Support quoted and block scalars directly, but keep ambiguous plain scalars disabled unless the adapter can prove they are semantic strings.

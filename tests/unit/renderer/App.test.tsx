@@ -426,10 +426,10 @@ describe('App', () => {
 
   it('shows confirmation modal for large malformed input before fallback runs', async () => {
     const user = userEvent.setup();
-    const largeMalformedInput = `${Array.from(
+    const largeMalformedInput = `{bad\n${Array.from(
       { length: 301 },
       (_, index) => `line-${index.toString()}: value`,
-    ).join('\n')}\n{bad`;
+    ).join('\n')}`;
 
     act(() => {
       useUiStore.setState({
@@ -451,10 +451,10 @@ describe('App', () => {
 
   it('keeps passthrough output and skips fallback when large-content confirmation is canceled', async () => {
     const user = userEvent.setup();
-    const largeMalformedInput = `${Array.from(
+    const largeMalformedInput = `{bad\n${Array.from(
       { length: 301 },
       (_, index) => `line-${index.toString()}: value`,
-    ).join('\n')}\n{bad`;
+    ).join('\n')}`;
 
     act(() => {
       useUiStore.setState({

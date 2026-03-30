@@ -23,6 +23,9 @@ type HarnessProps = {
   api: WindowApi | null;
   fallbackAgentId?: string | null;
   fallbackAgentOptions?: { id: string; name: string; enabled: boolean }[];
+  fallbackWarningLineThreshold?: number;
+  requestFallbackConfirmation?: (lineCount: number) => Promise<boolean>;
+  requestFallbackAgentSelection?: () => Promise<string | null>;
 };
 
 const RequestFlowHarness = forwardRef<HarnessHandle, HarnessProps>(
@@ -31,17 +34,20 @@ const RequestFlowHarness = forwardRef<HarnessHandle, HarnessProps>(
       api,
       fallbackAgentId = 'codex',
       fallbackAgentOptions = [{ id: 'codex', name: 'Codex', enabled: true }],
+      fallbackWarningLineThreshold = 300,
+      requestFallbackConfirmation = async () => true,
+      requestFallbackAgentSelection = async () => null,
     },
     ref,
   ) => {
     const flow = usePrettifierRequestFlow({
       indentSize: 2,
-      fallbackWarningLineThreshold: 300,
+      fallbackWarningLineThreshold,
       fallbackAgentId,
       fallbackAgentOptions,
       getWindowApi: () => api,
-      requestFallbackConfirmation: async () => true,
-      requestFallbackAgentSelection: async () => null,
+      requestFallbackConfirmation,
+      requestFallbackAgentSelection,
       logTelemetry: vi.fn().mockResolvedValue(undefined),
     });
 
@@ -88,6 +94,37 @@ describe('usePrettifierRequestFlow', () => {
 
     expect(runPrettifierMock).not.toHaveBeenCalled();
     expect(cancelPrettifierFallbackMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps large plain text on the local path without fallback wait or confirmation', async () => {
+    const ref = { current: null as HarnessHandle | null };
+    const requestFallbackConfirmation = vi.fn().mockResolvedValue(true);
+    const largePlainText = Array.from({ length: 400 }, (_, index) => `line ${index}`).join('\n');
+
+    render(
+      createElement(RequestFlowHarness, {
+        api: {} as WindowApi,
+        fallbackWarningLineThreshold: 1,
+        requestFallbackConfirmation,
+        ref,
+      }),
+    );
+
+    await act(async () => {
+      const response = await ref.current?.requestPrettifier(largePlainText, 'switch-output');
+      expect(response).toEqual({
+        status: 'applied-local',
+        outputText: largePlainText,
+        localDetection: 'text',
+        fallbackStatus: 'not-attempted',
+        agentId: null,
+        durationMs: expect.any(Number),
+      });
+    });
+
+    expect(requestFallbackConfirmation).not.toHaveBeenCalled();
+    expect(runPrettifierMock).not.toHaveBeenCalled();
+    expect(useDocumentSession.getState().fallbackWaitState).toBeNull();
   });
 
   it('tracks fallback wait state and resolves explicit cancellation to passthrough output', async () => {

@@ -78,11 +78,32 @@ describe('PrettifierService', () => {
     await expect(prettifier.prettify(input)).resolves.toBe(input);
   });
 
+  it('returns plain text as an applied local text result', async () => {
+    const prettifier = createPrettifierService(2);
+
+    await expect(prettifier.prettifyDetailed('hello world')).resolves.toEqual({
+      kind: 'applied',
+      localDetection: 'text',
+      outputText: 'hello world',
+    });
+  });
+
   it('returns original text for malformed graphql documents', async () => {
     const prettifier = createPrettifierService(2);
     const input = 'query ListShipments { shipments { id }';
 
     await expect(prettifier.prettify(input)).resolves.toBe(input);
+    await expect(prettifier.prettifyDetailed(input)).resolves.toEqual({
+      kind: 'failed',
+      localDetection: 'malformed',
+      outputText: input,
+    });
+  });
+
+  it('keeps malformed structured inputs on the failed local path', async () => {
+    const prettifier = createPrettifierService(2);
+    const input = '{bad';
+
     await expect(prettifier.prettifyDetailed(input)).resolves.toEqual({
       kind: 'failed',
       localDetection: 'malformed',

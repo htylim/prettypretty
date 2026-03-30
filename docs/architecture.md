@@ -117,6 +117,7 @@
   - the current approved runtime Prettier use is GraphQL formatting in `src/shared/graphqlPrettifier.ts`
   - do not route JSON-family normalization through Prettier when the product behavior is to canonicalize input into JSON output rather than preserve the original source dialect
   - do not treat Prettier as the app's format detector or prettify orchestrator; format detection, malformed/unsupported classification, and fallback routing stay owned by the shared prettifier flow
+  - keep the malformed-vs-text boundary in shared local detection: plain unrecognized text is a local applied no-op (`text`), and `malformed` is only for recognized supported local syntax that fails parsing
   - renderer prettifier session state decides whether an already-prettified output may be reindented by remapping leading whitespace or must stay fixed until the next real prettify run
   - main runtime behavior lives in `src/main/prettifier/*`
   - renderer session/domain behavior lives in `src/renderer/app/session/prettifierSessionDomain.ts`

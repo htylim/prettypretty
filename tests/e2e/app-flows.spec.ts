@@ -170,6 +170,52 @@ test('runs configured fallback agent for malformed input', async () => {
   await app.close();
 });
 
+test('keeps plain text on the local path even when a fallback agent is configured', async () => {
+  const app = await launchApp(test.info());
+  const page = await app.firstWindow();
+  await page.waitForLoadState('domcontentloaded');
+  await resetPreferences(page);
+
+  await page.evaluate(async () => {
+    const bridge = globalThis as unknown as {
+      prettypretty: {
+        preferences: {
+          update: (patch: unknown) => Promise<unknown>;
+        };
+      };
+    };
+
+    await bridge.prettypretty.preferences.update({
+      agents: [
+        {
+          id: 'e2e-agent',
+          name: 'E2E Agent',
+          executable: 'node',
+          argsTemplate: [
+            '-e',
+            "process.stdin.resume();process.stdin.on('data',()=>{});console.log('{\"fromAgent\":true}');",
+          ],
+          promptTemplate: '{input}',
+          promptDelivery: 'stdin',
+          enabled: true,
+          timeoutMs: 5_000,
+          maxOutputBytes: 10_000,
+        },
+      ],
+      fallbackAgentId: 'e2e-agent',
+    });
+  });
+
+  await dispatchPaste(page, 'hello world');
+
+  await expect(page.getByTestId('output-editor')).toContainText('hello world');
+  await expect(page.getByTestId('output-editor')).not.toContainText('fromAgent');
+  await expect(page.getByTestId('fallback-wait-screen')).toHaveCount(0);
+
+  await resetPreferences(page);
+  await app.close();
+});
+
 test('uses passthrough output for malformed content when fallback is disabled', async () => {
   const app = await launchApp(test.info());
   const page = await app.firstWindow();

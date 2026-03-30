@@ -5,7 +5,7 @@ import type { LocalDetection } from './prettifier';
 
 type StructuredValue = Record<string, unknown> | unknown[];
 type StructuredDataDetection = Extract<LocalDetection, 'json' | 'ndjson' | 'json5' | 'python-like'>;
-type AppliedDetection = StructuredDataDetection | Extract<LocalDetection, 'graphql'>;
+type AppliedDetection = StructuredDataDetection | Extract<LocalDetection, 'graphql' | 'text'>;
 
 type LocalPrettifyAppliedResult = {
   kind: 'applied';
@@ -19,6 +19,13 @@ type LocalPrettifyFailedResult = {
 };
 
 export type LocalPrettifyResult = LocalPrettifyAppliedResult | LocalPrettifyFailedResult;
+
+const GRAPHQL_OPERATION_SIGNAL =
+  /^(query|mutation|subscription)\b(?:\s+[A-Za-z_][A-Za-z0-9_]*)?(?:\s*\([^)]*\))?\s*\{/u;
+const GRAPHQL_FRAGMENT_SIGNAL =
+  /^fragment\b\s+[A-Za-z_][A-Za-z0-9_]*\s+on\s+[A-Za-z_][A-Za-z0-9_]*\s*\{/u;
+const GRAPHQL_SCHEMA_SIGNAL =
+  /^(schema|type|input|enum|union|directive|extend|interface)\b[\s\S]*\{/u;
 
 const isIdentifierStart = (character: string): boolean => /[A-Za-z_]/.test(character);
 const isIdentifierPart = (character: string): boolean => /[A-Za-z0-9_]/.test(character);
@@ -203,6 +210,57 @@ const parseNdjson = (input: string): unknown[] => {
   });
 };
 
+const stripLeadingCommentsAndWhitespace = (input: string): string => {
+  let remaining = input.trimStart();
+
+  while (remaining.length > 0) {
+    if (remaining.startsWith('//') || remaining.startsWith('#')) {
+      const newlineIndex = remaining.indexOf('\n');
+      if (newlineIndex === -1) {
+        return '';
+      }
+
+      remaining = remaining.slice(newlineIndex + 1).trimStart();
+      continue;
+    }
+
+    if (remaining.startsWith('/*')) {
+      const blockCommentEndIndex = remaining.indexOf('*/', 2);
+      if (blockCommentEndIndex === -1) {
+        return '';
+      }
+
+      remaining = remaining.slice(blockCommentEndIndex + 2).trimStart();
+      continue;
+    }
+
+    break;
+  }
+
+  return remaining;
+};
+
+const hasSupportedMalformedSignal = (trimmedInput: string): boolean => {
+  const signalInput = stripLeadingCommentsAndWhitespace(trimmedInput);
+  if (!signalInput) {
+    return false;
+  }
+
+  if (signalInput.startsWith('{') || signalInput.startsWith('[')) {
+    return true;
+  }
+
+  if (GRAPHQL_OPERATION_SIGNAL.test(signalInput)) {
+    return true;
+  }
+
+  if (GRAPHQL_FRAGMENT_SIGNAL.test(signalInput)) {
+    return true;
+  }
+
+  return GRAPHQL_SCHEMA_SIGNAL.test(signalInput);
+};
+
 const PARSE_STRATEGIES: ParseStrategy[] = [
   {
     detection: 'json',
@@ -304,18 +362,24 @@ export const runLocalPrettifier = async (
     return structuredDataResult;
   }
 
-  try {
-    const graphqlResult = await tryApplyGraphqlPrettifier(trimmedInput, indentSize);
-    if (graphqlResult) {
-      return graphqlResult;
-    }
-  } catch {
-    // GraphQL parse/format failures should fall through to the shared malformed
-    // result just like the JSON-family strategies above.
+  const graphqlResult = await tryApplyGraphqlPrettifier(trimmedInput, indentSize);
+  if (graphqlResult) {
+    return graphqlResult;
+  }
+
+  // Boundary rule: unsupported plain text is still a successful local no-op.
+  // We only return malformed when there's a conservative signal that input
+  // belongs to a supported local family but failed parse/format.
+  if (hasSupportedMalformedSignal(trimmedInput)) {
+    return {
+      kind: 'failed',
+      detection: 'malformed',
+    };
   }
 
   return {
-    kind: 'failed',
-    detection: 'malformed',
+    kind: 'applied',
+    detection: 'text',
+    outputText: inputText,
   };
 };

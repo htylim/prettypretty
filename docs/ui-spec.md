@@ -76,6 +76,7 @@
   - Python-like dict literals
   - GraphQL documents
 - If local parsing succeeds, output updates immediately.
+- Unrecognized plain text is treated as a local no-op (`text`) and does not trigger fallback.
 - If local parsing fails and fallback is available, renderer calls main-process fallback execution.
 - Pane-targeted prettify support is phase-shipped by syntax family; shipped support covers JSON/NDJSON, YAML, JavaScript/TypeScript string literals, GraphQL string values, XML attribute/text payloads, and SQL quoted string literals.
 

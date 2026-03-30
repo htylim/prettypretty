@@ -3,6 +3,27 @@ import { describe, expect, it } from 'vitest';
 import { runLocalPrettifier } from '../../../src/shared/localPrettifier';
 
 describe('runLocalPrettifier', () => {
+  it('returns plain text as a local no-op text result', async () => {
+    const result = await runLocalPrettifier('hello world', 2);
+
+    expect(result).toEqual({
+      kind: 'applied',
+      detection: 'text',
+      outputText: 'hello world',
+    });
+  });
+
+  it('returns multiline prose as a local no-op text result', async () => {
+    const input = 'notes:\nship later';
+    const result = await runLocalPrettifier(input, 2);
+
+    expect(result).toEqual({
+      kind: 'applied',
+      detection: 'text',
+      outputText: input,
+    });
+  });
+
   it('prettifies graphql operations locally', async () => {
     const result = await runLocalPrettifier(
       'query ListShipments($first: Int){shipments(first:$first){edges{node{id}}}}',
@@ -106,6 +127,50 @@ describe('runLocalPrettifier', () => {
     expect(result).toEqual({
       kind: 'failed',
       detection: 'malformed',
+    });
+  });
+
+  it('returns malformed for invalid json-like structured text', async () => {
+    const result = await runLocalPrettifier('{bad', 2);
+
+    expect(result).toEqual({
+      kind: 'failed',
+      detection: 'malformed',
+    });
+  });
+
+  it('keeps malformed classification for supported syntax behind leading comments', async () => {
+    await expect(runLocalPrettifier('# note\nquery Shipments {', 2)).resolves.toEqual({
+      kind: 'failed',
+      detection: 'malformed',
+    });
+
+    await expect(runLocalPrettifier('/* note */ {bad', 2)).resolves.toEqual({
+      kind: 'failed',
+      detection: 'malformed',
+    });
+  });
+
+  it('does not classify keyword-leading prose as malformed graphql', async () => {
+    const result = await runLocalPrettifier('Query planning notes for next sprint', 2);
+
+    expect(result).toEqual({
+      kind: 'applied',
+      detection: 'text',
+      outputText: 'Query planning notes for next sprint',
+    });
+  });
+
+  it('keeps scalar roots on the existing local success path', async () => {
+    await expect(runLocalPrettifier('42', 2)).resolves.toEqual({
+      kind: 'applied',
+      detection: 'json',
+      outputText: '42',
+    });
+    await expect(runLocalPrettifier("'hello'", 2)).resolves.toEqual({
+      kind: 'applied',
+      detection: 'json5',
+      outputText: "'hello'",
     });
   });
 });

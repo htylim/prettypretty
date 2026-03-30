@@ -21,6 +21,7 @@ export type LocalDetection =
   | 'json5'
   | 'python-like'
   | 'graphql'
+  | 'text'
   | 'unsupported'
   | 'malformed';
 

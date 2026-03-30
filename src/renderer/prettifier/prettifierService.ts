@@ -7,7 +7,7 @@ export type PrettifyDetailedResult =
       kind: 'applied';
       localDetection: Extract<
         LocalDetection,
-        'json' | 'ndjson' | 'json5' | 'python-like' | 'graphql'
+        'json' | 'ndjson' | 'json5' | 'python-like' | 'graphql' | 'text'
       >;
       outputText: string;
     }

@@ -434,7 +434,7 @@ describe('usePrettifierFlow', () => {
     );
 
     act(() => {
-      void ref.current?.runPrettifier('line 1\nline 2\nline 3', 'switch-output', {
+      void ref.current?.runPrettifier('{bad\nline 2\nline 3', 'switch-output', {
         switchToOutputOnComplete: false,
       });
     });
