@@ -1,24 +1,15 @@
 import JSON5 from 'json5';
 import { prettifyGraphql } from './graphqlPrettifier';
 import type { IndentSize } from './preferences';
-import type { LocalDetection } from './prettifier';
+import type {
+  LocalPrettifyAppliedResult,
+  LocalPrettifyResult,
+  StructuredDataLocalDetection,
+} from './prettifier';
+
+export type { LocalPrettifyResult } from './prettifier';
 
 type StructuredValue = Record<string, unknown> | unknown[];
-type StructuredDataDetection = Extract<LocalDetection, 'json' | 'ndjson' | 'json5' | 'python-like'>;
-type AppliedDetection = StructuredDataDetection | Extract<LocalDetection, 'graphql' | 'text'>;
-
-type LocalPrettifyAppliedResult = {
-  kind: 'applied';
-  detection: AppliedDetection;
-  outputText: string;
-};
-
-type LocalPrettifyFailedResult = {
-  kind: 'failed';
-  detection: Extract<LocalDetection, 'unsupported' | 'malformed'>;
-};
-
-export type LocalPrettifyResult = LocalPrettifyAppliedResult | LocalPrettifyFailedResult;
 
 const GRAPHQL_OPERATION_SIGNAL =
   /^(query|mutation|subscription)\b(?:\s+[A-Za-z_][A-Za-z0-9_]*)?(?:\s*\([^)]*\))?\s*\{/u;
@@ -187,9 +178,18 @@ export const isJsonSerializableValue = (value: unknown): boolean => {
   return isSerializableNode(value, new Set<object>());
 };
 
-type ParseStrategy = {
-  detection: StructuredDataDetection;
+type StructuredDataStrategy = {
+  detection: StructuredDataLocalDetection;
   parse: (input: string) => unknown;
+};
+
+// Some families stay synchronous while others delegate to async formatter
+// backends. The registry does not care which one it gets back.
+type LocalFormatAttempt = LocalPrettifyResult | null | Promise<LocalPrettifyResult | null>;
+
+type SupportedLocalFormatFamily = {
+  hasMalformedSignal: (signalInput: string) => boolean;
+  tryApply: (inputText: string, trimmedInput: string, indentSize: IndentSize) => LocalFormatAttempt;
 };
 
 const parseNdjson = (input: string): unknown[] => {
@@ -210,6 +210,9 @@ const parseNdjson = (input: string): unknown[] => {
   });
 };
 
+// Malformed classification should ignore leading comments so commented-out
+// supported syntax still stays on the malformed path rather than degrading to
+// plain text after the real parser rejects it.
 const stripLeadingCommentsAndWhitespace = (input: string): string => {
   let remaining = input.trimStart();
 
@@ -240,16 +243,11 @@ const stripLeadingCommentsAndWhitespace = (input: string): string => {
   return remaining;
 };
 
-const hasSupportedMalformedSignal = (trimmedInput: string): boolean => {
-  const signalInput = stripLeadingCommentsAndWhitespace(trimmedInput);
-  if (!signalInput) {
-    return false;
-  }
+const hasStructuredDataMalformedSignal = (signalInput: string): boolean => {
+  return signalInput.startsWith('{') || signalInput.startsWith('[');
+};
 
-  if (signalInput.startsWith('{') || signalInput.startsWith('[')) {
-    return true;
-  }
-
+const hasGraphqlMalformedSignal = (signalInput: string): boolean => {
   if (GRAPHQL_OPERATION_SIGNAL.test(signalInput)) {
     return true;
   }
@@ -261,7 +259,7 @@ const hasSupportedMalformedSignal = (trimmedInput: string): boolean => {
   return GRAPHQL_SCHEMA_SIGNAL.test(signalInput);
 };
 
-const PARSE_STRATEGIES: ParseStrategy[] = [
+const STRUCTURED_DATA_STRATEGIES: StructuredDataStrategy[] = [
   {
     detection: 'json',
     parse: (input) => JSON.parse(input) as unknown,
@@ -287,7 +285,7 @@ const tryApplyStructuredDataPrettifier = (
   trimmedInput: string,
   indentSize: IndentSize,
 ): LocalPrettifyResult | null => {
-  for (const strategy of PARSE_STRATEGIES) {
+  for (const strategy of STRUCTURED_DATA_STRATEGIES) {
     try {
       const parsed = strategy.parse(trimmedInput);
 
@@ -339,6 +337,36 @@ const tryApplyGraphqlPrettifier = (
     .catch(() => null);
 };
 
+const tryApplyGraphqlFamily = async (
+  _inputText: string,
+  trimmedInput: string,
+  indentSize: IndentSize,
+): Promise<LocalPrettifyResult | null> => {
+  return tryApplyGraphqlPrettifier(trimmedInput, indentSize);
+};
+
+// Keep supported local families in one registry so format application and
+// malformed-signal ownership evolve together instead of drifting across helpers.
+const SUPPORTED_LOCAL_FORMAT_FAMILIES: readonly SupportedLocalFormatFamily[] = [
+  {
+    hasMalformedSignal: hasStructuredDataMalformedSignal,
+    tryApply: tryApplyStructuredDataPrettifier,
+  },
+  {
+    hasMalformedSignal: hasGraphqlMalformedSignal,
+    tryApply: tryApplyGraphqlFamily,
+  },
+];
+
+const hasSupportedMalformedSignal = (trimmedInput: string): boolean => {
+  const signalInput = stripLeadingCommentsAndWhitespace(trimmedInput);
+  if (!signalInput) {
+    return false;
+  }
+
+  return SUPPORTED_LOCAL_FORMAT_FAMILIES.some((family) => family.hasMalformedSignal(signalInput));
+};
+
 export const runLocalPrettifier = async (
   inputText: string,
   indentSize: IndentSize,
@@ -353,18 +381,11 @@ export const runLocalPrettifier = async (
     };
   }
 
-  const structuredDataResult = tryApplyStructuredDataPrettifier(
-    inputText,
-    trimmedInput,
-    indentSize,
-  );
-  if (structuredDataResult) {
-    return structuredDataResult;
-  }
-
-  const graphqlResult = await tryApplyGraphqlPrettifier(trimmedInput, indentSize);
-  if (graphqlResult) {
-    return graphqlResult;
+  for (const family of SUPPORTED_LOCAL_FORMAT_FAMILIES) {
+    const localResult = await family.tryApply(inputText, trimmedInput, indentSize);
+    if (localResult) {
+      return localResult;
+    }
   }
 
   // Boundary rule: unsupported plain text is still a successful local no-op.

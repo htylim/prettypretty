@@ -1,19 +1,16 @@
 import type { IndentSize } from '../../shared/preferences';
-import type { LocalDetection } from '../../shared/prettifier';
+import type { LocalAppliedDetection, LocalFailedDetection } from '../../shared/prettifier';
 import { runLocalPrettifier } from '../../shared/localPrettifier';
 
 export type PrettifyDetailedResult =
   | {
       kind: 'applied';
-      localDetection: Extract<
-        LocalDetection,
-        'json' | 'ndjson' | 'json5' | 'python-like' | 'graphql' | 'text'
-      >;
+      localDetection: LocalAppliedDetection;
       outputText: string;
     }
   | {
       kind: 'failed';
-      localDetection: Extract<LocalDetection, 'unsupported' | 'malformed'>;
+      localDetection: LocalFailedDetection;
       outputText: string;
     };
 

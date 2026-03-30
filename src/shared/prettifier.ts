@@ -12,18 +12,54 @@ export type PrettifyTrigger =
   | 'context-pane-prettify';
 
 /**
- * Describes how far the local parser got before the app either prettified the
- * document or delegated to a fallback agent.
+ * Local detections that mean shared parsing produced an immediate renderer/main
+ * result with no fallback work required.
  */
-export type LocalDetection =
+export type LocalAppliedDetection =
   | 'json'
   | 'ndjson'
   | 'json5'
   | 'python-like'
   | 'graphql'
-  | 'text'
-  | 'unsupported'
-  | 'malformed';
+  | 'text';
+
+/**
+ * Local detections that mean shared parsing recognized a supported boundary but
+ * could not complete a local prettify result.
+ */
+export type LocalFailedDetection = 'unsupported' | 'malformed';
+
+/**
+ * Structured-data detections all share the same normalization contract: parse
+ * into data, reject runtime-only values, then emit canonical JSON text.
+ */
+export type StructuredDataLocalDetection = Extract<
+  LocalAppliedDetection,
+  'json' | 'ndjson' | 'json5' | 'python-like'
+>;
+
+/**
+ * Describes how far the local parser got before the app either prettified the
+ * document or delegated to a fallback agent.
+ */
+export type LocalDetection = LocalAppliedDetection | LocalFailedDetection;
+
+/**
+ * Shared local prettifier result. Renderer and main both consume this contract
+ * before deciding whether fallback orchestration is still allowed.
+ */
+export type LocalPrettifyAppliedResult = {
+  kind: 'applied';
+  detection: LocalAppliedDetection;
+  outputText: string;
+};
+
+export type LocalPrettifyFailedResult = {
+  kind: 'failed';
+  detection: LocalFailedDetection;
+};
+
+export type LocalPrettifyResult = LocalPrettifyAppliedResult | LocalPrettifyFailedResult;
 
 /**
  * Explains why fallback was skipped, succeeded, or failed after local parsing
