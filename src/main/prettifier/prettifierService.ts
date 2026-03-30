@@ -109,7 +109,7 @@ export const createPrettifierService = ({
         requestId: request.requestId,
       });
 
-      const localResult = runLocalPrettifier(request.inputText, request.indentSize);
+      const localResult = await runLocalPrettifier(request.inputText, request.indentSize);
       logger.info('prettifier.local.detected', {
         localDetection: localResult.detection,
         localResultKind: localResult.kind,

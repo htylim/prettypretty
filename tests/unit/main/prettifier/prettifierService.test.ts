@@ -73,6 +73,37 @@ describe('prettifierService', () => {
     expect(fallbackExecutor.execute).not.toHaveBeenCalled();
   });
 
+  it('treats graphql documents as a local format', async () => {
+    const preferencesService = {
+      getAll: vi.fn().mockResolvedValue(createDefaultPreferences()),
+    };
+    const fallbackExecutor = {
+      execute: vi.fn(),
+      cancel: vi.fn().mockReturnValue(false),
+    };
+    const logger = createLogger();
+    const service = createPrettifierService({
+      preferencesService,
+      logger,
+      fallbackExecutor,
+    });
+
+    const response = await service.run({
+      requestId: 1,
+      inputText: 'type Shipment{id:ID! request_id:String}',
+      indentSize: 2,
+      trigger: 'switch-output',
+    });
+
+    expect(response).toMatchObject({
+      status: 'applied-local',
+      fallbackStatus: 'not-attempted',
+      localDetection: 'graphql',
+      outputText: 'type Shipment {\n  id: ID!\n  request_id: String\n}',
+    });
+    expect(fallbackExecutor.execute).not.toHaveBeenCalled();
+  });
+
   it('returns passthrough-no-fallback when local parsing fails and fallback is not configured', async () => {
     const preferences = createDefaultPreferences();
     const preferencesService = {

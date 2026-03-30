@@ -25,6 +25,7 @@ describe('documentSessionDomain', () => {
       outputFormattingState: {
         isPrettified: false,
         indentSize: null,
+        reindentStrategy: 'none',
       },
       fallbackWaitState: null,
       fallbackModalState: null,
@@ -71,6 +72,7 @@ describe('documentSessionDomain', () => {
       outputFormattingState: {
         isPrettified: false,
         indentSize: null,
+        reindentStrategy: 'none',
       },
       fallbackWaitState: null,
       fallbackModalState: null,

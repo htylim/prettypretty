@@ -73,6 +73,7 @@ type HarnessHandle = {
   getIngestNotice: () => string | null;
   getIsLlmRunning: () => boolean;
   getFallbackWaitState: () => FallbackWaitState | null;
+  isInputAlreadyPrettified: (input: string) => boolean;
 };
 
 type HarnessProps = {
@@ -86,6 +87,7 @@ type HarnessProps = {
   fallbackWarningLineThreshold?: number;
   fallbackAgentId?: string | null;
   fallbackAgentOptions?: { id: string; name: string; enabled: boolean }[];
+  indentSize?: 2 | 4 | 6 | 8;
 };
 
 const PrettifierHarness = forwardRef<HarnessHandle, HarnessProps>(
@@ -98,6 +100,7 @@ const PrettifierHarness = forwardRef<HarnessHandle, HarnessProps>(
       fallbackWarningLineThreshold = 300,
       fallbackAgentId = 'codex',
       fallbackAgentOptions = [{ id: 'codex', name: 'Codex', enabled: true }],
+      indentSize = 2,
     },
     ref,
   ) => {
@@ -108,7 +111,7 @@ const PrettifierHarness = forwardRef<HarnessHandle, HarnessProps>(
     const ingestNotice = useDocumentSession(selectIngestNotice);
     const fallbackWaitState = useDocumentSession(selectFallbackWaitState);
     const flow = usePrettifierFlow({
-      indentSize: 2,
+      indentSize,
       fallbackWarningLineThreshold,
       fallbackAgentId,
       fallbackAgentOptions,
@@ -130,6 +133,7 @@ const PrettifierHarness = forwardRef<HarnessHandle, HarnessProps>(
         getIngestNotice: () => ingestNotice,
         getIsLlmRunning: () => flow.isLlmRunning,
         getFallbackWaitState: () => fallbackWaitState,
+        isInputAlreadyPrettified: flow.isInputAlreadyPrettified,
       }),
       [fallbackWaitState, flow, ingestNotice, inputText, outputText, paneMode],
     );
@@ -247,6 +251,33 @@ describe('usePrettifierFlow', () => {
     });
     expect(ref.current?.getFallbackWaitState()).toBeNull();
     expect(ref.current?.getOutputText()).toContain('"done": true');
+  });
+
+  it('treats non-remappable prettified output with a stale indent as needing a fresh prettify', () => {
+    useDocumentSession.setState({
+      ...createInitialDocumentSessionState(),
+      inputText: 'query Shipment{id}',
+      outputText: 'query Shipment {\n  id\n}',
+      outputFormattingState: {
+        isPrettified: true,
+        indentSize: 2,
+        reindentStrategy: 'none',
+      },
+      lastPrettifiedInput: 'query Shipment{id}',
+    });
+
+    const ref = { current: null as HarnessHandle | null };
+
+    render(
+      createElement(PrettifierHarness, {
+        api: null,
+        indentSize: 4,
+        logTelemetry: vi.fn().mockResolvedValue(undefined),
+        ref,
+      }),
+    );
+
+    expect(ref.current?.isInputAlreadyPrettified('query Shipment{id}')).toBe(false);
   });
 
   it('cancels the active fallback request and keeps passthrough output visible', async () => {

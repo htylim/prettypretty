@@ -449,6 +449,71 @@ describe('useAppController', () => {
     });
   });
 
+  it('resolves json graphql query strings through the output context menu and opens a child pane', async () => {
+    const inputEditorRef = createInputEditorRef();
+    const ref = { current: null as HarnessHandle | null };
+    render(createElement(ControllerHarness, { inputEditorRef, ref }));
+
+    const controller = ref.current?.getController();
+    const jsonText =
+      '{\n' +
+      '  "query": "query ListShipments(\\n  $first: Int\\n) {\\n  shipments(first: $first) {\\n    edges {\\n      node {\\n        id\\n      }\\n    }\\n  }\\n}",\n' +
+      '  "variables": {"first": 2}\n' +
+      '}';
+    const decodedQuery =
+      'query ListShipments(\n' +
+      '  $first: Int\n' +
+      ') {\n' +
+      '  shipments(first: $first) {\n' +
+      '    edges {\n' +
+      '      node {\n' +
+      '        id\n' +
+      '      }\n' +
+      '    }\n' +
+      '  }\n' +
+      '}';
+    const runPrettifierRequest = usePrettifierFlowMock.mock.results[0]?.value
+      ?.runPrettifierRequest as ReturnType<typeof vi.fn>;
+
+    act(() => {
+      controller?.onOutputPaneContextMenu(
+        'output-root-pane',
+        {
+          anchorX: 24,
+          anchorY: 30,
+          isContentHit: true,
+          position: { lineNumber: 2, column: 4 },
+          hasSelection: false,
+        },
+        jsonText,
+      );
+    });
+
+    expect(ref.current?.getController().outputContextMenuState?.target).toMatchObject({
+      decodedText: decodedQuery,
+      paneDocumentLanguage: 'json',
+    });
+
+    await act(async () => {
+      runPrettifierRequest.mockResolvedValueOnce({
+        status: 'applied-local',
+        outputText: decodedQuery,
+        localDetection: 'graphql',
+        fallbackStatus: 'not-attempted',
+        agentId: null,
+        durationMs: 1,
+      });
+      await ref.current?.getController().onTriggerOutputContextPrettify();
+    });
+
+    expect(runPrettifierRequest).toHaveBeenCalledWith(decodedQuery, 'context-pane-prettify');
+    expect(ref.current?.getController().outputPanes).toHaveLength(2);
+    expect(ref.current?.getController().outputPanes[1]).toMatchObject({
+      paneId: 'output-pane-1',
+      value: decodedQuery,
+    });
+  });
+
   it('resolves GraphQL block string arguments through the output context menu and opens a child pane', async () => {
     const inputEditorRef = createInputEditorRef();
     const ref = { current: null as HarnessHandle | null };

@@ -18,6 +18,22 @@ describe('detectFallbackFormatLabel', () => {
     expect(detectFallbackFormatLabel('SELECT * FROM users WHERE id = 1')).toBe('SQL');
   });
 
+  it('detects graphql-like text as GraphQL', () => {
+    expect(detectFallbackFormatLabel('query ListShipments { shipments { id }')).toBe('GraphQL');
+  });
+
+  it('keeps typescript type aliases labeled as TypeScript', () => {
+    expect(detectFallbackFormatLabel('type Shipment = { id: string };')).toBe('TypeScript');
+  });
+
+  it('keeps ambiguous interface declarations labeled as TypeScript', () => {
+    expect(detectFallbackFormatLabel('interface Shipment {\n  id: ID\n}')).toBe('TypeScript');
+  });
+
+  it('keeps graphql SDL type definitions labeled as GraphQL', () => {
+    expect(detectFallbackFormatLabel('type Shipment {\n  id: String\n}')).toBe('GraphQL');
+  });
+
   it('falls back to text when no format signal is found', () => {
     expect(detectFallbackFormatLabel('just words here')).toBe('text');
   });

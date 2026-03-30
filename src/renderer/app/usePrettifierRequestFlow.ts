@@ -170,7 +170,7 @@ export const usePrettifierRequestFlow = ({
       const startedAt = Date.now();
       const getDurationMs = (): number => Date.now() - startedAt;
 
-      const localResult = prettifierService.prettifyDetailed(nextInputText);
+      const localResult = await prettifierService.prettifyDetailed(nextInputText);
       void logTelemetry('renderer.prettifier.local.result', {
         trigger,
         inputLength: nextInputText.length,

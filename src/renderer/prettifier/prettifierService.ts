@@ -5,7 +5,10 @@ import { runLocalPrettifier } from '../../shared/localPrettifier';
 export type PrettifyDetailedResult =
   | {
       kind: 'applied';
-      localDetection: Extract<LocalDetection, 'json' | 'ndjson' | 'json5' | 'python-like'>;
+      localDetection: Extract<
+        LocalDetection,
+        'json' | 'ndjson' | 'json5' | 'python-like' | 'graphql'
+      >;
       outputText: string;
     }
   | {
@@ -15,8 +18,8 @@ export type PrettifyDetailedResult =
     };
 
 export type PrettifierService = {
-  prettify: (rawText: string) => string;
-  prettifyDetailed: (rawText: string) => PrettifyDetailedResult;
+  prettify: (rawText: string) => Promise<string>;
+  prettifyDetailed: (rawText: string) => Promise<PrettifyDetailedResult>;
 };
 
 /**
@@ -25,8 +28,8 @@ export type PrettifierService = {
  * but keeps a renderer-friendly result shape.
  */
 export const createPrettifierService = (indentSize: IndentSize): PrettifierService => {
-  const prettifyDetailed = (rawText: string): PrettifyDetailedResult => {
-    const localResult = runLocalPrettifier(rawText, indentSize);
+  const prettifyDetailed = async (rawText: string): Promise<PrettifyDetailedResult> => {
+    const localResult = await runLocalPrettifier(rawText, indentSize);
     if (localResult.kind === 'applied') {
       return {
         kind: 'applied',
@@ -44,8 +47,8 @@ export const createPrettifierService = (indentSize: IndentSize): PrettifierServi
 
   return {
     prettifyDetailed,
-    prettify: (rawText: string): string => {
-      return prettifyDetailed(rawText).outputText;
+    prettify: async (rawText: string): Promise<string> => {
+      return (await prettifyDetailed(rawText)).outputText;
     },
   };
 };

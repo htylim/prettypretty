@@ -16,6 +16,9 @@ Use the existing stack unless there is a documented reason to add something new.
   - input and output editors
 - `json5`
   - local parsing support for JSON5 and JS/TS object-literal input
+- `prettier`
+  - local GraphQL formatting in the shared prettifier
+  - comment-preserving and block-string-safe GraphQL printing
 - `react-icons`
   - toolbar iconography
 

@@ -20,6 +20,7 @@ export type LocalDetection =
   | 'ndjson'
   | 'json5'
   | 'python-like'
+  | 'graphql'
   | 'unsupported'
   | 'malformed';
 

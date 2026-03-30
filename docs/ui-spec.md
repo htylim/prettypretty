@@ -74,6 +74,7 @@
   - NDJSON
   - JSON5 / JS or TS object-literal style input
   - Python-like dict literals
+  - GraphQL documents
 - If local parsing succeeds, output updates immediately.
 - If local parsing fails and fallback is available, renderer calls main-process fallback execution.
 - Pane-targeted prettify support is phase-shipped by syntax family; shipped support covers JSON/NDJSON, YAML, JavaScript/TypeScript string literals, GraphQL string values, XML attribute/text payloads, and SQL quoted string literals.
@@ -105,6 +106,7 @@
 - YAML supports quoted scalars, plain string scalars, and block scalars.
 - JavaScript and TypeScript support quoted string literals and template literals only when they have no interpolation.
 - GraphQL supports quoted string values and block string values.
+- Valid GraphQL documents extracted from supported string-scalar targets are formatted locally before the child pane opens.
 - XML supports attribute values plus direct text-node and CDATA payloads when the adapter can treat them as concrete string content.
 - SQL supports quoted string literals when the adapter can resolve a concrete string payload.
 - Triggering the action opens the result in the clicked pane's direct child.

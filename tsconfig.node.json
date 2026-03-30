@@ -20,6 +20,7 @@
     "src/shared/**/*.ts",
     "tests/e2e/**/*.ts",
     "tests/unit/main/**/*.ts",
+    "tests/unit/shared/**/*.ts",
     "electron.vite.config.ts",
     "playwright.config.ts"
   ]

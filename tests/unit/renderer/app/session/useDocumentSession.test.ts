@@ -36,6 +36,7 @@ describe('useDocumentSession', () => {
     useDocumentSession.getState().setOutputFormattingState({
       isPrettified: true,
       indentSize: 2,
+      reindentStrategy: 'leading-whitespace',
     });
     useDocumentSession.getState().setFallbackWaitState({
       requestId: 1,
@@ -59,6 +60,7 @@ describe('useDocumentSession', () => {
     expect(useDocumentSession.getState().outputFormattingState).toEqual({
       isPrettified: true,
       indentSize: 2,
+      reindentStrategy: 'leading-whitespace',
     });
     expect(useDocumentSession.getState().fallbackWaitState).toEqual({
       requestId: 1,
@@ -103,6 +105,7 @@ describe('useDocumentSession', () => {
       outputFormattingState: {
         isPrettified: true,
         indentSize: 2,
+        reindentStrategy: 'leading-whitespace',
       },
       fallbackWaitState: {
         requestId: 1,
@@ -132,6 +135,7 @@ describe('useDocumentSession', () => {
     expect(useDocumentSession.getState().outputFormattingState).toEqual({
       isPrettified: false,
       indentSize: null,
+      reindentStrategy: 'none',
     });
     expect(useDocumentSession.getState().fallbackWaitState).toBeNull();
     expect(useDocumentSession.getState().fallbackModalState).toBeNull();

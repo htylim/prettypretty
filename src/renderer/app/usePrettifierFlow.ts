@@ -16,6 +16,7 @@ import {
 import {
   selectInputText,
   selectLastPrettifiedInput,
+  selectOutputFormattingState,
   selectOutputText,
   selectPaneMode,
 } from './session/documentSessionSelectors';
@@ -95,6 +96,7 @@ export const usePrettifierFlow = ({
   const inputText = useDocumentSession(selectInputText);
   const outputText = useDocumentSession(selectOutputText);
   const lastPrettifiedInput = useDocumentSession(selectLastPrettifiedInput);
+  const outputFormattingState = useDocumentSession(selectOutputFormattingState);
   const setPaneMode = useDocumentSession((state) => state.setPaneMode);
   const setInputText = useDocumentSession((state) => state.setInputText);
   const setIngestNotice = useDocumentSession((state) => state.setIngestNotice);
@@ -142,6 +144,7 @@ export const usePrettifierFlow = ({
             currentState.outputText,
             response.outputText,
             indentSize,
+            response.localDetection,
           ),
         );
         return;
@@ -252,9 +255,15 @@ export const usePrettifierFlow = ({
 
   const isInputAlreadyPrettified = useCallback(
     (input: string): boolean => {
-      return lastPrettifiedInput === input;
+      const needsFreshPrettifyForCurrentIndent =
+        outputFormattingState.isPrettified &&
+        outputFormattingState.indentSize !== null &&
+        outputFormattingState.indentSize !== indentSize &&
+        outputFormattingState.reindentStrategy === 'none';
+
+      return lastPrettifiedInput === input && !needsFreshPrettifyForCurrentIndent;
     },
-    [lastPrettifiedInput],
+    [indentSize, lastPrettifiedInput, outputFormattingState],
   );
 
   const reindentOutputIfPrettified = useCallback(

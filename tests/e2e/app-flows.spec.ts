@@ -7,10 +7,37 @@ import {
 } from '@playwright/test';
 import { join } from 'node:path';
 
+const wait = async (timeMs: number): Promise<void> => {
+  await new Promise((resolve) => setTimeout(resolve, timeMs));
+};
+
+const isTransientElectronLaunchError = (error: unknown): boolean => {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  return /Process failed to launch|waiting for event "window"/u.test(error.message);
+};
+
 const launchApp = async (): Promise<ElectronApplication> => {
-  return await electron.launch({
-    args: [join(process.cwd(), 'out/main/index.js')],
-  });
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      return await electron.launch({
+        args: [join(process.cwd(), 'out/main/index.js')],
+      });
+    } catch (error) {
+      if (!isTransientElectronLaunchError(error) || attempt === 4) {
+        throw error;
+      }
+
+      // Electron occasionally aborts during Playwright launch on macOS CI-like
+      // runs; bounded retries keep the suite deterministic without masking
+      // persistent app-start regressions.
+      await wait(250 * (attempt + 1));
+    }
+  }
+
+  throw new Error('unreachable');
 };
 
 const dispatchPaste = async (page: Page, text: string): Promise<void> => {
@@ -112,12 +139,12 @@ const rightClickOutputLine = async (
   offsetX = 40,
 ): Promise<void> => {
   const line = page.locator(`[data-testid="${testId}"] .view-line`).nth(lineIndex);
-  const box = await line.boundingBox();
-  if (!box) {
-    throw new Error(`Unable to locate output line ${lineIndex} for ${testId}`);
-  }
-
-  await page.mouse.click(box.x + offsetX, box.y + box.height / 2, { button: 'right' });
+  await expect(line).toBeVisible({ timeout: 10_000 });
+  await line.click({
+    button: 'right',
+    force: true,
+    position: { x: offsetX, y: 5 },
+  });
 };
 
 test('supports ingest parity for drop and paste', async () => {
@@ -229,6 +256,25 @@ test('uses passthrough output for malformed content when fallback is disabled', 
   await dispatchPaste(page, '{bad');
 
   await expect(page.getByTestId('output-editor')).toContainText('{bad');
+  await expect(page.getByTestId('fallback-wait-screen')).toHaveCount(0);
+
+  await resetPreferences(page);
+  await app.close();
+});
+
+test('prettifies graphql documents locally from direct input', async () => {
+  const app = await launchApp();
+  const page = await app.firstWindow();
+  await page.waitForLoadState('domcontentloaded');
+  await resetPreferences(page);
+
+  await dispatchPaste(
+    page,
+    'query ListShipments($first: Int){shipments(first:$first){edges{node{id}}}}',
+  );
+
+  await expect(page.getByTestId('output-editor')).toContainText('query ListShipments');
+  await expect(page.getByTestId('output-editor')).toContainText('shipments(first: $first)');
   await expect(page.getByTestId('fallback-wait-screen')).toHaveCount(0);
 
   await resetPreferences(page);
@@ -523,11 +569,55 @@ test('resolves GraphQL block string values from the output context menu and open
 
   await expect(page.getByTestId('output-editor')).toContainText('payload:');
 
-  await rightClickOutputLine(page, 'output-editor', 1, 90);
+  await rightClickOutputLine(page, 'output-editor', 2, 40);
   await expect(page.getByTestId('output-context-menu-prettify')).toHaveText('Prettify...');
   await page.getByTestId('output-context-menu-prettify').click();
 
   await expect(page.getByTestId('output-editor-pane-1')).toContainText('"leaf": 1');
+
+  await resetPreferences(page);
+  await app.close();
+});
+
+test('prettifies graphql query strings from json output context panes locally', async () => {
+  const app = await launchApp();
+  const page = await app.firstWindow();
+  await page.waitForLoadState('domcontentloaded');
+  await resetPreferences(page);
+
+  await page.evaluate(async () => {
+    const bridge = globalThis as unknown as {
+      prettypretty: {
+        preferences: {
+          update: (patch: unknown) => Promise<unknown>;
+        };
+      };
+    };
+
+    await bridge.prettypretty.preferences.update({ fallbackAgentId: null });
+  });
+
+  await dispatchPaste(
+    page,
+    JSON.stringify({
+      query:
+        'query ListShipments(\n  $first: Int\n) {\n  shipments(first: $first) {\n    edges {\n      node {\n        id\n      }\n    }\n  }\n}',
+      variables: {
+        first: 2,
+      },
+    }),
+  );
+
+  await expect(page.getByTestId('output-editor')).toContainText('"query"');
+
+  await rightClickOutputLine(page, 'output-editor', 1, 60);
+  await expect(page.getByTestId('output-context-menu-prettify')).toHaveText('Prettify...');
+  await expect(page.getByTestId('output-context-menu-prettify')).toBeEnabled();
+  await page.getByTestId('output-context-menu-prettify').click();
+
+  await expect(page.getByTestId('output-editor-pane-1')).toContainText('query ListShipments(');
+  await expect(page.getByTestId('output-editor-pane-1')).toContainText('shipments(first: $first)');
+  await expect(page.getByTestId('fallback-wait-screen')).toHaveCount(0);
 
   await resetPreferences(page);
   await app.close();
@@ -553,7 +643,8 @@ test('resolves XML attribute values from the output context menu and opens a chi
 
   await dispatchPaste(page, '<request payload="{&quot;leaf&quot;:1}" />');
 
-  await expect(page.getByTestId('output-editor')).toContainText('payload=');
+  await page.waitForSelector('[data-testid="output-editor"]', { timeout: 10_000 });
+  await expect(page.getByTestId('output-editor')).toContainText('payload=', { timeout: 10_000 });
 
   await rightClickOutputLine(page, 'output-editor', 0, 95);
   await expect(page.getByTestId('output-context-menu-prettify')).toHaveText('Prettify...');

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { reindentText } from '../../../../src/renderer/prettifier/reindentText';
+import { reindentText } from '../../../src/shared/reindentText';
 
 describe('reindentText', () => {
   it('expands indentation from 2 to 4 spaces', () => {

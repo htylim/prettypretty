@@ -40,6 +40,7 @@ describe('documentSessionSelectors', () => {
       outputFormattingState: {
         isPrettified: true,
         indentSize: 2,
+        reindentStrategy: 'leading-whitespace',
       },
       fallbackWaitState: {
         requestId: 1,
@@ -71,6 +72,7 @@ describe('documentSessionSelectors', () => {
     expect(selectOutputFormattingState(state)).toEqual({
       isPrettified: true,
       indentSize: 2,
+      reindentStrategy: 'leading-whitespace',
     });
     expect(selectFallbackWaitState(state)).toEqual({
       requestId: 1,

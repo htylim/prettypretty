@@ -1,13 +1,16 @@
 import type { IndentSize } from '../../../shared/preferences';
-import type { PrettifyRunStatus } from '../../../shared/prettifier';
+import type { LocalDetection, PrettifyRunStatus } from '../../../shared/prettifier';
+import { reindentText } from '../../../shared/reindentText';
 import type { PaneMode } from '../../../shared/types';
 import { detectFallbackFormatLabel } from '../../prettifier/detectFallbackFormat';
-import { reindentText } from '../../prettifier/reindentText';
 import type { FallbackWaitState } from '../appDomain';
+
+export type OutputReindentStrategy = 'none' | 'leading-whitespace';
 
 export type OutputFormattingState = {
   isPrettified: boolean;
   indentSize: IndentSize | null;
+  reindentStrategy: OutputReindentStrategy;
 };
 
 export type OutputReindentSnapshot = {
@@ -40,6 +43,7 @@ export type OutputReindentTransition = {
 export const createEmptyOutputFormattingState = (): OutputFormattingState => ({
   isPrettified: false,
   indentSize: null,
+  reindentStrategy: 'none',
 });
 
 export const createInitialPrettifierSessionState = (): PrettifierSessionState => ({
@@ -71,6 +75,31 @@ export const createAgentSelectionFallbackModalState = (): FallbackModalState => 
 export const isAppliedPrettifyStatus = (status: PrettifyRunStatus): boolean => {
   return status === 'applied-local' || status === 'applied-fallback';
 };
+
+const canRemapLeadingWhitespace = (
+  status: PrettifyRunStatus,
+  localDetection: LocalDetection,
+): boolean => {
+  if (status !== 'applied-local') {
+    return false;
+  }
+
+  return (
+    localDetection === 'json' ||
+    localDetection === 'ndjson' ||
+    localDetection === 'json5' ||
+    localDetection === 'python-like'
+  );
+};
+
+const createPrettifiedOutputFormattingState = (
+  indentSize: IndentSize,
+  reindentStrategy: OutputReindentStrategy,
+): OutputFormattingState => ({
+  isPrettified: true,
+  indentSize,
+  reindentStrategy,
+});
 
 export const getLineCount = (value: string): number => {
   if (value.length === 0) {
@@ -107,13 +136,14 @@ export const applyLocalPrettifyOutput = (
   inputText: string,
   prettifiedText: string,
   indentSize: IndentSize,
+  localDetection: LocalDetection,
 ): PrettifierSessionState => ({
   ...state,
   outputText: prettifiedText,
-  outputFormattingState: {
-    isPrettified: true,
+  outputFormattingState: createPrettifiedOutputFormattingState(
     indentSize,
-  },
+    canRemapLeadingWhitespace('applied-local', localDetection) ? 'leading-whitespace' : 'none',
+  ),
   fallbackWaitState: null,
   lastPrettifiedInput: inputText,
 });
@@ -127,10 +157,9 @@ export const applyRemotePrettifyOutput = (
 ): PrettifierSessionState => ({
   ...state,
   outputText,
-  outputFormattingState: {
-    isPrettified: isAppliedPrettifyStatus(status),
-    indentSize: isAppliedPrettifyStatus(status) ? indentSize : null,
-  },
+  outputFormattingState: isAppliedPrettifyStatus(status)
+    ? createPrettifiedOutputFormattingState(indentSize, 'none')
+    : createEmptyOutputFormattingState(),
   fallbackWaitState: null,
   lastPrettifiedInput: inputText,
 });
@@ -164,6 +193,7 @@ export const createOutputReindentTransition = (
     options.paneMode === 'output' &&
     hasInputContent &&
     currentFormatting.isPrettified &&
+    currentFormatting.reindentStrategy === 'leading-whitespace' &&
     currentFormatting.indentSize !== null &&
     currentFormatting.indentSize !== options.nextIndentSize;
 
@@ -184,6 +214,7 @@ export const createOutputReindentTransition = (
       outputFormattingState: {
         isPrettified: true,
         indentSize: options.nextIndentSize,
+        reindentStrategy: currentFormatting.reindentStrategy,
       },
     },
   };

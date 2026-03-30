@@ -14,6 +14,7 @@
   - no product logic
 - `src/shared`
   - cross-process contracts and pure shared logic
+  - shared local formatter helpers and indentation remapping
   - no React imports
   - no Electron/Node runtime ownership
 - `src/renderer`
@@ -79,7 +80,7 @@
 1. Renderer ingests text from open, drop, paste, or output-mode switch.
 2. The document session owns renderer-visible input/output, wait, modal, and pane state.
 3. Renderer runs the shared local parser first.
-4. Pure prettifier session/domain helpers decide local success, passthrough, fallback prompts, and reindent transitions.
+4. Pure prettifier session/domain helpers decide local success, passthrough, fallback prompts, and whether output can be safely reindented by whitespace remapping.
 5. `usePrettifierRequestFlow` owns request ids, stale-response guards, fallback wait state, and IPC calls for both root-output prettify and pane-targeted prettify.
 6. If local parsing fails and fallback is allowed, the prettifier runtime calls main over IPC.
 7. Main executes the configured fallback agent and streams progress back by request id.
@@ -110,6 +111,13 @@
   - consume from renderer
 - Prettifier or fallback behavior
   - local/shared parsing lives in `src/shared/localPrettifier.ts`
+  - shared text-format helpers such as GraphQL formatting live in `src/shared/*`
+  - shared indentation remapping lives in `src/shared/reindentText.ts`
+  - use Prettier only as a formatter backend for formats where the product wants to preserve the source language as that language, and where Prettier is the safest formatter for the job
+  - the current approved runtime Prettier use is GraphQL formatting in `src/shared/graphqlPrettifier.ts`
+  - do not route JSON-family normalization through Prettier when the product behavior is to canonicalize input into JSON output rather than preserve the original source dialect
+  - do not treat Prettier as the app's format detector or prettify orchestrator; format detection, malformed/unsupported classification, and fallback routing stay owned by the shared prettifier flow
+  - renderer prettifier session state decides whether an already-prettified output may be reindented by remapping leading whitespace or must stay fixed until the next real prettify run
   - main runtime behavior lives in `src/main/prettifier/*`
   - renderer session/domain behavior lives in `src/renderer/app/session/prettifierSessionDomain.ts`
   - renderer runtime seams live in `src/renderer/app/session/usePrettifierRuntime.ts` and `src/renderer/app/session/useFallbackModalRuntime.ts`

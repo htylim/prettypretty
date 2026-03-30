@@ -1,12 +1,15 @@
 import JSON5 from 'json5';
+import { prettifyGraphql } from './graphqlPrettifier';
 import type { IndentSize } from './preferences';
 import type { LocalDetection } from './prettifier';
 
 type StructuredValue = Record<string, unknown> | unknown[];
+type StructuredDataDetection = Extract<LocalDetection, 'json' | 'ndjson' | 'json5' | 'python-like'>;
+type AppliedDetection = StructuredDataDetection | Extract<LocalDetection, 'graphql'>;
 
 type LocalPrettifyAppliedResult = {
   kind: 'applied';
-  detection: Extract<LocalDetection, 'json' | 'ndjson' | 'json5' | 'python-like'>;
+  detection: AppliedDetection;
   outputText: string;
 };
 
@@ -178,7 +181,7 @@ export const isJsonSerializableValue = (value: unknown): boolean => {
 };
 
 type ParseStrategy = {
-  detection: Extract<LocalDetection, 'json' | 'ndjson' | 'json5' | 'python-like'>;
+  detection: StructuredDataDetection;
   parse: (input: string) => unknown;
 };
 
@@ -219,20 +222,13 @@ const PARSE_STRATEGIES: ParseStrategy[] = [
   },
 ];
 
-export const runLocalPrettifier = (
+// JSON-family inputs share the same output contract: parse structured data,
+// reject runtime-only values, and emit normalized JSON text.
+const tryApplyStructuredDataPrettifier = (
   inputText: string,
+  trimmedInput: string,
   indentSize: IndentSize,
-): LocalPrettifyResult => {
-  const trimmedInput = inputText.trim();
-
-  if (!trimmedInput) {
-    return {
-      kind: 'applied',
-      detection: 'json',
-      outputText: '',
-    };
-  }
-
+): LocalPrettifyResult | null => {
   for (const strategy of PARSE_STRATEGIES) {
     try {
       const parsed = strategy.parse(trimmedInput);
@@ -265,6 +261,57 @@ export const runLocalPrettifier = (
     } catch {
       continue;
     }
+  }
+
+  return null;
+};
+
+// GraphQL formatting is kept in a dedicated shared helper so the adapter seams
+// in renderer/main only consume a new local detection value.
+const tryApplyGraphqlPrettifier = (
+  trimmedInput: string,
+  indentSize: IndentSize,
+): Promise<LocalPrettifyAppliedResult | null> => {
+  return prettifyGraphql(trimmedInput, indentSize)
+    .then((outputText) => ({
+      kind: 'applied' as const,
+      detection: 'graphql' as const,
+      outputText,
+    }))
+    .catch(() => null);
+};
+
+export const runLocalPrettifier = async (
+  inputText: string,
+  indentSize: IndentSize,
+): Promise<LocalPrettifyResult> => {
+  const trimmedInput = inputText.trim();
+
+  if (!trimmedInput) {
+    return {
+      kind: 'applied',
+      detection: 'json',
+      outputText: '',
+    };
+  }
+
+  const structuredDataResult = tryApplyStructuredDataPrettifier(
+    inputText,
+    trimmedInput,
+    indentSize,
+  );
+  if (structuredDataResult) {
+    return structuredDataResult;
+  }
+
+  try {
+    const graphqlResult = await tryApplyGraphqlPrettifier(trimmedInput, indentSize);
+    if (graphqlResult) {
+      return graphqlResult;
+    }
+  } catch {
+    // GraphQL parse/format failures should fall through to the shared malformed
+    // result just like the JSON-family strategies above.
   }
 
   return {

@@ -1,4 +1,4 @@
-import type { IndentSize } from '../../shared/preferences';
+import type { IndentSize } from './preferences';
 
 const getIndentColumns = (leadingWhitespace: string, tabSize: IndentSize): number => {
   let columns = 0;
@@ -10,6 +10,11 @@ const getIndentColumns = (leadingWhitespace: string, tabSize: IndentSize): numbe
   return columns;
 };
 
+/**
+ * Remaps leading indentation while preserving any irregular remainder columns.
+ * This keeps user-selected indentation consistent across formatters that emit
+ * a canonical indent width internally.
+ */
 export const reindentText = (
   text: string,
   fromIndentSize: IndentSize,

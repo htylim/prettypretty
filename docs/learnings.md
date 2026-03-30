@@ -45,9 +45,13 @@ These are the durable patterns worth keeping in mind when changing the codebase.
 - For pane-targeted prettify flows, only enable the action for semantic string scalars that can be decoded to a concrete string value. If decoding is ambiguous or would no-op, keep the action disabled.
 - Keep pane-targeted prettify orchestration shared with root-output prettify so fallback prompts, wait state, and stale-response guards stay consistent.
 - Keep the output context-menu copy static when the action semantics do not change. Do not thread parser metadata through renderer state just to decorate one button label.
+- When a local format is text-native instead of JSON-serializable, give it a dedicated shared formatter helper and keep renderer/main prettifier services as thin adapters.
+- Keep indentation remapping in one shared helper when local formatters and renderer reindent flows need identical behavior.
+- Do not blindly reindent every prettified output when the user changes `indentSize`. Renderer session state should track whether leading-whitespace remapping is semantics-safe for that format.
 - Treat YAML plain scalars conservatively. Support quoted and block scalars directly, but keep ambiguous plain scalars disabled unless the adapter can prove they are semantic strings.
 - Use a syntax-aware parser for JavaScript/TypeScript target resolution so plain template literals can be distinguished from interpolated ones without string slicing heuristics.
 - For GraphQL, a lightweight token scan is enough when it only claims string values and block strings; keep key-hit targeting tied to direct `name: value` pairs and leave other regions generic or disabled.
+- For GraphQL local formatting, use a formatter that preserves comments and block-string values. Raw AST print pipelines are not safe because they drop comments and can tempt follow-up indentation rewrites that change string payloads.
 - For XML, a raw-text structural scan is enough when it only claims quoted attribute values plus direct text or CDATA payloads, and it must bail out on malformed nesting instead of guessing.
 - For SQL, a lightweight scanner is enough when it only claims single-quoted string literals; keep key-hit targeting conservative and bail out on malformed strings or comments.
 

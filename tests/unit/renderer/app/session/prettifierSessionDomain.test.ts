@@ -16,6 +16,7 @@ describe('prettifierSessionDomain', () => {
       '{"a":1}',
       '{\n  "a": 1\n}',
       2,
+      'json',
     );
 
     expect(nextState).toEqual({
@@ -23,6 +24,7 @@ describe('prettifierSessionDomain', () => {
       outputFormattingState: {
         isPrettified: true,
         indentSize: 2,
+        reindentStrategy: 'leading-whitespace',
       },
       fallbackWaitState: null,
       fallbackModalState: null,
@@ -38,6 +40,7 @@ describe('prettifierSessionDomain', () => {
       outputFormattingState: {
         isPrettified: false,
         indentSize: null,
+        reindentStrategy: 'none',
       },
       fallbackWaitState: null,
       fallbackModalState: null,
@@ -60,6 +63,7 @@ describe('prettifierSessionDomain', () => {
       outputFormattingState: {
         isPrettified: true,
         indentSize: 2,
+        reindentStrategy: 'leading-whitespace',
       },
       fallbackWaitState: {
         requestId: 1,
@@ -82,6 +86,7 @@ describe('prettifierSessionDomain', () => {
         outputFormattingState: {
           isPrettified: true,
           indentSize: 2,
+          reindentStrategy: 'leading-whitespace',
         },
         lastPrettifiedInput: '{"nested":{"leaf":true}}',
       },
@@ -98,6 +103,7 @@ describe('prettifierSessionDomain', () => {
       formattingState: {
         isPrettified: true,
         indentSize: 2,
+        reindentStrategy: 'leading-whitespace',
       },
     });
     expect(transition?.nextState.outputText).toBe(
@@ -106,6 +112,29 @@ describe('prettifierSessionDomain', () => {
     expect(transition?.nextState.outputFormattingState).toEqual({
       isPrettified: true,
       indentSize: 4,
+      reindentStrategy: 'leading-whitespace',
     });
+  });
+
+  it('does not create a reindent transition for graphql output', () => {
+    const transition = createOutputReindentTransition(
+      {
+        ...createInitialPrettifierSessionState(),
+        outputText: 'query Shipment {\n  id\n}',
+        outputFormattingState: {
+          isPrettified: true,
+          indentSize: 2,
+          reindentStrategy: 'none',
+        },
+        lastPrettifiedInput: 'query Shipment{id}',
+      },
+      {
+        paneMode: 'output',
+        inputText: 'query Shipment{id}',
+        nextIndentSize: 4,
+      },
+    );
+
+    expect(transition).toBeNull();
   });
 });

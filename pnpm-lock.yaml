@@ -17,6 +17,9 @@ importers:
       monaco-editor:
         specifier: ^0.55.1
         version: 0.55.1
+      prettier:
+        specifier: 3.8.1
+        version: 3.8.1
       react:
         specifier: 19.2.4
         version: 19.2.4
@@ -93,6 +96,9 @@ importers:
       globals:
         specifier: 17.3.0
         version: 17.3.0
+      graphql:
+        specifier: ^16.13.2
+        version: 16.13.2
       husky:
         specifier: 9.1.7
         version: 9.1.7
@@ -108,9 +114,6 @@ importers:
       postcss:
         specifier: 8.5.6
         version: 8.5.6
-      prettier:
-        specifier: 3.8.1
-        version: 3.8.1
       tailwindcss:
         specifier: 4.2.0
         version: 4.2.0
@@ -2094,6 +2097,10 @@ packages:
 
   graceful-fs@4.2.11:
     resolution: {integrity: sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==}
+
+  graphql@16.13.2:
+    resolution: {integrity: sha512-5bJ+nf/UCpAjHM8i06fl7eLyVC9iuNAjm9qzkiu2ZGhM0VscSvS6WDPfAwkdkBuoXGM9FJSbKl6wylMwP9Ktig==}
+    engines: {node: ^12.22.0 || ^14.16.0 || ^16.0.0 || >=17.0.0}
 
   has-flag@4.0.0:
     resolution: {integrity: sha512-EykJT/Q1KjTWctppgIAgfSO0tKVuZUjhgMr17kqTumMl6Afv3EISleU7qZUzoXDFTAHTDC4NOoG/ZxU3EvlMPQ==}
@@ -5532,6 +5539,8 @@ snapshots:
       responselike: 2.0.1
 
   graceful-fs@4.2.11: {}
+
+  graphql@16.13.2: {}
 
   has-flag@4.0.0: {}
 
