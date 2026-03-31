@@ -17,6 +17,15 @@ type OutputPaneStripProps = {
   indentSize: IndentSize;
   onPaneHandleChange: (paneId: string, handle: OutputEditorHandle | null) => void;
   onPaneFocus: (paneId: string) => void;
+  onToggleExtractedSourcePane?: (
+    parentPaneId: string,
+    content: {
+      kind: 'extracted-source';
+      value: string;
+      sourceRange: import('../output/outputRange').OutputPaneSourceRange;
+      lineNumberStart: number;
+    },
+  ) => void;
   onPaneContextMenu: (
     paneId: string,
     request: OutputEditorContextMenuRequest,
@@ -34,6 +43,7 @@ export const OutputPaneStrip = ({
   indentSize,
   onPaneHandleChange,
   onPaneFocus,
+  onToggleExtractedSourcePane,
   onPaneContextMenu,
   onNavigatePaneViewport,
 }: OutputPaneStripProps) => {
@@ -75,6 +85,9 @@ export const OutputPaneStrip = ({
               ref={createPaneHandleRef(pane.paneId)}
               documentId={pane.documentId}
               indentSize={indentSize}
+              languageOverride={pane.languageOverride}
+              activeExtractedSourceRange={pane.activeExtractedSourceRange}
+              lineNumberStart={pane.lineNumberStart}
               onContextMenu={(request) => {
                 onPaneContextMenu(pane.paneId, request, pane.value);
               }}
@@ -83,6 +96,13 @@ export const OutputPaneStrip = ({
                   onPaneFocus(pane.paneId);
                 }
               }}
+              onToggleExtractedSourcePane={
+                onToggleExtractedSourcePane
+                  ? (content) => {
+                      onToggleExtractedSourcePane(pane.paneId, content);
+                    }
+                  : undefined
+              }
               testId={pane.testId}
               themeMode={themeMode}
               value={pane.value}

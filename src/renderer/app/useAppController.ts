@@ -87,6 +87,9 @@ export type UseAppControllerResult = {
   onOpenFile: () => Promise<void>;
   onOutputPaneHandleChange: ReturnType<typeof useOutputPaneController>['onOutputPaneHandleChange'];
   onOutputPaneFocus: (paneId: string) => void;
+  onToggleExtractedSourcePane: ReturnType<
+    typeof useOutputPaneController
+  >['onToggleExtractedSourcePane'];
   onOutputPaneContextMenu: (
     paneId: string,
     request: {
@@ -202,6 +205,7 @@ export const useAppController = ({
     outputPaneFocusRequest,
     getActiveOutputPaneHandle,
     onOpenOutputPane,
+    onToggleExtractedSourcePane,
     onOutputPaneHandleChange: registerOutputPaneHandle,
     onOutputPaneFocus: focusVisibleOutputPane,
     onNavigateOutputPaneViewport: navigateOutputPaneViewport,
@@ -526,6 +530,7 @@ export const useAppController = ({
     onOpenFile: openFile,
     onOutputPaneHandleChange: registerOutputPaneHandle,
     onOutputPaneFocus: focusVisibleOutputPane,
+    onToggleExtractedSourcePane,
     onOutputPaneContextMenu: handleOutputPaneContextMenu,
     onDismissOutputContextMenu: dismissOutputContextMenu,
     onTriggerOutputContextPrettify: triggerOutputContextPrettify,

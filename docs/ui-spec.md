@@ -98,6 +98,12 @@
 - Syntax highlighting is inferred from the rendered text.
 - Output uses inline fold controls instead of Monaco gutter fold controls.
 - Holding literal `Ctrl` changes the inline fold action to direct-child expand/collapse.
+- Holding `Shift` changes the inline fold action to source-block pane open/close.
+- Holding `Ctrl` and `Shift` together cancels both modifier remaps and falls back to the normal self fold action.
+- `Shift` + click opens the full fold block, including its opening and closing delimiters, in the clicked pane's direct child.
+- If that exact block is already open in the direct child pane, the control stays in the close state until that child pane is replaced or closed.
+- Extracted-source panes rebase common leading indentation to zero, keep source-linked displayed line numbers, and inherit the parent pane language for syntax highlighting.
+- When an extracted-source pane is open, the full source block stays subtly highlighted in the parent pane until that child is replaced or closed.
 - `Save` and `Copy` always operate on the root output text.
 - Right-clicking an output pane opens a context menu with `Prettify...`.
 - Right-clicking outside an open output context menu dismisses it.
@@ -110,4 +116,4 @@
 - Valid GraphQL documents extracted from supported string-scalar targets are formatted locally before the child pane opens.
 - XML supports attribute values plus direct text-node and CDATA payloads when the adapter can treat them as concrete string content.
 - SQL supports quoted string literals when the adapter can resolve a concrete string payload.
-- Triggering the action opens the result in the clicked pane's direct child.
+- Triggering the action opens the result in the clicked pane's direct child and replaces any extracted-source child already occupying that slot.

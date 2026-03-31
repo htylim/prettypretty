@@ -64,6 +64,7 @@ export const App = () => {
           onCancelFallbackWait={() => void controller.onCancelActiveFallback()}
           onOutputPaneHandleChange={controller.onOutputPaneHandleChange}
           onOutputPaneFocus={controller.onOutputPaneFocus}
+          onToggleExtractedSourcePane={controller.onToggleExtractedSourcePane}
           onOutputPaneContextMenu={controller.onOutputPaneContextMenu}
           onDismissOutputContextMenu={controller.onDismissOutputContextMenu}
           onTriggerOutputContextPrettify={controller.onTriggerOutputContextPrettify}

@@ -1,11 +1,8 @@
-import type { IRange } from 'monaco-editor';
+import { areOutputPaneSourceRangesEqual, type OutputPaneSourceRange } from '../output/outputRange';
+
+export type { OutputPaneSourceRange } from '../output/outputRange';
 
 export const ROOT_OUTPUT_PANE_ID = 'output-root-pane';
-
-export type OutputPaneSourceRange = Pick<
-  IRange,
-  'startLineNumber' | 'startColumn' | 'endLineNumber' | 'endColumn'
->;
 
 export type SourceRangeOutputPaneContent = {
   kind: 'source-range';
@@ -20,10 +17,27 @@ export type IndependentTextOutputPaneContent = {
   value: string;
 };
 
-export type OutputPaneContent = SourceRangeOutputPaneContent | IndependentTextOutputPaneContent;
+export type ExtractedSourceOutputPaneContent = {
+  kind: 'extracted-source';
+  documentId: string;
+  value: string;
+  sourceRange: OutputPaneSourceRange;
+  lineNumberStart: number;
+};
+
+export type OutputPaneContent =
+  | SourceRangeOutputPaneContent
+  | IndependentTextOutputPaneContent
+  | ExtractedSourceOutputPaneContent;
 
 export type OutputPaneContentInput =
   | SourceRangeOutputPaneContent
+  | {
+      kind: 'extracted-source';
+      value: string;
+      sourceRange: OutputPaneSourceRange;
+      lineNumberStart: number;
+    }
   | {
       kind: 'independent-text';
       value: string;
@@ -41,6 +55,7 @@ export type OutputPaneDescriptor = {
   parentPaneId: string | null;
   documentId: string;
   value: string;
+  lineNumberStart: number | null;
   viewRange: OutputPaneSourceRange | null;
   viewStateKey: string;
 };
@@ -71,6 +86,7 @@ export const createRootOutputPaneDescriptor = (
   parentPaneId: null,
   documentId,
   value,
+  lineNumberStart: null,
   viewRange: null,
   viewStateKey: getRootOutputPaneViewStateKey(documentId),
 });
@@ -124,6 +140,10 @@ export const getOutputPaneViewRange = (
   return content.kind === 'source-range' ? content.sourceRange : null;
 };
 
+export const getOutputPaneLineNumberStart = (content: OutputPaneContent): number | null => {
+  return content.kind === 'extracted-source' ? content.lineNumberStart : null;
+};
+
 export const toOutputPaneDescriptor = (
   pane: Pick<DerivedOutputPane, 'paneId' | 'parentPaneId' | 'content' | 'viewStateKey'>,
 ): OutputPaneDescriptor => ({
@@ -131,21 +151,10 @@ export const toOutputPaneDescriptor = (
   parentPaneId: pane.parentPaneId,
   documentId: pane.content.documentId,
   value: pane.content.value,
+  lineNumberStart: getOutputPaneLineNumberStart(pane.content),
   viewRange: getOutputPaneViewRange(pane.content),
   viewStateKey: pane.viewStateKey,
 });
-
-const areSourceRangesEqual = (
-  left: OutputPaneSourceRange,
-  right: OutputPaneSourceRange,
-): boolean => {
-  return (
-    left.startLineNumber === right.startLineNumber &&
-    left.startColumn === right.startColumn &&
-    left.endLineNumber === right.endLineNumber &&
-    left.endColumn === right.endColumn
-  );
-};
 
 const areOutputPaneContentsEqual = (
   left: OutputPaneContent,
@@ -159,11 +168,21 @@ const areOutputPaneContentsEqual = (
     return (
       left.documentId === right.documentId &&
       left.value === right.value &&
-      areSourceRangesEqual(left.sourceRange, right.sourceRange)
+      areOutputPaneSourceRangesEqual(left.sourceRange, right.sourceRange)
     );
   }
 
-  return left.value === right.value;
+  if (left.kind === 'extracted-source' && right.kind === 'extracted-source') {
+    return (
+      left.value === right.value &&
+      left.lineNumberStart === right.lineNumberStart &&
+      areOutputPaneSourceRangesEqual(left.sourceRange, right.sourceRange)
+    );
+  }
+
+  return left.kind === 'independent-text' && right.kind === 'independent-text'
+    ? left.value === right.value
+    : false;
 };
 
 const createDerivedPaneId = (depth: number): string => {
@@ -187,11 +206,47 @@ const createOutputPaneContent = (
     return content;
   }
 
+  if (content.kind === 'extracted-source') {
+    return {
+      kind: 'extracted-source',
+      documentId: createDerivedPaneDocumentId(paneId, sequence),
+      value: content.value,
+      sourceRange: content.sourceRange,
+      lineNumberStart: content.lineNumberStart,
+    };
+  }
+
   return {
     kind: 'independent-text',
     documentId: createDerivedPaneDocumentId(paneId, sequence),
     value: content.value,
   };
+};
+
+export const getDirectChildExtractedSourceRange = (
+  state: Pick<OutputPaneChainState, 'derivedPanes'>,
+  parentPaneId: string,
+): OutputPaneSourceRange | null => {
+  const parentPaneIndex = getOutputPaneIndex(state.derivedPanes, parentPaneId);
+  if (parentPaneIndex === null) {
+    return null;
+  }
+
+  const directChild = state.derivedPanes[parentPaneIndex];
+  return directChild?.content.kind === 'extracted-source' ? directChild.content.sourceRange : null;
+};
+
+export const toggleExtractedSourceOutputPane = (
+  state: OutputPaneChainState,
+  parentPaneId: string,
+  content: Extract<OutputPaneContentInput, { kind: 'extracted-source' }>,
+): OutputPaneChainState => {
+  const directChildRange = getDirectChildExtractedSourceRange(state, parentPaneId);
+  if (directChildRange && areOutputPaneSourceRangesEqual(directChildRange, content.sourceRange)) {
+    return invalidateOutputPaneDescendants(state, parentPaneId);
+  }
+
+  return openOrReplaceDerivedOutputPane(state, parentPaneId, content);
 };
 
 const normalizeActivePaneId = (activePaneId: string, derivedPanes: DerivedOutputPane[]): string => {

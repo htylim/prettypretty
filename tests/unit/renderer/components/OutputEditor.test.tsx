@@ -266,6 +266,20 @@ describe('OutputEditor', () => {
     expect(lastRender.value).toBe('{"alpha":"beta"}');
   });
 
+  it('uses the provided language override for extracted-source panes', () => {
+    render(
+      <OutputEditor
+        {...createProps({
+          value: '"page_info": {\n  "has_next_page": true',
+          languageOverride: 'json',
+        })}
+      />,
+    );
+
+    const lastRender = editorRenderSpy.mock.calls.at(-1)?.[0] as MonacoRenderProps;
+    expect(lastRender.language).toBe('json');
+  });
+
   it('exposes collapse, expand, focus, and find actions through the ref handle', async () => {
     const handleRef = createRef<OutputEditorHandle>();
     render(<OutputEditor {...createProps({ value: 'const x = 1;' })} ref={handleRef} />);

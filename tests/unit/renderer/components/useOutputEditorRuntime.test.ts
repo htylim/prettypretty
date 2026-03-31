@@ -21,6 +21,9 @@ const {
   contextMenuDisposeMock,
   focusMock,
   getActionMock,
+  decorationCollectionClearMock,
+  decorationCollectionSetMock,
+  editorRenderMock,
 } = vi.hoisted(() => ({
   prepareMonacoEditorRuntimeMock: vi.fn(),
   retainSharedEditorModelMock: vi.fn(),
@@ -43,6 +46,9 @@ const {
   contextMenuDisposeMock: vi.fn(),
   focusMock: vi.fn(),
   getActionMock: vi.fn(),
+  decorationCollectionClearMock: vi.fn(),
+  decorationCollectionSetMock: vi.fn(),
+  editorRenderMock: vi.fn(),
 }));
 
 vi.mock('../../../../src/renderer/output/monacoEditorRuntime', () => ({
@@ -109,6 +115,15 @@ const editorMock = {
       token: 'view-state',
     }) as unknown as MonacoEditor.ICodeEditorViewState,
   focus: focusMock,
+  getModel: () =>
+    ({
+      getLineContent: () => '',
+    }) as unknown as MonacoEditor.ITextModel,
+  createDecorationsCollection: () => ({
+    clear: decorationCollectionClearMock,
+    set: decorationCollectionSetMock,
+  }),
+  render: editorRenderMock,
   onMouseDown: (listener: () => void): { dispose: () => void } => {
     void listener;
     return { dispose: mouseDownDisposeMock };
@@ -146,7 +161,15 @@ const monacoMock = {
 type RuntimeHandle = ReturnType<typeof useOutputEditorRuntime>;
 
 type HarnessProps = {
+  activeExtractedSourceRange?: OutputPaneSourceRange | null;
   documentId: string;
+  lineNumberStart?: number | null;
+  onToggleExtractedSourcePane?: (content: {
+    kind: 'extracted-source';
+    value: string;
+    sourceRange: OutputPaneSourceRange;
+    lineNumberStart: number;
+  }) => void;
   viewStateKey: string;
   viewRange?: OutputPaneSourceRange | null;
   onFocus?: () => void;
@@ -190,6 +213,9 @@ describe('useOutputEditorRuntime', () => {
     contextMenuDisposeMock.mockClear();
     focusMock.mockClear();
     getActionMock.mockClear();
+    decorationCollectionClearMock.mockClear();
+    decorationCollectionSetMock.mockClear();
+    editorRenderMock.mockClear();
   });
 
   it('owns Monaco lifecycle, focus queueing, and hidden-area updates', () => {
@@ -377,6 +403,96 @@ describe('useOutputEditorRuntime', () => {
       isContentHit: false,
       position: { lineNumber: 1, column: 1 },
       hasSelection: true,
+    });
+  });
+
+  it('forwards extracted-source pane requests and source highlights through the runtime seam', () => {
+    const onToggleExtractedSourcePane = vi.fn();
+    const ref = { current: null as RuntimeHandle | null };
+
+    render(
+      createElement(RuntimeHarness, {
+        activeExtractedSourceRange: {
+          startLineNumber: 3,
+          startColumn: 1,
+          endLineNumber: 5,
+          endColumn: 2,
+        },
+        documentId: 'doc-4',
+        lineNumberStart: 41,
+        onToggleExtractedSourcePane,
+        viewStateKey: 'output-pane-1:content-1',
+        ref,
+      }),
+    );
+
+    act(() => {
+      ref.current?.beforeMount(monacoMock);
+      ref.current?.onMount(editorMock, monacoMock);
+    });
+
+    expect(registerInlineFoldControlsMock).toHaveBeenCalledWith(
+      editorMock,
+      expect.objectContaining({
+        getActiveExtractedSourceRange: expect.any(Function),
+        onToggleExtractedSourcePane: expect.any(Function),
+      }),
+    );
+    expect(decorationCollectionSetMock).toHaveBeenCalledWith([
+      expect.objectContaining({
+        range: {
+          startLineNumber: 3,
+          startColumn: 1,
+          endLineNumber: 5,
+          endColumn: 2,
+        },
+      }),
+    ]);
+    expect(editorRenderMock).toHaveBeenCalledWith(true);
+
+    const lastCall = registerInlineFoldControlsMock.mock.calls.at(-1) as
+      | [
+          MonacoEditor.IStandaloneCodeEditor,
+          {
+            onToggleExtractedSourcePane: (foldStart: {
+              lineNumber: number;
+              endLineNumber: number;
+              sourceRange: OutputPaneSourceRange;
+            }) => void;
+          },
+        ]
+      | undefined;
+    const registerOptions = lastCall?.[1] as {
+      onToggleExtractedSourcePane: (foldStart: {
+        lineNumber: number;
+        endLineNumber: number;
+        sourceRange: OutputPaneSourceRange;
+      }) => void;
+    };
+
+    act(() => {
+      registerOptions.onToggleExtractedSourcePane({
+        lineNumber: 2,
+        endLineNumber: 6,
+        sourceRange: {
+          startLineNumber: 2,
+          startColumn: 1,
+          endLineNumber: 6,
+          endColumn: 2,
+        },
+      });
+    });
+
+    expect(onToggleExtractedSourcePane).toHaveBeenCalledWith({
+      kind: 'extracted-source',
+      value: '\n\n\n\n',
+      sourceRange: {
+        startLineNumber: 2,
+        startColumn: 1,
+        endLineNumber: 6,
+        endColumn: 2,
+      },
+      lineNumberStart: 42,
     });
   });
 });

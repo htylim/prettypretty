@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PaneMode } from '../../shared/types';
 import type { OutputEditorHandle } from '../components/OutputEditor';
 import type { OutputPaneViewModel } from '../components/OutputPaneStrip';
+import { detectOutputLanguage, type OutputLanguageId } from '../output/detectOutputLanguage';
 import { getOutputDocumentId } from './appDomain';
 import {
   canNavigateOutputPaneViewportLeft,
@@ -9,6 +10,8 @@ import {
   closeRightmostOutputPane,
   createOutputPaneChainState,
   focusOutputPane,
+  getDirectChildExtractedSourceRange,
+  getOutputPaneLineNumberStart,
   getOutputPaneViewRange,
   getOutputPaneViewportPosition,
   getRightmostVisibleOutputPaneId,
@@ -18,6 +21,7 @@ import {
   openOrReplaceDerivedOutputPane,
   ROOT_OUTPUT_PANE_ID,
   shiftOutputPaneViewport,
+  toggleExtractedSourceOutputPane,
   type OutputPaneContentInput,
   type OutputPaneChainState,
 } from './outputPaneDomain';
@@ -51,6 +55,10 @@ export type UseOutputPaneControllerResult = {
   onOutputPaneHandleChange: (paneId: string, handle: OutputEditorHandle | null) => void;
   onOutputPaneFocus: (paneId: string) => void;
   onOpenOutputPane: (parentPaneId: string, content: OutputPaneContentInput) => void;
+  onToggleExtractedSourcePane: (
+    parentPaneId: string,
+    content: Extract<OutputPaneContentInput, { kind: 'extracted-source' }>,
+  ) => void;
   onInvalidateOutputPaneDescendants: (paneId: string) => void;
   onNavigateOutputPaneViewport: (stepDelta: number) => void;
   onCloseOutputPane: () => void;
@@ -116,25 +124,50 @@ export const useOutputPaneController = ({
   );
 
   const outputPanes = useMemo<OutputPaneViewModel[]>(() => {
+    const languageByPaneId = new Map<string, OutputLanguageId>();
+    const rootLanguage = detectOutputLanguage(outputText);
+    languageByPaneId.set(ROOT_OUTPUT_PANE_ID, rootLanguage);
+
     const rootPane: OutputPaneViewModel = {
       paneId: ROOT_OUTPUT_PANE_ID,
       documentId: outputDocumentId,
       viewStateKey: getRootOutputPaneViewStateKey(outputDocumentId),
       value: outputText,
+      languageOverride: null,
+      activeExtractedSourceRange: getDirectChildExtractedSourceRange(
+        outputPaneChainState,
+        ROOT_OUTPUT_PANE_ID,
+      ),
+      lineNumberStart: null,
       viewRange: null,
       testId: 'output-editor',
     };
 
     return [
       rootPane,
-      ...outputPaneChainState.derivedPanes.map((pane, index) => ({
-        paneId: pane.paneId,
-        documentId: pane.content.documentId,
-        viewStateKey: pane.viewStateKey,
-        value: pane.content.value,
-        viewRange: getOutputPaneViewRange(pane.content),
-        testId: `output-editor-pane-${index + 1}`,
-      })),
+      ...outputPaneChainState.derivedPanes.map((pane, index) => {
+        const parentLanguage = languageByPaneId.get(pane.parentPaneId) ?? rootLanguage;
+        const paneLanguage =
+          pane.content.kind === 'extracted-source'
+            ? parentLanguage
+            : detectOutputLanguage(pane.content.value);
+        languageByPaneId.set(pane.paneId, paneLanguage);
+
+        return {
+          paneId: pane.paneId,
+          documentId: pane.content.documentId,
+          viewStateKey: pane.viewStateKey,
+          value: pane.content.value,
+          languageOverride: pane.content.kind === 'extracted-source' ? paneLanguage : null,
+          activeExtractedSourceRange: getDirectChildExtractedSourceRange(
+            outputPaneChainState,
+            pane.paneId,
+          ),
+          lineNumberStart: getOutputPaneLineNumberStart(pane.content),
+          viewRange: getOutputPaneViewRange(pane.content),
+          testId: `output-editor-pane-${index + 1}`,
+        };
+      }),
     ];
   }, [outputDocumentId, outputPaneChainState, outputText]);
 
@@ -177,6 +210,29 @@ export const useOutputPaneController = ({
     (parentPaneId: string, content: OutputPaneContentInput): void => {
       const currentChainState = useDocumentSession.getState().outputPaneChainState;
       const nextChainState = openOrReplaceDerivedOutputPane(
+        currentChainState,
+        parentPaneId,
+        content,
+      );
+      if (nextChainState === currentChainState) {
+        return;
+      }
+
+      applyOutputPaneChainState(nextChainState, {
+        paneId: nextChainState.activePaneId,
+        sequence: nextFocusRequestSequenceRef.current++,
+      });
+    },
+    [applyOutputPaneChainState],
+  );
+
+  const toggleExtractedSourcePane = useCallback(
+    (
+      parentPaneId: string,
+      content: Extract<OutputPaneContentInput, { kind: 'extracted-source' }>,
+    ): void => {
+      const currentChainState = useDocumentSession.getState().outputPaneChainState;
+      const nextChainState = toggleExtractedSourceOutputPane(
         currentChainState,
         parentPaneId,
         content,
@@ -273,6 +329,7 @@ export const useOutputPaneController = ({
     onOutputPaneHandleChange: registerOutputPaneHandle,
     onOutputPaneFocus: focusVisibleOutputPane,
     onOpenOutputPane: openOutputPane,
+    onToggleExtractedSourcePane: toggleExtractedSourcePane,
     onInvalidateOutputPaneDescendants: invalidateDescendantOutputPanes,
     onNavigateOutputPaneViewport: navigateOutputPaneViewport,
     onCloseOutputPane: closeDerivedOutputPane,

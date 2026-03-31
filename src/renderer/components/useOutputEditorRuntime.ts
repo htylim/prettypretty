@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { OnMount } from '@monaco-editor/react';
 import type { editor as MonacoEditor } from 'monaco-editor';
-import type { OutputPaneSourceRange } from '../app/outputPaneDomain';
+import type { FoldStart } from '../editor/monacoFolding';
 import { setCollapseStateForFoldStart } from '../editor/monacoFolding';
 import { registerInlineFoldControls } from '../output/inlineFoldControls';
 import {
@@ -11,14 +11,35 @@ import {
   retainSharedEditorModel,
   saveEditorViewState,
 } from '../output/monacoEditorRuntime';
+import type { OutputPaneSourceRange } from '../output/outputRange';
 import { applyOutputViewRange } from '../output/outputViewRange';
+import { extractRebasedSourceBlockText, getDisplayedLineNumber } from '../output/sourceBlockPane';
+
+const ACTIVE_EXTRACTED_SOURCE_DECORATION_CLASS = 'output-extracted-source-range';
 
 type OutputEditorRuntimeOptions = {
+  activeExtractedSourceRange?: OutputPaneSourceRange | null | undefined;
   documentId: string;
+  lineNumberStart?: number | null | undefined;
   viewStateKey: string;
   viewRange?: OutputPaneSourceRange | null | undefined;
   onFocus?: (() => void) | undefined;
+  onToggleExtractedSourcePane?:
+    | ((content: {
+        kind: 'extracted-source';
+        value: string;
+        sourceRange: OutputPaneSourceRange;
+        lineNumberStart: number;
+      }) => void)
+    | undefined;
   onContextMenu?: ((request: OutputEditorContextMenuRequest) => void) | undefined;
+};
+
+type DecorationsCapableEditor = MonacoEditor.IStandaloneCodeEditor & {
+  createDecorationsCollection?: (
+    decorations?: MonacoEditor.IModelDeltaDecoration[],
+  ) => MonacoEditor.IEditorDecorationsCollection;
+  render?: (forceRedraw?: boolean) => void;
 };
 
 export type OutputEditorContextMenuRequest = {
@@ -51,20 +72,30 @@ const collapseViewRangeToStartLine = (viewRange: OutputPaneSourceRange): OutputP
 });
 
 export const useOutputEditorRuntime = ({
+  activeExtractedSourceRange = null,
   documentId,
+  lineNumberStart = null,
   viewStateKey,
   viewRange = null,
   onFocus,
+  onToggleExtractedSourcePane,
   onContextMenu,
 }: OutputEditorRuntimeOptions): OutputEditorRuntime => {
   const editorRef = useRef<MonacoEditor.IStandaloneCodeEditor | null>(null);
   const currentViewStateKeyRef = useRef(viewStateKey);
   const latestViewStateKeyRef = useRef(viewStateKey);
+  const activeExtractedSourceRangeRef = useRef(activeExtractedSourceRange);
   const focusHandlerRef = useRef<typeof onFocus>(onFocus);
+  const lineNumberStartRef = useRef(lineNumberStart);
+  const toggleExtractedSourcePaneHandlerRef = useRef<typeof onToggleExtractedSourcePane>(
+    onToggleExtractedSourcePane,
+  );
   const contextMenuHandlerRef = useRef<typeof onContextMenu>(onContextMenu);
   const sourceViewRangeRef = useRef(viewRange);
   const activeViewRangeRef = useRef(viewRange);
   const latestViewRangeRef = useRef(viewRange);
+  const extractedSourceDecorationCollectionRef =
+    useRef<MonacoEditor.IEditorDecorationsCollection | null>(null);
   const pendingEditorFocusRef = useRef(false);
   const hiddenAreaResetSourceRef = useRef({});
   const hasSelectionRef = useRef(false);
@@ -77,6 +108,14 @@ export const useOutputEditorRuntime = ({
   useEffect(() => {
     focusHandlerRef.current = onFocus;
   }, [onFocus]);
+
+  useEffect(() => {
+    lineNumberStartRef.current = lineNumberStart;
+  }, [lineNumberStart]);
+
+  useEffect(() => {
+    toggleExtractedSourcePaneHandlerRef.current = onToggleExtractedSourcePane;
+  }, [onToggleExtractedSourcePane]);
 
   useEffect(() => {
     contextMenuHandlerRef.current = onContextMenu;
@@ -106,6 +145,43 @@ export const useOutputEditorRuntime = ({
     applyOutputViewRange(editor, activeViewRangeRef.current, hiddenAreaResetSourceRef.current);
   }, [viewRange]);
 
+  const syncActiveExtractedSourceDecorations = useCallback(
+    (editor: MonacoEditor.IStandaloneCodeEditor): void => {
+      const collection = extractedSourceDecorationCollectionRef.current;
+      if (!collection) {
+        return;
+      }
+
+      const activeRange = activeExtractedSourceRangeRef.current;
+      collection.set(
+        activeRange
+          ? [
+              {
+                range: activeRange,
+                options: {
+                  isWholeLine: true,
+                  className: ACTIVE_EXTRACTED_SOURCE_DECORATION_CLASS,
+                },
+              },
+            ]
+          : [],
+      );
+      (editor as DecorationsCapableEditor).render?.(true);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    activeExtractedSourceRangeRef.current = activeExtractedSourceRange;
+
+    const editor = editorRef.current;
+    if (!editor) {
+      return;
+    }
+
+    syncActiveExtractedSourceDecorations(editor);
+  }, [activeExtractedSourceRange, syncActiveExtractedSourceDecorations]);
+
   useEffect(() => {
     const editor = editorRef.current;
     if (!editor || currentViewStateKeyRef.current === viewStateKey) {
@@ -134,10 +210,32 @@ export const useOutputEditorRuntime = ({
 
     const activeEditor = editor ?? editorRef.current;
     if (activeEditor) {
+      extractedSourceDecorationCollectionRef.current?.clear();
+      extractedSourceDecorationCollectionRef.current = null;
       saveEditorViewState(currentViewStateKeyRef.current, activeEditor);
     }
 
     editorRef.current = null;
+  }, []);
+
+  const toggleExtractedSourcePane = useCallback((foldStart: FoldStart): void => {
+    const sourceRange = foldStart.sourceRange;
+    const handler = toggleExtractedSourcePaneHandlerRef.current;
+    const editor = editorRef.current;
+    const model = editor?.getModel();
+    if (!handler || !model || !sourceRange) {
+      return;
+    }
+
+    handler({
+      kind: 'extracted-source',
+      value: extractRebasedSourceBlockText(model, sourceRange),
+      sourceRange,
+      lineNumberStart: getDisplayedLineNumber(
+        sourceRange.startLineNumber,
+        lineNumberStartRef.current,
+      ),
+    });
   }, []);
 
   const handleBeforeMount = useCallback((monaco: typeof import('monaco-editor')): void => {
@@ -212,13 +310,25 @@ export const useOutputEditorRuntime = ({
         hiddenAreaResetSource: hiddenAreaResetSourceRef.current,
       });
       applyOutputViewRange(editor, activeViewRangeRef.current, hiddenAreaResetSourceRef.current);
+      const inlineFoldControlOptions =
+        toggleExtractedSourcePaneHandlerRef.current || activeExtractedSourceRangeRef.current
+          ? {
+              getActiveExtractedSourceRange: () => activeExtractedSourceRangeRef.current,
+              onToggleExtractedSourcePane: toggleExtractedSourcePane,
+            }
+          : undefined;
+      extractedSourceDecorationCollectionRef.current =
+        (editor as DecorationsCapableEditor).createDecorationsCollection?.([]) ?? null;
+      syncActiveExtractedSourceDecorations(editor);
       if (pendingEditorFocusRef.current) {
         pendingEditorFocusRef.current = false;
         editor.focus();
       }
 
       const nextInteractionDisposables: Array<{ dispose: () => void }> = [
-        registerInlineFoldControls(editor),
+        inlineFoldControlOptions
+          ? registerInlineFoldControls(editor, inlineFoldControlOptions)
+          : registerInlineFoldControls(editor),
         editor.onDidChangeCursorSelection((event) => {
           hasSelectionRef.current = !event.selection.isEmpty();
         }),
@@ -263,7 +373,7 @@ export const useOutputEditorRuntime = ({
 
       interactionDisposablesRef.current = nextInteractionDisposables;
     },
-    [handleEditorFocus],
+    [handleEditorFocus, syncActiveExtractedSourceDecorations, toggleExtractedSourcePane],
   );
 
   useEffect(() => {

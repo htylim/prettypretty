@@ -351,6 +351,68 @@ describe('useAppController', () => {
     });
   });
 
+  it('replaces an extracted-source child when context prettify opens a new direct child pane', async () => {
+    const inputEditorRef = createInputEditorRef();
+    const ref = { current: null as HarnessHandle | null };
+    render(createElement(ControllerHarness, { inputEditorRef, ref }));
+
+    const controller = ref.current?.getController();
+
+    act(() => {
+      controller?.onToggleExtractedSourcePane('output-root-pane', {
+        kind: 'extracted-source',
+        value: '{\n  "leaf": 1\n}',
+        sourceRange: {
+          startLineNumber: 2,
+          startColumn: 1,
+          endLineNumber: 4,
+          endColumn: 2,
+        },
+        lineNumberStart: 2,
+      });
+    });
+
+    expect(ref.current?.getController().outputPanes[0]).toMatchObject({
+      activeExtractedSourceRange: {
+        startLineNumber: 2,
+        startColumn: 1,
+        endLineNumber: 4,
+        endColumn: 2,
+      },
+    });
+    expect(ref.current?.getController().outputPanes[1]).toMatchObject({
+      lineNumberStart: 2,
+      value: '{\n  "leaf": 1\n}',
+    });
+
+    act(() => {
+      controller?.onOutputPaneContextMenu(
+        'output-root-pane',
+        {
+          anchorX: 24,
+          anchorY: 36,
+          isContentHit: true,
+          position: { lineNumber: 2, column: 4 },
+          hasSelection: false,
+        },
+        '{\n  "query": "{\\n  field\\n}"\n}',
+      );
+    });
+
+    await act(async () => {
+      await ref.current?.getController().onTriggerOutputContextPrettify();
+    });
+
+    expect(ref.current?.getController().outputPanes[0]).toMatchObject({
+      activeExtractedSourceRange: null,
+    });
+    expect(ref.current?.getController().outputPanes[1]).toMatchObject({
+      paneId: 'output-pane-1',
+      lineNumberStart: null,
+      value: '{\n  "query": "formatted"\n}',
+    });
+  });
+
   it('resolves YAML block scalars through the output context menu and opens a child pane', async () => {
     const inputEditorRef = createInputEditorRef();
     const ref = { current: null as HarnessHandle | null };

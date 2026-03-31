@@ -1,10 +1,14 @@
-import type { OutputPaneSourceRange } from '../app/outputPaneDomain';
+import type { OutputPaneSourceRange } from '../output/outputRange';
+import type { OutputLanguageId } from '../output/detectOutputLanguage';
 
 export type OutputPaneViewModel = {
   paneId: string;
   documentId: string;
   viewStateKey: string;
   value: string;
+  languageOverride?: OutputLanguageId | null;
+  activeExtractedSourceRange?: OutputPaneSourceRange | null;
+  lineNumberStart?: number | null;
   viewRange: OutputPaneSourceRange | null;
   testId: string;
 };

@@ -49,6 +49,15 @@ type EditorShellProps = {
   onCancelFallbackWait: () => void;
   onOutputPaneHandleChange: (paneId: string, handle: OutputEditorHandle | null) => void;
   onOutputPaneFocus: (paneId: string) => void;
+  onToggleExtractedSourcePane?: (
+    parentPaneId: string,
+    content: {
+      kind: 'extracted-source';
+      value: string;
+      sourceRange: import('../output/outputRange').OutputPaneSourceRange;
+      lineNumberStart: number;
+    },
+  ) => void;
   onOutputPaneContextMenu: (
     paneId: string,
     request: {
@@ -88,6 +97,7 @@ export const EditorShell = ({
   onCancelFallbackWait,
   onOutputPaneHandleChange,
   onOutputPaneFocus,
+  onToggleExtractedSourcePane,
   onOutputPaneContextMenu,
   onDismissOutputContextMenu,
   onTriggerOutputContextPrettify,
@@ -238,6 +248,7 @@ export const EditorShell = ({
             onPaneHandleChange={onOutputPaneHandleChange}
             panes={outputPanes}
             themeMode={themeMode}
+            {...(onToggleExtractedSourcePane ? { onToggleExtractedSourcePane } : {})}
           />
         </div>
       )}

@@ -5,13 +5,22 @@ export const OUTPUT_EDITOR_FONT_FAMILY = 'SFMono-Regular, Menlo, Consolas, monos
 export const OUTPUT_EDITOR_FONT_SIZE = 15;
 export const OUTPUT_EDITOR_LINE_HEIGHT = 23;
 
-export const getLineNumbersOption = (): editor.LineNumbersType => 'on';
+export const getLineNumbersOption = (
+  lineNumberStart: number | null = null,
+): editor.LineNumbersType => {
+  if (lineNumberStart === null) {
+    return 'on';
+  }
+
+  return (lineNumber) => String(lineNumberStart + lineNumber - 1);
+};
 
 const getSharedEditorOptions = (
   indentSize: IndentSize,
+  lineNumberStart: number | null,
 ): editor.IStandaloneEditorConstructionOptions => ({
   minimap: { enabled: true },
-  lineNumbers: getLineNumbersOption(),
+  lineNumbers: getLineNumbersOption(lineNumberStart),
   glyphMargin: true,
   folding: true,
   showFoldingControls: 'always',
@@ -49,8 +58,9 @@ const getSharedEditorOptions = (
 
 export const getOutputEditorOptions = (
   indentSize: IndentSize,
+  lineNumberStart: number | null = null,
 ): editor.IStandaloneEditorConstructionOptions => ({
-  ...getSharedEditorOptions(indentSize),
+  ...getSharedEditorOptions(indentSize, lineNumberStart),
   glyphMargin: false,
   showFoldingControls: 'never',
   readOnly: true,
@@ -60,7 +70,7 @@ export const getOutputEditorOptions = (
 export const getInputEditorOptions = (
   indentSize: IndentSize,
 ): editor.IStandaloneEditorConstructionOptions => ({
-  ...getSharedEditorOptions(indentSize),
+  ...getSharedEditorOptions(indentSize, null),
   readOnly: false,
   domReadOnly: false,
 });

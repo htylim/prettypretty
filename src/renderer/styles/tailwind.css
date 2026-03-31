@@ -520,6 +520,10 @@ body {
   display: none;
 }
 
+.output-extracted-source-range {
+  background: color-mix(in oklab, var(--accent) 10%, transparent);
+}
+
 .fallback-wait-screen {
   display: flex;
   flex-direction: column;

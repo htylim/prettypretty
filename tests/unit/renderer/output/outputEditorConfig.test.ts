@@ -13,6 +13,13 @@ describe('outputEditorConfig', () => {
     expect(getLineNumbersOption()).toBe('on');
   });
 
+  it('can offset displayed line numbers for extracted-source panes', () => {
+    const lineNumbers = getLineNumbersOption(41);
+    expect(lineNumbers).toBeTypeOf('function');
+    expect(typeof lineNumbers === 'function' ? lineNumbers(1) : lineNumbers).toBe('41');
+    expect(typeof lineNumbers === 'function' ? lineNumbers(5) : lineNumbers).toBe('45');
+  });
+
   it('returns read-only Monaco options for output mode', () => {
     const options = getOutputEditorOptions(4);
 

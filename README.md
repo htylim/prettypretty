@@ -8,6 +8,7 @@ It uses a local parser first and can fall back to configured CLI agents when loc
 - Monaco input editor and read-only Monaco output editor
 - Local prettify for JSON, NDJSON, JSON5, JS/TS object literals, Python-like dicts, and GraphQL documents
 - Right-click prettify in output panes for semantic string scalars in JSON/NDJSON, YAML, JavaScript/TypeScript string literals, GraphQL string values, XML attribute/text payloads, and SQL quoted string literals, including child-pane expansion
+- `Shift` inline fold controls can open extracted source blocks in adjacent output panes, keep the close control visible while that pane stays open, preserve source-linked line numbers, and inherit source syntax highlighting
 - Optional main-process fallback agent execution
 - Fallback cancel keeps passthrough text visible instead of clearing the active output
 - Persisted theme, indent, and fallback-agent preferences

@@ -1,4 +1,5 @@
 import type { IRange, editor as MonacoEditor } from 'monaco-editor';
+import type { OutputPaneSourceRange } from '../output/outputRange';
 
 const FOLDING_CONTRIBUTION_ID = 'editor.contrib.folding';
 
@@ -29,11 +30,17 @@ type FoldingContribution = {
   getFoldingModel?: () => Promise<FoldingModel | null> | null;
 };
 
+type FoldRangeCapableModel = MonacoEditor.ITextModel & {
+  getLineContent?: (lineNumber: number) => string;
+  getLineMaxColumn?: (lineNumber: number) => number;
+};
+
 export type FoldToggleAction = 'collapse' | 'expand';
 
 export type FoldStart = {
   lineNumber: number;
   endLineNumber: number;
+  sourceRange: OutputPaneSourceRange | null;
   isCollapsed: boolean;
   childToggleAction: FoldToggleAction | null;
 };
@@ -156,15 +163,45 @@ const getChildToggleAction = (childRegions: readonly FoldingRegion[]): FoldToggl
   return childRegions.some((region) => !region.isCollapsed) ? 'collapse' : 'expand';
 };
 
-const getFoldStartsFromModel = (foldingModel: FoldingModel): FoldStart[] => {
+const createFoldSourceRange = (
+  editor: MonacoEditor.IStandaloneCodeEditor,
+  startLineNumber: number,
+  endLineNumber: number,
+): OutputPaneSourceRange | null => {
+  if (endLineNumber < startLineNumber) {
+    return null;
+  }
+
+  const model = editor.getModel() as FoldRangeCapableModel | null;
+  if (!model) {
+    return null;
+  }
+
+  return {
+    startLineNumber,
+    startColumn: 1,
+    endLineNumber,
+    endColumn:
+      model.getLineMaxColumn?.(endLineNumber) ??
+      (model.getLineContent?.(endLineNumber)?.length ?? 0) + 1,
+  };
+};
+
+const getFoldStartsFromModel = (
+  editor: MonacoEditor.IStandaloneCodeEditor,
+  foldingModel: FoldingModel,
+): FoldStart[] => {
   const foldStarts: FoldStart[] = [];
   const childRegionsByParentIndex = buildDirectChildRegionsByParentIndex(foldingModel);
   const regions = foldingModel.regions;
 
   for (let index = 0; index < regions.length; index += 1) {
+    const startLineNumber = regions.getStartLineNumber(index);
+    const endLineNumber = regions.getEndLineNumber(index);
     foldStarts.push({
-      lineNumber: regions.getStartLineNumber(index),
-      endLineNumber: regions.getEndLineNumber(index),
+      lineNumber: startLineNumber,
+      endLineNumber,
+      sourceRange: createFoldSourceRange(editor, startLineNumber, endLineNumber),
       isCollapsed: regions.isCollapsed(index),
       childToggleAction: getChildToggleAction(childRegionsByParentIndex.get(index) ?? []),
     });
@@ -225,7 +262,7 @@ export const getVisibleFoldStartLines = async (
     return [];
   }
 
-  return getFoldStartsFromModel(foldingModel).filter(
+  return getFoldStartsFromModel(editor, foldingModel).filter(
     ({ lineNumber }) =>
       lineNumber >= visibleWindow.startLineNumber && lineNumber <= visibleWindow.endLineNumber,
   );

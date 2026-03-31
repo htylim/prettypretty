@@ -9,6 +9,7 @@ import {
   resolveSmallestEnclosingFoldRange,
   toggleFoldStart,
 } from '../../../../src/renderer/editor/monacoFolding';
+import type { OutputPaneSourceRange } from '../../../../src/renderer/output/outputRange';
 
 type RegionSeed = {
   startLineNumber: number;
@@ -96,11 +97,23 @@ const createEditor = ({
     getModel: () =>
       ({
         getLineCount: () => lineCount,
-      }) as MonacoEditor.ITextModel,
+        getLineContent: () => '',
+        getLineMaxColumn: () => 1,
+      }) as unknown as MonacoEditor.ITextModel,
   } as unknown as MonacoEditor.IStandaloneCodeEditor;
 
   return { editor, toggleCollapseStateMock, getFoldingModelMock };
 };
+
+const createSourceRange = (
+  startLineNumber: number,
+  endLineNumber: number,
+): OutputPaneSourceRange => ({
+  startLineNumber,
+  startColumn: 1,
+  endLineNumber,
+  endColumn: 1,
+});
 
 describe('monacoFolding', () => {
   beforeEach(() => {
@@ -118,8 +131,20 @@ describe('monacoFolding', () => {
     });
 
     await expect(getVisibleFoldStartLines(editor)).resolves.toEqual([
-      { lineNumber: 2, endLineNumber: 6, isCollapsed: false, childToggleAction: null },
-      { lineNumber: 8, endLineNumber: 12, isCollapsed: true, childToggleAction: null },
+      {
+        lineNumber: 2,
+        endLineNumber: 6,
+        sourceRange: createSourceRange(2, 6),
+        isCollapsed: false,
+        childToggleAction: null,
+      },
+      {
+        lineNumber: 8,
+        endLineNumber: 12,
+        sourceRange: createSourceRange(8, 12),
+        isCollapsed: true,
+        childToggleAction: null,
+      },
     ]);
     expect(getFoldingModelMock).toHaveBeenCalledTimes(1);
   });
@@ -135,7 +160,13 @@ describe('monacoFolding', () => {
     });
 
     await expect(getVisibleFoldStartLines(editor, 1)).resolves.toEqual([
-      { lineNumber: 6, endLineNumber: 10, isCollapsed: false, childToggleAction: null },
+      {
+        lineNumber: 6,
+        endLineNumber: 10,
+        sourceRange: createSourceRange(6, 10),
+        isCollapsed: false,
+        childToggleAction: null,
+      },
     ]);
   });
 
@@ -215,10 +246,34 @@ describe('monacoFolding', () => {
     });
 
     await expect(getVisibleFoldStartLines(editor)).resolves.toEqual([
-      { lineNumber: 1, endLineNumber: 12, isCollapsed: false, childToggleAction: 'collapse' },
-      { lineNumber: 2, endLineNumber: 6, isCollapsed: false, childToggleAction: 'expand' },
-      { lineNumber: 3, endLineNumber: 5, isCollapsed: true, childToggleAction: null },
-      { lineNumber: 8, endLineNumber: 10, isCollapsed: true, childToggleAction: null },
+      {
+        lineNumber: 1,
+        endLineNumber: 12,
+        sourceRange: createSourceRange(1, 12),
+        isCollapsed: false,
+        childToggleAction: 'collapse',
+      },
+      {
+        lineNumber: 2,
+        endLineNumber: 6,
+        sourceRange: createSourceRange(2, 6),
+        isCollapsed: false,
+        childToggleAction: 'expand',
+      },
+      {
+        lineNumber: 3,
+        endLineNumber: 5,
+        sourceRange: createSourceRange(3, 5),
+        isCollapsed: true,
+        childToggleAction: null,
+      },
+      {
+        lineNumber: 8,
+        endLineNumber: 10,
+        sourceRange: createSourceRange(8, 10),
+        isCollapsed: true,
+        childToggleAction: null,
+      },
     ]);
   });
 

@@ -431,6 +431,43 @@ test('opens a recursive prettify child chain from JSON string scalars', async ()
   await app.close();
 });
 
+test('replaces an extracted-source child pane when context prettify opens a new direct child', async () => {
+  const app = await launchApp(test.info());
+  const page = await app.firstWindow();
+  await page.waitForLoadState('domcontentloaded');
+  await resetPreferences(page);
+
+  await dispatchPaste(page, '{"outer":{"top":{"query":"{ user { id } }","meta":{"ok":true}}}}');
+
+  const outputEditor = page.getByTestId('output-editor');
+  const rootControl = outputEditor.locator(
+    '[data-testid="output-inline-fold-control"][data-line-number="3"]',
+  );
+
+  await rootControl.click({ modifiers: ['Shift'] });
+
+  await expect(page.getByTestId('output-pane-strip')).toHaveAttribute('data-pane-count', '2');
+  await expect(page.getByTestId('output-editor-pane-1')).toContainText('"top": {');
+  await expect(
+    page.getByTestId('output-editor-pane-1').locator('.line-numbers').first(),
+  ).toHaveText('3');
+  await expect(outputEditor.locator('.output-extracted-source-range').first()).toBeVisible();
+
+  await rightClickOutputLine(page, 'output-editor', 3, 80);
+  await expect(page.getByTestId('output-context-menu-prettify')).toHaveText('Prettify...');
+  await page.getByTestId('output-context-menu-prettify').click();
+
+  await expect(page.getByTestId('output-pane-strip')).toHaveAttribute('data-pane-count', '2');
+  await expect(page.getByTestId('output-editor-pane-1')).toContainText('user {');
+  await expect(
+    page.getByTestId('output-editor-pane-1').locator('.line-numbers').first(),
+  ).toHaveText('1');
+  await expect(outputEditor.locator('.output-extracted-source-range')).toHaveCount(0);
+
+  await resetPreferences(page);
+  await app.close();
+});
+
 test('resolves YAML block scalars from the output context menu and opens a child pane', async () => {
   const app = await launchApp(test.info());
   const page = await app.firstWindow();

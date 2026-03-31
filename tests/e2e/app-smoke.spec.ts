@@ -373,6 +373,49 @@ test('holding Ctrl switches the inline fold control to direct-child behavior', a
   await app.close();
 });
 
+test('extracted-source panes keep the close action visible and preserve complete block syntax', async () => {
+  const app = await launchApp(test.info());
+  const page = await app.firstWindow();
+  await page.waitForLoadState('domcontentloaded');
+  await resetPreferences(page);
+  await dispatchPaste(page, '{"outer":{"top":{"a":1,"d":{"e":{}},"f":{"g":2}}}}');
+
+  const outputEditor = page.getByTestId('output-editor');
+  const paneStrip = page.getByTestId('output-pane-strip');
+  const topControl = outputEditor.locator(
+    '[data-testid="output-inline-fold-control"][data-line-number="3"]',
+  );
+
+  await expect(topControl).toBeVisible();
+  await outputEditor.click({ force: true, position: { x: 120, y: 60 } });
+  await page.keyboard.down('Shift');
+  await expect(topControl).toHaveAttribute('data-fold-action-scope', 'source-pane');
+  await expect(topControl).toHaveAttribute('aria-label', 'Open block at line 3 in adjacent pane');
+
+  await topControl.click();
+
+  await expect(paneStrip).toHaveAttribute('data-pane-count', '2');
+  await expect(page.getByTestId('output-editor-pane-1')).toContainText('"top": {');
+  await expect(page.getByTestId('output-editor-pane-1')).toContainText('"a": 1');
+  await expect(
+    page.getByTestId('output-editor-pane-1').locator('.line-numbers').first(),
+  ).toHaveText('3');
+  await expect(outputEditor.locator('.output-extracted-source-range').first()).toBeVisible();
+  await expect(topControl).toHaveAttribute('aria-label', 'Close pane for block at line 3');
+
+  await page.keyboard.up('Shift');
+  await expect(topControl).toHaveAttribute('data-fold-action-scope', 'source-pane');
+  await expect(topControl).toHaveAttribute('aria-label', 'Close pane for block at line 3');
+
+  await topControl.click();
+
+  await expect(paneStrip).toHaveAttribute('data-pane-count', '1');
+  await expect(page.getByTestId('output-editor-pane-1')).toHaveCount(0);
+  await expect(outputEditor.locator('.output-extracted-source-range')).toHaveCount(0);
+  await resetPreferences(page);
+  await app.close();
+});
+
 test('keeps the inline fold button anchored to the fold-start line across mode changes', async () => {
   const app = await launchApp(test.info());
   const page = await app.firstWindow();

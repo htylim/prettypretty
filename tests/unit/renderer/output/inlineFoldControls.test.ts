@@ -284,6 +284,205 @@ describe('inlineFoldControls', () => {
     registration.dispose();
   });
 
+  it('switches to extracted-source pane actions when Shift is held', async () => {
+    const { editor, widgets } = createEditor();
+    const onToggleExtractedSourcePane = vi.fn();
+    const sourceRange = {
+      startLineNumber: 4,
+      startColumn: 1,
+      endLineNumber: 8,
+      endColumn: 12,
+    };
+    getVisibleFoldStartLinesMock.mockResolvedValue([
+      {
+        lineNumber: 4,
+        endLineNumber: 8,
+        sourceRange,
+        isCollapsed: false,
+        childToggleAction: null,
+      },
+    ]);
+
+    const registration = registerInlineFoldControls(editor, {
+      getActiveExtractedSourceRange: () => sourceRange,
+      onToggleExtractedSourcePane,
+    });
+    await flushAsync();
+
+    const widget = widgets.get('output-inline-fold-control:4');
+    if (!widget) {
+      throw new Error('Expected inline fold widget');
+    }
+
+    const button = widget.getDomNode().querySelector('[data-testid="output-inline-fold-control"]');
+    if (!button) {
+      throw new Error('Expected inline fold button');
+    }
+
+    fireEvent.keyDown(window, { key: 'Shift' });
+    await flushAsync();
+
+    expect(button).toHaveAttribute('data-fold-action', 'close-pane');
+    expect(button).toHaveAttribute('data-fold-action-scope', 'source-pane');
+    expect(button).toHaveAttribute('data-fold-control-kind', 'source-pane');
+    expect(button).toHaveAttribute('aria-label', 'Close pane for block at line 4');
+
+    fireEvent.click(button);
+
+    expect(onToggleExtractedSourcePane).toHaveBeenCalledWith(
+      expect.objectContaining({
+        lineNumber: 4,
+        sourceRange,
+      }),
+    );
+    expect(toggleFoldStartMock).not.toHaveBeenCalled();
+
+    registration.dispose();
+  });
+
+  it('keeps the close-pane action visible for the active extracted block after Shift is released', async () => {
+    const { editor, widgets, listeners } = createEditor();
+    const onToggleExtractedSourcePane = vi.fn();
+    const sourceRange = {
+      startLineNumber: 4,
+      startColumn: 1,
+      endLineNumber: 8,
+      endColumn: 12,
+    };
+    getVisibleFoldStartLinesMock.mockResolvedValue([
+      {
+        lineNumber: 4,
+        endLineNumber: 8,
+        sourceRange,
+        isCollapsed: false,
+        childToggleAction: 'collapse',
+      },
+    ]);
+
+    const registration = registerInlineFoldControls(editor, {
+      getActiveExtractedSourceRange: () => sourceRange,
+      onToggleExtractedSourcePane,
+    });
+    await flushAsync();
+
+    const widget = widgets.get('output-inline-fold-control:4');
+    if (!widget) {
+      throw new Error('Expected inline fold widget');
+    }
+
+    const button = widget.getDomNode().querySelector('[data-testid="output-inline-fold-control"]');
+    if (!button) {
+      throw new Error('Expected inline fold button');
+    }
+
+    expect(button).toHaveAttribute('data-fold-action', 'close-pane');
+    expect(button).toHaveAttribute('data-fold-action-scope', 'source-pane');
+    expect(button).toHaveAttribute('aria-label', 'Close pane for block at line 4');
+
+    fireEvent.click(button);
+
+    expect(onToggleExtractedSourcePane).toHaveBeenCalledWith(
+      expect.objectContaining({
+        lineNumber: 4,
+        sourceRange,
+      }),
+    );
+    expect(toggleFoldStartMock).not.toHaveBeenCalled();
+
+    listeners.modelDecorations?.();
+    await flushAsync();
+
+    expect(button).toHaveAttribute('data-fold-action', 'close-pane');
+    expect(button).toHaveAttribute('data-fold-action-scope', 'source-pane');
+
+    registration.dispose();
+  });
+
+  it('prevents default mousedown behavior so cross-pane focus changes do not eat the next click', async () => {
+    const { editor, widgets } = createEditor();
+    getVisibleFoldStartLinesMock.mockResolvedValue([
+      {
+        lineNumber: 4,
+        endLineNumber: 8,
+        sourceRange: {
+          startLineNumber: 4,
+          startColumn: 1,
+          endLineNumber: 8,
+          endColumn: 12,
+        },
+        isCollapsed: false,
+        childToggleAction: null,
+      },
+    ]);
+
+    const registration = registerInlineFoldControls(editor);
+    await flushAsync();
+
+    const widget = widgets.get('output-inline-fold-control:4');
+    if (!widget) {
+      throw new Error('Expected inline fold widget');
+    }
+
+    const button = widget.getDomNode().querySelector('[data-testid="output-inline-fold-control"]');
+    if (!button) {
+      throw new Error('Expected inline fold button');
+    }
+
+    const mouseDownEvent = new MouseEvent('mousedown', { bubbles: true, cancelable: true });
+    button.dispatchEvent(mouseDownEvent);
+
+    expect(mouseDownEvent.defaultPrevented).toBe(true);
+
+    registration.dispose();
+  });
+
+  it('falls back to the normal self action when Ctrl and Shift are both held', async () => {
+    const { editor, widgets } = createEditor();
+    getVisibleFoldStartLinesMock.mockResolvedValue([
+      {
+        lineNumber: 4,
+        endLineNumber: 8,
+        sourceRange: {
+          startLineNumber: 4,
+          startColumn: 1,
+          endLineNumber: 8,
+          endColumn: 12,
+        },
+        isCollapsed: false,
+        childToggleAction: 'expand',
+      },
+    ]);
+
+    const registration = registerInlineFoldControls(editor, {
+      onToggleExtractedSourcePane: vi.fn(),
+    });
+    await flushAsync();
+
+    const widget = widgets.get('output-inline-fold-control:4');
+    if (!widget) {
+      throw new Error('Expected inline fold widget');
+    }
+
+    const button = widget.getDomNode().querySelector('[data-testid="output-inline-fold-control"]');
+    if (!button) {
+      throw new Error('Expected inline fold button');
+    }
+
+    fireEvent.keyDown(window, { key: 'Control' });
+    fireEvent.keyDown(window, { key: 'Shift' });
+    await flushAsync();
+
+    expect(button).toHaveAttribute('data-fold-action', 'collapse');
+    expect(button).toHaveAttribute('data-fold-action-scope', 'self');
+
+    fireEvent.click(button);
+
+    expect(toggleFoldStartMock).toHaveBeenCalledWith(editor, 4);
+    expect(applyFoldStartChildrenActionMock).not.toHaveBeenCalled();
+
+    registration.dispose();
+  });
+
   it('disables the button in child-action mode when there is no direct child fold action', async () => {
     const { editor, widgets } = createEditor();
     getVisibleFoldStartLinesMock.mockResolvedValue([

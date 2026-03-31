@@ -157,6 +157,66 @@ describe('useOutputPaneController', () => {
     });
   });
 
+  it('toggles extracted-source panes and mirrors the active source range onto the parent pane', () => {
+    const ref = { current: null as HarnessHandle | null };
+    render(
+      createElement(OutputPaneHarness, {
+        outputText: '{\n  "root": true\n}',
+        paneMode: 'output',
+        ref,
+      }),
+    );
+
+    act(() => {
+      ref.current?.getController().onToggleExtractedSourcePane('output-root-pane', {
+        kind: 'extracted-source',
+        value: '{\n  "nested": true\n}',
+        sourceRange: {
+          startLineNumber: 2,
+          startColumn: 1,
+          endLineNumber: 4,
+          endColumn: 2,
+        },
+        lineNumberStart: 2,
+      });
+    });
+
+    expect(ref.current?.getController().outputPanes).toHaveLength(2);
+    expect(ref.current?.getController().outputPanes[0]).toMatchObject({
+      activeExtractedSourceRange: {
+        startLineNumber: 2,
+        startColumn: 1,
+        endLineNumber: 4,
+        endColumn: 2,
+      },
+    });
+    expect(ref.current?.getController().outputPanes[1]).toMatchObject({
+      languageOverride: 'json',
+      lineNumberStart: 2,
+      value: '{\n  "nested": true\n}',
+      viewRange: null,
+    });
+
+    act(() => {
+      ref.current?.getController().onToggleExtractedSourcePane('output-root-pane', {
+        kind: 'extracted-source',
+        value: '{\n  "nested": true\n}',
+        sourceRange: {
+          startLineNumber: 2,
+          startColumn: 1,
+          endLineNumber: 4,
+          endColumn: 2,
+        },
+        lineNumberStart: 2,
+      });
+    });
+
+    expect(ref.current?.getController().outputPanes).toHaveLength(1);
+    expect(ref.current?.getController().outputPanes[0]).toMatchObject({
+      activeExtractedSourceRange: null,
+    });
+  });
+
   it('resets panes on output invalidation and when leaving output mode', () => {
     const ref = { current: null as HarnessHandle | null };
     const { rerender } = render(

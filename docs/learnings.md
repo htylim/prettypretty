@@ -28,6 +28,8 @@ These are the durable patterns worth keeping in mind when changing the codebase.
 - Keep Monaco runtime ownership in focused runtime seams, not spread across view components and controller hooks.
 - Keep viewport movement/focus timing and editor lifecycle/folding as separate seams; they change for different reasons and should not be explained from one giant component.
 - Custom overlay menus need explicit backdrop `contextmenu` dismissal. Left-click-only close handling leaves stale overlays over Monaco surfaces.
+- If a pane shows rebased source excerpts instead of a full shared model, treat line-number presentation as explicit pane metadata. Do not fake source-linked numbering with ad hoc DOM patches.
+- Fold-driven pane extraction needs its own pane-content kind. Reusing viewport-only source-range panes for copied excerpts mixes identity, rendering, and replacement semantics.
 
 ## Preferences and IPC
 
@@ -44,6 +46,9 @@ These are the durable patterns worth keeping in mind when changing the codebase.
 - Explicit fallback cancel should resolve the active prettify request to passthrough output; only stale/reset interruption should discard the response entirely.
 - For pane-targeted prettify flows, only enable the action for semantic string scalars that can be decoded to a concrete string value. If decoding is ambiguous or would no-op, keep the action disabled.
 - Keep pane-targeted prettify orchestration shared with root-output prettify so fallback prompts, wait state, and stale-response guards stay consistent.
+- Keep pane-producing actions shared. `Prettify...` and fold-driven extracted-source panes should compete for the same direct-child slot instead of creating parallel pane state.
+- Keep extracted-source pane identity anchored to the full fold range, not a derived body slice, so syntax highlighting, line-number mapping, parent highlighting, and persistent close-state controls all read from one source of truth.
+- Keep extracted-source syntax coloring inherited from the source pane language. Fragment re-detection is unreliable because many valid fold excerpts are not standalone documents.
 - Keep the output context-menu copy static when the action semantics do not change. Do not thread parser metadata through renderer state just to decorate one button label.
 - When a local format is text-native instead of JSON-serializable, give it a dedicated shared formatter helper and keep renderer/main prettifier services as thin adapters.
 - Unsupported-format absence is not malformed syntax. If shared local detection cannot justify a supported-format signal, return applied local `text` and skip fallback orchestration.

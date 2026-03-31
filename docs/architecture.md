@@ -61,11 +61,13 @@
   - preferences hydration and optimistic persistence
 - `src/renderer/app/useOutputPaneController.ts`
   - session-backed output-pane orchestration plus runtime focus/handle coordination
+  - owns shared derived-pane actions for context prettify and extracted-source panes
 - `src/renderer/components/*`
   - view seams and focused renderer runtimes
 - `src/renderer/output/*`
   - Monaco runtime helpers shared by output mode
   - output context-prettify target resolution for the supported syntax families
+  - fold-body extraction and source-linked pane presentation helpers
 
 ## Core Runtime Flows
 
@@ -126,10 +128,14 @@
 - Monaco output behavior
   - start in `src/renderer/components/useOutputEditorRuntime.ts`
   - shared Monaco helpers stay in `src/renderer/output/*`
+  - keep extracted-source line-number mapping and highlight decoration ownership in the editor runtime
+  - model extracted-source pane identity from the full Monaco fold range so control state, highlighting, and pane text stay aligned
+  - keep extracted-source language inheritance in the pane controller/view model layer because it is a presentation concern, not pane identity
 - Output context menu behavior
   - start in `src/renderer/components/useOutputEditorRuntime.ts`
   - keep target resolution in `src/renderer/output/*`
   - keep menu state and action orchestration in `src/renderer/app/*`
+  - keep pane-slot replacement shared with other derived-pane producers
 - Split-pane viewport behavior
   - start in `src/renderer/components/useOutputPaneViewportRuntime.ts`
   - keep `src/renderer/components/OutputPaneStrip.tsx` render-only where possible

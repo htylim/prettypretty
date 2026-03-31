@@ -10,6 +10,7 @@ import {
   invalidateOutputPaneDescendants,
   openOrReplaceDerivedOutputPane,
   shiftOutputPaneViewport,
+  toggleExtractedSourceOutputPane,
 } from '../../../../src/renderer/app/outputPaneDomain';
 
 const rootContent = {
@@ -37,6 +38,18 @@ const grandchildContent = {
 const replacementChildContent = {
   kind: 'independent-text' as const,
   value: '{\n  "leaf": 2\n}',
+};
+
+const extractedSourceContent = {
+  kind: 'extracted-source' as const,
+  value: '{\n  "leaf": 1\n}',
+  sourceRange: {
+    startLineNumber: 3,
+    startColumn: 1,
+    endLineNumber: 5,
+    endColumn: 2,
+  },
+  lineNumberStart: 3,
 };
 
 const createRecursiveChain = () => {
@@ -193,5 +206,39 @@ describe('outputPaneDomain', () => {
     expect(closedAgain.leftVisiblePaneIndex).toBe(0);
     expect(closedAgain.activePaneId).toBe('output-pane-1');
     expect(canNavigateOutputPaneViewportRight(closedAgain)).toBe(false);
+  });
+
+  it('toggles extracted-source panes by parent slot instead of preserving identical child identity', () => {
+    const rootState = createOutputPaneChainState();
+    const opened = toggleExtractedSourceOutputPane(
+      rootState,
+      'output-root-pane',
+      extractedSourceContent,
+    );
+
+    expect(opened.derivedPanes).toHaveLength(1);
+    expect(opened.derivedPanes[0]).toMatchObject({
+      paneId: 'output-pane-1',
+      parentPaneId: 'output-root-pane',
+      content: {
+        kind: 'extracted-source',
+        value: '{\n  "leaf": 1\n}',
+        sourceRange: extractedSourceContent.sourceRange,
+        lineNumberStart: 3,
+      },
+    });
+    expect(getOutputPaneViewRange(opened.derivedPanes[0]!.content)).toBeNull();
+    expect(opened.derivedPanes[0]?.content.documentId).toBe('output-pane-1:document-1');
+
+    const withDescendant = openOrReplaceDerivedOutputPane(opened, 'output-pane-1', childContent);
+    const closed = toggleExtractedSourceOutputPane(
+      withDescendant,
+      'output-root-pane',
+      extractedSourceContent,
+    );
+
+    expect(closed.derivedPanes).toHaveLength(0);
+    expect(closed.activePaneId).toBe('output-root-pane');
+    expect(closed.leftVisiblePaneIndex).toBe(0);
   });
 });

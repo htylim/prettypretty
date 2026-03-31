@@ -1,5 +1,5 @@
 import type { IRange, editor as MonacoEditor } from 'monaco-editor';
-import type { OutputPaneSourceRange } from '../app/outputPaneDomain';
+import type { OutputPaneSourceRange } from './outputRange';
 
 type HiddenAreaCapableEditor = MonacoEditor.IStandaloneCodeEditor & {
   setHiddenAreas?: (ranges: IRange[], source?: unknown, forceUpdate?: boolean) => void;
