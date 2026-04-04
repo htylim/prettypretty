@@ -21,6 +21,11 @@ const flushAsync = async (): Promise<void> => {
   await Promise.resolve();
 };
 
+const expectSourcePaneCloseGlyph = (button: Element): void => {
+  const pathData = [...button.querySelectorAll('svg path')].map((path) => path.getAttribute('d'));
+  expect(pathData).toEqual(['M17 7L7 17', 'M16 17H7V8']);
+};
+
 const createEditor = (
   lineContentByNumber: Record<number, string> = {},
 ): {
@@ -326,6 +331,7 @@ describe('inlineFoldControls', () => {
     expect(button).toHaveAttribute('data-fold-action-scope', 'source-pane');
     expect(button).toHaveAttribute('data-fold-control-kind', 'source-pane');
     expect(button).toHaveAttribute('aria-label', 'Close pane for block at line 4');
+    expectSourcePaneCloseGlyph(button);
 
     fireEvent.click(button);
 
@@ -378,6 +384,7 @@ describe('inlineFoldControls', () => {
     expect(button).toHaveAttribute('data-fold-action', 'close-pane');
     expect(button).toHaveAttribute('data-fold-action-scope', 'source-pane');
     expect(button).toHaveAttribute('aria-label', 'Close pane for block at line 4');
+    expectSourcePaneCloseGlyph(button);
 
     fireEvent.click(button);
 

@@ -16,6 +16,13 @@ const COLLAPSED_FOLD_PREVIEW_ELLIPSIS = ' ...';
 const COLLAPSED_FOLD_PREVIEW_SKIP_LINE_PATTERN = /^[()[\]{}]+,?$/;
 
 type FoldControlModifierMode = 'self' | 'children' | 'source-pane';
+type SourcePaneFoldControlAction = 'open-pane' | 'close-pane';
+type FoldControlGlyphSpec = {
+  width: number;
+  height: number;
+  strokeWidth: number;
+  paths: readonly string[];
+};
 
 type RegisterInlineFoldControlsOptions = {
   getActiveExtractedSourceRange?: (() => OutputPaneSourceRange | null) | undefined;
@@ -36,6 +43,61 @@ type FoldWidget = MonacoEditor.IContentWidget & {
 type FoldPreview = {
   displayText: string;
   fullText: string;
+};
+
+const createFoldControlGlyph = ({
+  width,
+  height,
+  strokeWidth,
+  paths,
+}: FoldControlGlyphSpec): string => {
+  const pathMarkup = paths.map((path) => `<path d="${path}"/>`).join('');
+  return `<svg width="${width}" height="${height}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round">${pathMarkup}</svg>`;
+};
+
+const SELF_FOLD_CONTROL_GLYPHS: Record<FoldToggleAction, string> = {
+  expand: createFoldControlGlyph({
+    width: 12,
+    height: 12,
+    strokeWidth: 2.5,
+    paths: ['M5 12h14', 'M12 5v14'],
+  }),
+  collapse: createFoldControlGlyph({
+    width: 12,
+    height: 12,
+    strokeWidth: 2.5,
+    paths: ['M5 12h14'],
+  }),
+};
+
+const CHILD_FOLD_CONTROL_GLYPHS: Record<FoldToggleAction, string> = {
+  expand: createFoldControlGlyph({
+    width: 14,
+    height: 14,
+    strokeWidth: 2.5,
+    paths: ['M4 12h6', 'M7 9v6', 'M14 12h6', 'M17 9v6'],
+  }),
+  collapse: createFoldControlGlyph({
+    width: 14,
+    height: 14,
+    strokeWidth: 2.5,
+    paths: ['M4 12h6', 'M14 12h6'],
+  }),
+};
+
+const SOURCE_PANE_FOLD_CONTROL_GLYPHS: Record<SourcePaneFoldControlAction, string> = {
+  'open-pane': createFoldControlGlyph({
+    width: 12,
+    height: 12,
+    strokeWidth: 2.35,
+    paths: ['M7 17L17 7', 'M8 7h9v9'],
+  }),
+  'close-pane': createFoldControlGlyph({
+    width: 12,
+    height: 12,
+    strokeWidth: 2.35,
+    paths: ['M17 7L7 17', 'M16 17H7V8'],
+  }),
 };
 
 const isFoldStartOpenInAdjacentPane = (
@@ -73,24 +135,14 @@ const getFoldControlModifierMode = (
   return isCtrlModifierActive ? 'children' : 'source-pane';
 };
 
-const getFoldControlGlyph = (
-  action: FoldToggleAction | 'open-pane' | 'close-pane',
-  scope: FoldControlModifierMode,
-): string => {
-  if (scope === 'children') {
-    return action === 'expand'
-      ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h6"/><path d="M7 9v6"/><path d="M14 12h6"/><path d="M17 9v6"/></svg>`
-      : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h6"/><path d="M14 12h6"/></svg>`;
-  }
-  if (scope === 'source-pane') {
-    return action === 'open-pane'
-      ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.35" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7"/><path d="M8 7h9v9"/></svg>`
-      : `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.35" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7l10 10"/><path d="M8 17h9V8"/></svg>`;
-  }
-  return action === 'expand'
-    ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>`
-    : `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/></svg>`;
-};
+const getSelfFoldControlGlyph = (action: FoldToggleAction): string =>
+  SELF_FOLD_CONTROL_GLYPHS[action];
+
+const getChildFoldControlGlyph = (action: FoldToggleAction): string =>
+  CHILD_FOLD_CONTROL_GLYPHS[action];
+
+const getSourcePaneFoldControlGlyph = (action: SourcePaneFoldControlAction): string =>
+  SOURCE_PANE_FOLD_CONTROL_GLYPHS[action];
 
 const createSelfFoldControlLabel = (foldStart: FoldStart): string =>
   getSelfToggleAction(foldStart) === 'expand'
@@ -301,7 +353,7 @@ const createFoldWidget = (
 
     if (resolvedMode === 'self') {
       controlButton.disabled = false;
-      controlButton.innerHTML = getFoldControlGlyph(selfAction, resolvedMode);
+      controlButton.innerHTML = getSelfFoldControlGlyph(selfAction);
       controlButton.setAttribute(
         'data-fold-state',
         foldStart.isCollapsed ? 'collapsed' : 'expanded',
@@ -326,9 +378,8 @@ const createFoldWidget = (
       );
       controlButton.disabled =
         foldStart.sourceRange === null || onToggleExtractedSourcePane === undefined;
-      controlButton.innerHTML = getFoldControlGlyph(
+      controlButton.innerHTML = getSourcePaneFoldControlGlyph(
         isOpenInAdjacentPane ? 'close-pane' : 'open-pane',
-        resolvedMode,
       );
       controlButton.setAttribute(
         'data-fold-action',
@@ -349,7 +400,7 @@ const createFoldWidget = (
     const childAction = foldStart.childToggleAction;
     if (childAction === null) {
       controlButton.disabled = true;
-      controlButton.innerHTML = getFoldControlGlyph('collapse', resolvedMode);
+      controlButton.innerHTML = getChildFoldControlGlyph('collapse');
       controlButton.setAttribute('data-fold-action', 'none');
       controlButton.setAttribute('aria-label', createDisabledChildFoldControlLabel(foldStart));
       controlButton.title = createDisabledChildFoldControlLabel(foldStart);
@@ -357,7 +408,7 @@ const createFoldWidget = (
     }
 
     controlButton.disabled = false;
-    controlButton.innerHTML = getFoldControlGlyph(childAction, resolvedMode);
+    controlButton.innerHTML = getChildFoldControlGlyph(childAction);
     controlButton.setAttribute('data-fold-action', childAction);
     controlButton.setAttribute('aria-label', createChildFoldControlLabel(foldStart, childAction));
     controlButton.title = createChildFoldControlLabel(foldStart, childAction);

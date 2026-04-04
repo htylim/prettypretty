@@ -99,6 +99,7 @@
 - Output uses inline fold controls instead of Monaco gutter fold controls.
 - Holding literal `Ctrl` changes the inline fold action to direct-child expand/collapse.
 - Holding `Shift` changes the inline fold action to source-block pane open/close.
+- While `Shift` is held, the source-block pane actions use `↗` to open and `↙` to close.
 - Holding `Ctrl` and `Shift` together cancels both modifier remaps and falls back to the normal self fold action.
 - `Shift` + click opens the full fold block, including its opening and closing delimiters, in the clicked pane's direct child.
 - If that exact block is already open in the direct child pane, the control stays in the close state until that child pane is replaced or closed.

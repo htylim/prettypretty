@@ -30,6 +30,7 @@ These are the durable patterns worth keeping in mind when changing the codebase.
 - Custom overlay menus need explicit backdrop `contextmenu` dismissal. Left-click-only close handling leaves stale overlays over Monaco surfaces.
 - If a pane shows rebased source excerpts instead of a full shared model, treat line-number presentation as explicit pane metadata. Do not fake source-linked numbering with ad hoc DOM patches.
 - Fold-driven pane extraction needs its own pane-content kind. Reusing viewport-only source-range panes for copied excerpts mixes identity, rendering, and replacement semantics.
+- Keep related icon glyphs defined through one shared pattern inside a module. Mixing ad hoc SVG literals with partial constants makes visual regressions harder to review.
 
 ## Preferences and IPC
 
@@ -68,6 +69,7 @@ These are the durable patterns worth keeping in mind when changing the codebase.
 - `pnpm check` is the baseline local gate.
 - Run `pnpm test:e2e` when behavior depends on Electron runtime, windows, menus, or preload.
 - If a change set is documentation-only, skip `pnpm check`, `pnpm test`, and `pnpm test:e2e`.
+- When an inline control’s meaning depends on arrow direction, lock the rendered SVG path in a unit test instead of only asserting state attributes.
 - For Electron Playwright E2E, Playwright `use.headless` does not by itself hide `BrowserWindow` instances. Hidden-window runs need an app-level visibility contract in the main-process window factories.
 - In the current E2E suite, document creation, relaunch, log-window, and reset flows all run correctly with hidden windows as long as the test is not asserting `BrowserWindow.isVisible() === true`.
 - If Playwright test tags drive runtime behavior, resolve them from `testInfo.titlePath`, not only the leaf `testInfo.title`, so suite-level tagging and `--grep` selection stay aligned.
