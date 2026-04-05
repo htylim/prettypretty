@@ -217,7 +217,7 @@ beforeEach(() => {
       file: { save: saveMock },
       clipboard: { copy: copyMock },
       app: {
-        getInfo: vi.fn().mockResolvedValue({ name: 'prettypretty', version: '0.1.0' }),
+        getInfo: vi.fn().mockResolvedValue({ name: 'prettypretty', version: '0.2.0' }),
         openWindow: openWindowMock,
         onResetCurrentWindow: appOnResetCurrentWindowMock,
         onNavigationCommand: vi.fn().mockImplementation(() => vi.fn()),

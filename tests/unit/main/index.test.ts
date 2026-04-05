@@ -112,7 +112,7 @@ vi.mock('electron', () => {
       },
       getName: vi.fn().mockReturnValue('prettypretty'),
       getPath: appGetPathMock,
-      getVersion: vi.fn().mockReturnValue('0.1.0'),
+      getVersion: vi.fn().mockReturnValue('0.2.0'),
       on: appOnMock,
       exit: appExitMock,
       setName: appSetNameMock,

@@ -5,7 +5,7 @@ describe('getWindowApi', () => {
   it('returns the preload bridge when present', () => {
     const bridge = {
       app: {
-        getInfo: async () => ({ name: 'prettypretty', version: '0.1.0' }),
+        getInfo: async () => ({ name: 'prettypretty', version: '0.2.0' }),
       },
     };
 
