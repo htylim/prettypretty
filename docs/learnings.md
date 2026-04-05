@@ -26,6 +26,7 @@ These are the durable patterns worth keeping in mind when changing the codebase.
 - Keep input/output editor options aligned unless there is a documented reason not to.
 - Treat Monaco integration as a real subsystem; changes there usually affect focus, view state, folding, and tests together.
 - Keep Monaco runtime ownership in focused runtime seams, not spread across view components and controller hooks.
+- Reject obviously oversized ingest payloads before they touch session state. Once Monaco-backed state mutates, "pretend nothing happened" recovery gets harder and leakier.
 - Keep viewport movement/focus timing and editor lifecycle/folding as separate seams; they change for different reasons and should not be explained from one giant component.
 - Custom overlay menus need explicit backdrop `contextmenu` dismissal. Left-click-only close handling leaves stale overlays over Monaco surfaces.
 - If a pane shows rebased source excerpts instead of a full shared model, treat line-number presentation as explicit pane metadata. Do not fake source-linked numbering with ad hoc DOM patches.

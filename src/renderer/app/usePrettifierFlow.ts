@@ -9,6 +9,8 @@ import {
   type FallbackAgentOption,
   type FallbackWaitState,
   type IngestSource,
+  getMonacoIngestRejection,
+  getMonacoIngestRejectionMessage,
   getIngestEventName,
   getIngestTrigger,
   isFileIngestSource,
@@ -100,6 +102,7 @@ export const usePrettifierFlow = ({
   const setPaneMode = useDocumentSession((state) => state.setPaneMode);
   const setInputText = useDocumentSession((state) => state.setInputText);
   const setIngestNotice = useDocumentSession((state) => state.setIngestNotice);
+  const setIngestRejectionMessage = useDocumentSession((state) => state.setIngestRejectionMessage);
   const setOutputText = useDocumentSession((state) => state.setOutputText);
   const setOutputFormattingState = useDocumentSession((state) => state.setOutputFormattingState);
   const setLastPrettifiedInput = useDocumentSession((state) => state.setLastPrettifiedInput);
@@ -223,12 +226,24 @@ export const usePrettifierFlow = ({
 
   const ingestInputText = useCallback(
     (nextText: string, source: IngestSource): void => {
-      setInputText(nextText);
+      const monacoIngestRejection = getMonacoIngestRejection(nextText);
       void logTelemetry(getIngestEventName(source), {
         source,
         inputLength: nextText.length,
         isEmpty: nextText.length === 0,
+        blockedByMonacoLimits: monacoIngestRejection !== null,
+        blockedByMonacoLimitReason: monacoIngestRejection?.reason ?? null,
+        blockedByMonacoLimitActual: monacoIngestRejection?.actual ?? null,
+        blockedByMonacoLimitThreshold: monacoIngestRejection?.limit ?? null,
       });
+
+      if (monacoIngestRejection) {
+        setIngestRejectionMessage(getMonacoIngestRejectionMessage(monacoIngestRejection));
+        return;
+      }
+
+      setIngestRejectionMessage(null);
+      setInputText(nextText);
 
       if (isFileIngestSource(source) && nextText.length === 0) {
         resetToInputState(EMPTY_FILE_NOTICE);
@@ -245,7 +260,14 @@ export const usePrettifierFlow = ({
         switchToOutputOnComplete: true,
       });
     },
-    [logTelemetry, resetToInputState, runPrettifier, setIngestNotice, setInputText],
+    [
+      logTelemetry,
+      resetToInputState,
+      runPrettifier,
+      setIngestNotice,
+      setIngestRejectionMessage,
+      setInputText,
+    ],
   );
 
   const resetPrettifierState = useCallback(() => {

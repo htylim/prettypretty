@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PrettifyRunResponse } from '../../../src/shared/prettifier';
 import type { Preferences } from '../../../src/shared/preferences';
 import { App } from '../../../src/renderer/App';
+import { MONACO_MAX_TOKENIZATION_LINE_LENGTH } from '../../../src/renderer/app/appDomain';
 import { createInitialDocumentSessionState } from '../../../src/renderer/app/session/documentSessionDomain';
 import { useDocumentSession } from '../../../src/renderer/app/session/useDocumentSession';
 
@@ -267,6 +268,30 @@ describe('App', () => {
     expect(prettifierRunMock).not.toHaveBeenCalled();
   });
 
+  it('blocks oversized open-file ingestion and returns to the idle window after dismissing the dialog', async () => {
+    const user = userEvent.setup();
+    openFileMock.mockResolvedValue({
+      path: '/tmp/too-large.json',
+      content: 'x'.repeat(MONACO_MAX_TOKENIZATION_LINE_LENGTH),
+    });
+
+    await renderApp();
+    await user.click(screen.getByRole('button', { name: 'Click' }));
+
+    expect(await screen.findByRole('heading', { name: 'Content too large' })).toBeInTheDocument();
+    expect(screen.getByText(/Monaco stops tokenizing lines/i)).toBeInTheDocument();
+    expect(screen.getByTestId('empty-state-cta')).toBeInTheDocument();
+    expect(screen.queryByTestId('output-editor')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'OK' }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { name: 'Content too large' })).not.toBeInTheDocument();
+    });
+    expect(screen.getByTestId('empty-state-cta')).toBeInTheDocument();
+    expect(prettifierRunMock).not.toHaveBeenCalled();
+  });
+
   it('routes toolbar New to the app open-window bridge', async () => {
     const user = userEvent.setup();
 
@@ -288,6 +313,40 @@ describe('App', () => {
     });
 
     expect(await screen.findByTestId('output-editor')).toHaveTextContent('"a": 1');
+    expect(prettifierRunMock).not.toHaveBeenCalled();
+  });
+
+  it('blocks oversized dropped content and keeps the current output intact after dismissing the dialog', async () => {
+    const user = userEvent.setup();
+    const droppedFile = {
+      text: vi.fn().mockResolvedValue('x'.repeat(MONACO_MAX_TOKENIZATION_LINE_LENGTH)),
+    } as unknown as File;
+
+    act(() => {
+      useUiStore.setState({
+        ...createInitialDocumentSessionState(),
+        paneMode: 'output',
+        inputText: '{"existing":true}',
+        outputText: '{\n  "existing": true\n}',
+      });
+    });
+
+    await renderApp();
+
+    fireEvent.drop(screen.getByTestId('editor-shell'), {
+      dataTransfer: { files: [droppedFile] },
+    });
+
+    expect(await screen.findByRole('heading', { name: 'Content too large' })).toBeInTheDocument();
+    expect(screen.getByText(/Monaco stops tokenizing lines/i)).toBeInTheDocument();
+    expect(screen.getByTestId('output-editor')).toHaveTextContent('"existing": true');
+
+    await user.click(screen.getByRole('button', { name: 'OK' }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { name: 'Content too large' })).not.toBeInTheDocument();
+    });
+    expect(screen.getByTestId('output-editor')).toHaveTextContent('"existing": true');
     expect(prettifierRunMock).not.toHaveBeenCalled();
   });
 

@@ -80,13 +80,14 @@
 ### Prettify Flow
 
 1. Renderer ingests text from open, drop, paste, or output-mode switch.
-2. The document session owns renderer-visible input/output, wait, modal, and pane state.
-3. Renderer runs the shared local parser first.
-4. Pure prettifier session/domain helpers decide local success, passthrough, fallback prompts, and whether output can be safely reindented by whitespace remapping.
-5. `usePrettifierRequestFlow` owns request ids, stale-response guards, fallback wait state, and IPC calls for both root-output prettify and pane-targeted prettify.
-6. If local parsing fails and fallback is allowed, the prettifier runtime calls main over IPC.
-7. Main executes the configured fallback agent and streams progress back by request id.
-8. Renderer shows a wait screen, supports cancel, and resolves the active request to either the final result or passthrough through session state or the targeted output pane.
+2. Renderer computes Monaco ingest metrics before mutating the session. Oversized content is rejected locally and surfaced through a blocking dialog while leaving the current window state intact.
+3. The document session owns renderer-visible input/output, wait, modal, and pane state.
+4. Renderer runs the shared local parser first.
+5. Pure prettifier session/domain helpers decide local success, passthrough, fallback prompts, and whether output can be safely reindented by whitespace remapping.
+6. `usePrettifierRequestFlow` owns request ids, stale-response guards, fallback wait state, and IPC calls for both root-output prettify and pane-targeted prettify.
+7. If local parsing fails and fallback is allowed, the prettifier runtime calls main over IPC.
+8. Main executes the configured fallback agent and streams progress back by request id.
+9. Renderer shows a wait screen, supports cancel, and resolves the active request to either the final result or passthrough through session state or the targeted output pane.
 
 ### Preferences Flow
 

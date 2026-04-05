@@ -65,6 +65,9 @@
 - Output is recomputed only on ingest or explicit output-mode requests, not on every keystroke.
 - Empty open/drop keeps the app in input mode and shows `File has no content.`
 - Empty paste keeps the app in input mode without the file-empty notice.
+- Ingested content that already exceeds Monaco's large-content limits is rejected before the current window state changes.
+- Rejected ingest shows a blocking `Content too large` dialog with a single `OK` action.
+- Dismissing that dialog returns the user to the same window state they had before the rejected open, drop, or paste.
 
 ## Prettify Behavior
 

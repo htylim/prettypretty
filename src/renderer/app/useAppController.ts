@@ -12,6 +12,7 @@ import {
   type ContextPrettifyTarget,
 } from '../output/contextPrettifyTarget';
 import {
+  selectIngestRejectionMessage,
   selectIndentSize,
   selectIngestNotice,
   selectInputText,
@@ -47,6 +48,7 @@ export type UseAppControllerResult = {
   indentSize: IndentSize;
   inputText: string;
   ingestNotice: string | null;
+  ingestRejectionMessage: string | null;
   outputText: string;
   outputDocumentId: string;
   outputPanes: ReturnType<typeof useOutputPaneController>['outputPanes'];
@@ -84,6 +86,7 @@ export type UseAppControllerResult = {
   onEditInputChange: (value: string) => void;
   onIngestInput: (value: string, source: IngestSource) => void;
   onDismissIngestNotice: () => void;
+  onDismissIngestRejection: () => void;
   onOpenFile: () => Promise<void>;
   onOutputPaneHandleChange: ReturnType<typeof useOutputPaneController>['onOutputPaneHandleChange'];
   onOutputPaneFocus: (paneId: string) => void;
@@ -125,12 +128,14 @@ export const useAppController = ({
   const indentSize = useDocumentSession(selectIndentSize);
   const inputText = useDocumentSession(selectInputText);
   const ingestNotice = useDocumentSession(selectIngestNotice);
+  const ingestRejectionMessage = useDocumentSession(selectIngestRejectionMessage);
   const reset = useDocumentSession((state) => state.reset);
   const setPaneMode = useDocumentSession((state) => state.setPaneMode);
   const setThemeMode = useDocumentSession((state) => state.setThemeMode);
   const setIndentSize = useDocumentSession((state) => state.setIndentSize);
   const setInputText = useDocumentSession((state) => state.setInputText);
   const setIngestNotice = useDocumentSession((state) => state.setIngestNotice);
+  const setIngestRejectionMessage = useDocumentSession((state) => state.setIngestRejectionMessage);
   const {
     fallbackModalState,
     requestFallbackConfirmation,
@@ -493,6 +498,7 @@ export const useAppController = ({
     indentSize,
     inputText,
     ingestNotice,
+    ingestRejectionMessage,
     outputText,
     outputDocumentId,
     outputPanes,
@@ -527,6 +533,7 @@ export const useAppController = ({
     onEditInputChange: setInputText,
     onIngestInput: ingestInputText,
     onDismissIngestNotice: () => setIngestNotice(null),
+    onDismissIngestRejection: () => setIngestRejectionMessage(null),
     onOpenFile: openFile,
     onOutputPaneHandleChange: registerOutputPaneHandle,
     onOutputPaneFocus: focusVisibleOutputPane,

@@ -8,6 +8,7 @@ import type { WindowApi } from '../../../../src/shared/window-api';
 import type { FallbackWaitState, IngestSource } from '../../../../src/renderer/app/appDomain';
 import { createInitialDocumentSessionState } from '../../../../src/renderer/app/session/documentSessionDomain';
 import {
+  selectIngestRejectionMessage,
   selectFallbackWaitState,
   selectIngestNotice,
   selectInputText,
@@ -16,6 +17,7 @@ import {
 } from '../../../../src/renderer/app/session/documentSessionSelectors';
 import { useDocumentSession } from '../../../../src/renderer/app/session/useDocumentSession';
 import { usePrettifierFlow } from '../../../../src/renderer/app/usePrettifierFlow';
+import { MONACO_MAX_TOKENIZATION_LINE_LENGTH } from '../../../../src/renderer/app/appDomain';
 
 const createPreferences = (overrides: Partial<Preferences> = {}): Preferences => ({
   version: 2,
@@ -71,6 +73,7 @@ type HarnessHandle = {
   getInputText: () => string;
   getOutputText: () => string;
   getIngestNotice: () => string | null;
+  getIngestRejectionMessage: () => string | null;
   getIsLlmRunning: () => boolean;
   getFallbackWaitState: () => FallbackWaitState | null;
   isInputAlreadyPrettified: (input: string) => boolean;
@@ -109,6 +112,7 @@ const PrettifierHarness = forwardRef<HarnessHandle, HarnessProps>(
     const inputText = useDocumentSession(selectInputText);
     const outputText = useDocumentSession(selectOutputText);
     const ingestNotice = useDocumentSession(selectIngestNotice);
+    const ingestRejectionMessage = useDocumentSession(selectIngestRejectionMessage);
     const fallbackWaitState = useDocumentSession(selectFallbackWaitState);
     const flow = usePrettifierFlow({
       indentSize,
@@ -131,11 +135,20 @@ const PrettifierHarness = forwardRef<HarnessHandle, HarnessProps>(
         getInputText: () => inputText,
         getOutputText: () => outputText,
         getIngestNotice: () => ingestNotice,
+        getIngestRejectionMessage: () => ingestRejectionMessage,
         getIsLlmRunning: () => flow.isLlmRunning,
         getFallbackWaitState: () => fallbackWaitState,
         isInputAlreadyPrettified: flow.isInputAlreadyPrettified,
       }),
-      [fallbackWaitState, flow, ingestNotice, inputText, outputText, paneMode],
+      [
+        fallbackWaitState,
+        flow,
+        ingestNotice,
+        ingestRejectionMessage,
+        inputText,
+        outputText,
+        paneMode,
+      ],
     );
 
     return null;
@@ -185,6 +198,45 @@ describe('usePrettifierFlow', () => {
     });
     expect(ref.current?.getInputText()).toBe('{"a":1}');
     expect(ref.current?.getOutputText()).toContain('"a": 1');
+    expect(ref.current?.getIngestRejectionMessage()).toBeNull();
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it('rejects oversized ingest input before mutating renderer state', async () => {
+    useDocumentSession.setState({
+      ...createInitialDocumentSessionState(),
+      paneMode: 'output',
+      inputText: '{"existing":true}',
+      outputText: '{\n  "existing": true\n}',
+      lastPrettifiedInput: '{"existing":true}',
+    });
+    const getAll = vi.fn().mockResolvedValue(createPreferences());
+    const run = vi.fn().mockResolvedValue(createPrettifierResponse());
+    const telemetry = vi.fn().mockResolvedValue(undefined);
+    const api: WindowApi = {
+      dialog: { openFile: vi.fn() },
+      file: { save: vi.fn() },
+      clipboard: { copy: vi.fn() },
+      app: createAppApi(),
+      logs: { getHistory: vi.fn(), onLine: vi.fn() },
+      preferences: { getAll, update: vi.fn(), reset: vi.fn() },
+      prettifier: { run, cancel: vi.fn().mockResolvedValue(true), onProgress: vi.fn() },
+      telemetry: { log: vi.fn() },
+    };
+    const ref = { current: null as HarnessHandle | null };
+
+    render(createElement(PrettifierHarness, { api, logTelemetry: telemetry, ref }));
+
+    act(() => {
+      ref.current?.ingestInputText('x'.repeat(MONACO_MAX_TOKENIZATION_LINE_LENGTH), 'paste');
+    });
+
+    await waitFor(() => {
+      expect(ref.current?.getIngestRejectionMessage()).toContain("won't open");
+    });
+    expect(ref.current?.getPaneMode()).toBe('output');
+    expect(ref.current?.getInputText()).toBe('{"existing":true}');
+    expect(ref.current?.getOutputText()).toContain('"existing": true');
     expect(run).not.toHaveBeenCalled();
   });
 

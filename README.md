@@ -6,6 +6,7 @@ It uses a local parser first and can fall back to configured CLI agents when loc
 ## Current Product Shape
 
 - Monaco input editor and read-only Monaco output editor
+- Ingest guard that rejects content already known to exceed Monaco tokenization limits before it mutates the current window
 - Local prettify for JSON, NDJSON, JSON5, JS/TS object literals, Python-like dicts, and GraphQL documents
 - Right-click prettify in output panes for semantic string scalars in JSON/NDJSON, YAML, JavaScript/TypeScript string literals, GraphQL string values, XML attribute/text payloads, and SQL quoted string literals, including child-pane expansion
 - `Shift` inline fold controls can open extracted source blocks in adjacent output panes, keep the close control visible while that pane stays open, preserve source-linked line numbers, and inherit source syntax highlighting

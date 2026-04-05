@@ -14,6 +14,7 @@ export const App = () => {
   );
   const isLargeContentFallbackModal = controller.fallbackModalState?.kind === 'large-content';
   const isFallbackAgentSelectionModal = controller.fallbackModalState?.kind === 'agent-selection';
+  const isIngestRejectionModalOpen = controller.ingestRejectionMessage !== null;
 
   return (
     <main className="app-root">
@@ -71,6 +72,25 @@ export const App = () => {
           onNavigateOutputPaneViewport={controller.onNavigateOutputPaneViewport}
         />
       </div>
+
+      <ConfirmationModal
+        actions={
+          isIngestRejectionModalOpen ? (
+            <button
+              autoFocus
+              className="btn btn-primary"
+              onClick={controller.onDismissIngestRejection}
+              type="button"
+            >
+              OK
+            </button>
+          ) : undefined
+        }
+        isOpen={isIngestRejectionModalOpen}
+        message={controller.ingestRejectionMessage ?? ''}
+        onCancel={controller.onDismissIngestRejection}
+        title="Content too large"
+      />
 
       <ConfirmationModal
         actions={
