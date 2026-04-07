@@ -12,7 +12,7 @@ type DocumentSessionActions = {
   setIndentSize: (size: DocumentSessionState['indentSize']) => void;
   setInputText: (text: string) => void;
   setIngestNotice: (notice: string | null) => void;
-  setIngestRejectionMessage: (message: string | null) => void;
+  setIngestRejectionPrompt: (prompt: DocumentSessionState['ingestRejectionPrompt']) => void;
   setFallbackAgentId: (fallbackAgentId: string | null) => void;
   setFallbackAgentOptions: (
     fallbackAgentOptions: DocumentSessionState['fallbackAgentOptions'],
@@ -38,7 +38,7 @@ export const useDocumentSession = create<DocumentSessionStore>((set) => ({
   setIndentSize: (size) => set({ indentSize: size }),
   setInputText: (text) => set({ inputText: text }),
   setIngestNotice: (notice) => set({ ingestNotice: notice }),
-  setIngestRejectionMessage: (message) => set({ ingestRejectionMessage: message }),
+  setIngestRejectionPrompt: (prompt) => set({ ingestRejectionPrompt: prompt }),
   setFallbackAgentId: (fallbackAgentId) => set({ fallbackAgentId }),
   setFallbackAgentOptions: (fallbackAgentOptions) => set({ fallbackAgentOptions }),
   setFallbackWarningLineThreshold: (fallbackWarningLineThreshold) =>

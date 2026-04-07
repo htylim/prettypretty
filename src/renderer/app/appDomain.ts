@@ -56,53 +56,120 @@ export type MonacoIngestRejection = {
   metrics: MonacoTextMetrics;
 };
 
+export type MonacoReadablePrefix = {
+  text: string;
+  metrics: MonacoTextMetrics;
+};
+
+export type IngestRejectionPrompt = {
+  message: string;
+  recoveryText: string;
+  source: IngestSource;
+  originalCharCount: number;
+  rejectionReason: MonacoIngestRejectionReason;
+  rejectionActual: number;
+  rejectionLimit: number;
+};
+
 const formatCount = (value: number): string => {
   return new Intl.NumberFormat('en-US').format(value);
 };
 
-export const getMonacoTextMetrics = (value: string): MonacoTextMetrics => {
+type ScanMonacoTextOptions = {
+  stopAtIngestLimits?: boolean;
+};
+
+type MonacoScanResult = {
+  metrics: MonacoTextMetrics;
+  safeEndIndex: number;
+};
+
+const EMPTY_MONACO_TEXT_METRICS: MonacoTextMetrics = {
+  charCount: 0,
+  lineCount: 0,
+  maxLineLength: 0,
+};
+
+const toMonacoTextMetrics = (
+  charCount: number,
+  lineCount: number,
+  maxLineLength: number,
+  currentLineLength: number,
+): MonacoTextMetrics => {
+  return {
+    charCount,
+    lineCount: charCount === 0 ? 0 : lineCount,
+    maxLineLength: Math.max(maxLineLength, currentLineLength),
+  };
+};
+
+const scanMonacoText = (value: string, options: ScanMonacoTextOptions = {}): MonacoScanResult => {
   if (value.length === 0) {
     return {
-      charCount: 0,
-      lineCount: 0,
-      maxLineLength: 0,
+      metrics: EMPTY_MONACO_TEXT_METRICS,
+      safeEndIndex: 0,
     };
   }
 
+  const stopAtIngestLimits = options.stopAtIngestLimits ?? false;
   let lineCount = 1;
+  let charCount = 0;
   let currentLineLength = 0;
   let maxLineLength = 0;
+  let safeEndIndex = 0;
 
   for (let index = 0; index < value.length; index += 1) {
     const code = value.charCodeAt(index);
+    const isCarriageReturn = code === 13;
+    const isLineFeed = code === 10;
 
-    if (code === 13) {
+    if (isCarriageReturn || isLineFeed) {
+      const newlineWidth = isCarriageReturn && value.charCodeAt(index + 1) === 10 ? 2 : 1;
+      const nextLineCount = lineCount + 1;
+
+      if (
+        stopAtIngestLimits &&
+        (charCount + newlineWidth > MONACO_LARGE_FILE_CHAR_COUNT_LIMIT ||
+          nextLineCount > MONACO_LARGE_FILE_LINE_COUNT_LIMIT)
+      ) {
+        break;
+      }
+
+      charCount += newlineWidth;
       maxLineLength = Math.max(maxLineLength, currentLineLength);
       currentLineLength = 0;
-      lineCount += 1;
+      lineCount = nextLineCount;
+      safeEndIndex = index + newlineWidth;
 
-      if (value.charCodeAt(index + 1) === 10) {
+      if (newlineWidth === 2) {
         index += 1;
       }
 
       continue;
     }
 
-    if (code === 10) {
-      maxLineLength = Math.max(maxLineLength, currentLineLength);
-      currentLineLength = 0;
-      lineCount += 1;
-      continue;
+    const nextLineLength = currentLineLength + 1;
+    if (
+      stopAtIngestLimits &&
+      (charCount + 1 > MONACO_LARGE_FILE_CHAR_COUNT_LIMIT ||
+        nextLineLength >= MONACO_MAX_TOKENIZATION_LINE_LENGTH)
+    ) {
+      break;
     }
 
-    currentLineLength += 1;
+    charCount += 1;
+    currentLineLength = nextLineLength;
+    safeEndIndex = index + 1;
   }
 
   return {
-    charCount: value.length,
-    lineCount,
-    maxLineLength: Math.max(maxLineLength, currentLineLength),
+    metrics: toMonacoTextMetrics(charCount, lineCount, maxLineLength, currentLineLength),
+    safeEndIndex,
   };
+};
+
+export const getMonacoTextMetrics = (value: string): MonacoTextMetrics => {
+  return scanMonacoText(value).metrics;
 };
 
 export const getMonacoIngestRejection = (value: string): MonacoIngestRejection | null => {
@@ -138,6 +205,15 @@ export const getMonacoIngestRejection = (value: string): MonacoIngestRejection |
   return null;
 };
 
+export const getMonacoReadablePrefix = (value: string): MonacoReadablePrefix => {
+  const scan = scanMonacoText(value, { stopAtIngestLimits: true });
+
+  return {
+    text: value.slice(0, scan.safeEndIndex),
+    metrics: scan.metrics,
+  };
+};
+
 export const getMonacoIngestRejectionMessage = (rejection: MonacoIngestRejection): string => {
   switch (rejection.reason) {
     case 'max-line-length':
@@ -147,6 +223,43 @@ export const getMonacoIngestRejectionMessage = (rejection: MonacoIngestRejection
     case 'line-count':
       return `This content has ${formatCount(rejection.actual)} lines. Monaco disables large-file tokenization above ${formatCount(rejection.limit)} lines, so this file won't open.`;
   }
+};
+
+export const getMonacoIngestPromptMessage = (
+  rejection: MonacoIngestRejection,
+  readablePrefix: MonacoReadablePrefix,
+): string => {
+  const baseMessage = getMonacoIngestRejectionMessage(rejection);
+
+  switch (rejection.reason) {
+    case 'max-line-length':
+    case 'char-count':
+      return `${baseMessage} You can abort, or open only the first ${formatCount(readablePrefix.metrics.charCount)} characters that Monaco can read.`;
+    case 'line-count':
+      return `${baseMessage} You can abort, or open only the first ${formatCount(readablePrefix.metrics.lineCount)} lines that Monaco can read.`;
+  }
+};
+
+export const createIngestRejectionPrompt = (
+  value: string,
+  source: IngestSource,
+): IngestRejectionPrompt | null => {
+  const rejection = getMonacoIngestRejection(value);
+  if (!rejection) {
+    return null;
+  }
+
+  const readablePrefix = getMonacoReadablePrefix(value);
+
+  return {
+    message: getMonacoIngestPromptMessage(rejection, readablePrefix),
+    recoveryText: readablePrefix.text,
+    source,
+    originalCharCount: rejection.metrics.charCount,
+    rejectionReason: rejection.reason,
+    rejectionActual: rejection.actual,
+    rejectionLimit: rejection.limit,
+  };
 };
 
 /**

@@ -1,6 +1,6 @@
 import type { IndentSize } from '../../../shared/preferences';
 import type { PaneMode, ThemeMode } from '../../../shared/types';
-import type { FallbackAgentOption } from '../appDomain';
+import type { FallbackAgentOption, IngestRejectionPrompt } from '../appDomain';
 import type { OutputPaneChainState } from '../outputPaneDomain';
 import { createOutputPaneChainState } from '../outputPaneDomain';
 import type { PrettifierSessionState } from './prettifierSessionDomain';
@@ -15,7 +15,7 @@ export type DocumentSessionState = {
   indentSize: IndentSize;
   inputText: string;
   ingestNotice: string | null;
-  ingestRejectionMessage: string | null;
+  ingestRejectionPrompt: IngestRejectionPrompt | null;
   fallbackAgentId: string | null;
   fallbackAgentOptions: FallbackAgentOption[];
   fallbackWarningLineThreshold: number;
@@ -28,7 +28,7 @@ export const createInitialDocumentSessionState = (): DocumentSessionState => ({
   indentSize: 2,
   inputText: '',
   ingestNotice: null,
-  ingestRejectionMessage: null,
+  ingestRejectionPrompt: null,
   fallbackAgentId: null,
   fallbackAgentOptions: [],
   fallbackWarningLineThreshold: 300,
@@ -47,6 +47,6 @@ export const resetDocumentSessionEditorState = (
   paneMode: 'input',
   inputText: '',
   ingestNotice: null,
-  ingestRejectionMessage: null,
+  ingestRejectionPrompt: null,
   outputPaneChainState: createOutputPaneChainState(),
 });

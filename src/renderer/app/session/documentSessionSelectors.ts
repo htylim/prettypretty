@@ -24,10 +24,10 @@ export const selectIngestNotice = (
   return state.ingestNotice;
 };
 
-export const selectIngestRejectionMessage = (
+export const selectIngestRejectionPrompt = (
   state: DocumentSessionState,
-): DocumentSessionState['ingestRejectionMessage'] => {
-  return state.ingestRejectionMessage;
+): DocumentSessionState['ingestRejectionPrompt'] => {
+  return state.ingestRejectionPrompt;
 };
 
 export const selectOutputText = (

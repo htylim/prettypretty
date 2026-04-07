@@ -80,7 +80,7 @@
 ### Prettify Flow
 
 1. Renderer ingests text from open, drop, paste, or output-mode switch.
-2. Renderer computes Monaco ingest metrics before mutating the session. Oversized content is rejected locally and surfaced through a blocking dialog while leaving the current window state intact.
+2. Renderer computes Monaco ingest metrics before mutating the session. Oversized content is surfaced through a blocking dialog that can either abort or continue with the largest readable prefix, while leaving the current window state intact until the user decides.
 3. The document session owns renderer-visible input/output, wait, modal, and pane state.
 4. Renderer runs the shared local parser first.
 5. Pure prettifier session/domain helpers decide local success, passthrough, fallback prompts, and whether output can be safely reindented by whitespace remapping.

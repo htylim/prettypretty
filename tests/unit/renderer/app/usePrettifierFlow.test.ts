@@ -5,11 +5,15 @@ import type { Preferences } from '../../../../src/shared/preferences';
 import type { PrettifyRunResponse, PrettifyTrigger } from '../../../../src/shared/prettifier';
 import type { PaneMode } from '../../../../src/shared/types';
 import type { WindowApi } from '../../../../src/shared/window-api';
-import type { FallbackWaitState, IngestSource } from '../../../../src/renderer/app/appDomain';
+import type {
+  FallbackWaitState,
+  IngestRejectionPrompt,
+  IngestSource,
+} from '../../../../src/renderer/app/appDomain';
 import { createInitialDocumentSessionState } from '../../../../src/renderer/app/session/documentSessionDomain';
 import {
-  selectIngestRejectionMessage,
   selectFallbackWaitState,
+  selectIngestRejectionPrompt,
   selectIngestNotice,
   selectInputText,
   selectPaneMode,
@@ -63,6 +67,8 @@ const createDeferred = <T>() => {
 
 type HarnessHandle = {
   ingestInputText: (nextText: string, source: IngestSource) => void;
+  openReadableIngestSlice: () => void;
+  dismissIngestRejection: () => void;
   cancelActiveFallback: () => Promise<void>;
   runPrettifier: (
     nextInputText: string,
@@ -73,7 +79,7 @@ type HarnessHandle = {
   getInputText: () => string;
   getOutputText: () => string;
   getIngestNotice: () => string | null;
-  getIngestRejectionMessage: () => string | null;
+  getIngestRejectionPrompt: () => IngestRejectionPrompt | null;
   getIsLlmRunning: () => boolean;
   getFallbackWaitState: () => FallbackWaitState | null;
   isInputAlreadyPrettified: (input: string) => boolean;
@@ -112,7 +118,7 @@ const PrettifierHarness = forwardRef<HarnessHandle, HarnessProps>(
     const inputText = useDocumentSession(selectInputText);
     const outputText = useDocumentSession(selectOutputText);
     const ingestNotice = useDocumentSession(selectIngestNotice);
-    const ingestRejectionMessage = useDocumentSession(selectIngestRejectionMessage);
+    const ingestRejectionPrompt = useDocumentSession(selectIngestRejectionPrompt);
     const fallbackWaitState = useDocumentSession(selectFallbackWaitState);
     const flow = usePrettifierFlow({
       indentSize,
@@ -129,13 +135,15 @@ const PrettifierHarness = forwardRef<HarnessHandle, HarnessProps>(
       ref,
       () => ({
         ingestInputText: flow.ingestInputText,
+        openReadableIngestSlice: flow.openReadableIngestSlice,
+        dismissIngestRejection: flow.dismissIngestRejection,
         cancelActiveFallback: flow.cancelActiveFallback,
         runPrettifier: flow.runPrettifier,
         getPaneMode: () => paneMode,
         getInputText: () => inputText,
         getOutputText: () => outputText,
         getIngestNotice: () => ingestNotice,
-        getIngestRejectionMessage: () => ingestRejectionMessage,
+        getIngestRejectionPrompt: () => ingestRejectionPrompt,
         getIsLlmRunning: () => flow.isLlmRunning,
         getFallbackWaitState: () => fallbackWaitState,
         isInputAlreadyPrettified: flow.isInputAlreadyPrettified,
@@ -144,7 +152,7 @@ const PrettifierHarness = forwardRef<HarnessHandle, HarnessProps>(
         fallbackWaitState,
         flow,
         ingestNotice,
-        ingestRejectionMessage,
+        ingestRejectionPrompt,
         inputText,
         outputText,
         paneMode,
@@ -198,11 +206,11 @@ describe('usePrettifierFlow', () => {
     });
     expect(ref.current?.getInputText()).toBe('{"a":1}');
     expect(ref.current?.getOutputText()).toContain('"a": 1');
-    expect(ref.current?.getIngestRejectionMessage()).toBeNull();
+    expect(ref.current?.getIngestRejectionPrompt()).toBeNull();
     expect(run).not.toHaveBeenCalled();
   });
 
-  it('rejects oversized ingest input before mutating renderer state', async () => {
+  it('prompts before opening a readable slice for oversized ingest input', async () => {
     useDocumentSession.setState({
       ...createInitialDocumentSessionState(),
       paneMode: 'output',
@@ -232,12 +240,46 @@ describe('usePrettifierFlow', () => {
     });
 
     await waitFor(() => {
-      expect(ref.current?.getIngestRejectionMessage()).toContain("won't open");
+      expect(ref.current?.getIngestRejectionPrompt()?.message).toContain("won't open");
     });
     expect(ref.current?.getPaneMode()).toBe('output');
     expect(ref.current?.getInputText()).toBe('{"existing":true}');
     expect(ref.current?.getOutputText()).toContain('"existing": true');
     expect(run).not.toHaveBeenCalled();
+  });
+
+  it('opens the readable slice after the oversized-ingest prompt is accepted', async () => {
+    const telemetry = vi.fn().mockResolvedValue(undefined);
+    const ref = { current: null as HarnessHandle | null };
+
+    render(createElement(PrettifierHarness, { api: null, logTelemetry: telemetry, ref }));
+
+    act(() => {
+      ref.current?.ingestInputText('x'.repeat(MONACO_MAX_TOKENIZATION_LINE_LENGTH), 'paste');
+    });
+
+    await waitFor(() => {
+      expect(ref.current?.getIngestRejectionPrompt()).not.toBeNull();
+    });
+
+    act(() => {
+      ref.current?.openReadableIngestSlice();
+    });
+
+    await waitFor(() => {
+      expect(ref.current?.getPaneMode()).toBe('output');
+    });
+    expect(ref.current?.getIngestRejectionPrompt()).toBeNull();
+    expect(ref.current?.getInputText()).toHaveLength(MONACO_MAX_TOKENIZATION_LINE_LENGTH - 1);
+    expect(ref.current?.getOutputText()).toHaveLength(MONACO_MAX_TOKENIZATION_LINE_LENGTH - 1);
+    expect(telemetry).toHaveBeenCalledWith(
+      'renderer.ingest.paste',
+      expect.objectContaining({
+        inputLength: MONACO_MAX_TOKENIZATION_LINE_LENGTH - 1,
+        openedReadableSlice: true,
+        originalInputLength: MONACO_MAX_TOKENIZATION_LINE_LENGTH,
+      }),
+    );
   });
 
   it('shows fallback wait state and keeps the last five progress lines for the active request', async () => {

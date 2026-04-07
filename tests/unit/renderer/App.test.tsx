@@ -32,14 +32,27 @@ let onPrettifierProgressListener: ((event: { requestId: number; line: string }) 
   null;
 let onResetCurrentWindowListener: (() => void) | null = null;
 
-const getPrimaryModifierEventInit = (): { ctrlKey?: boolean; metaKey?: boolean } => {
-  return /mac|iphone|ipad|ipod/iu.test(window.navigator.platform)
-    ? { metaKey: true }
-    : { ctrlKey: true };
+const getPrimaryModifierKey = (): 'Control' | 'Meta' => {
+  return /mac|iphone|ipad|ipod/iu.test(window.navigator.platform) ? 'Meta' : 'Control';
 };
 
 const emitPrettifierProgress = (event: { requestId: number; line: string }): void => {
   onPrettifierProgressListener?.(event);
+};
+
+const pressPrimaryShortcut = async (
+  user: ReturnType<typeof userEvent.setup>,
+  key: string,
+  options?: {
+    shiftKey?: boolean;
+  },
+): Promise<void> => {
+  const primaryModifierKey = getPrimaryModifierKey();
+  await user.keyboard(
+    options?.shiftKey
+      ? `{${primaryModifierKey}>}{Shift>}${key}{/Shift}{/${primaryModifierKey}}`
+      : `{${primaryModifierKey}>}${key}{/${primaryModifierKey}}`,
+  );
 };
 
 const createDeferred = <T,>() => {
@@ -268,7 +281,7 @@ describe('App', () => {
     expect(prettifierRunMock).not.toHaveBeenCalled();
   });
 
-  it('blocks oversized open-file ingestion and returns to the idle window after dismissing the dialog', async () => {
+  it('aborts oversized open-file ingestion and returns to the idle window after dismissing the dialog', async () => {
     const user = userEvent.setup();
     openFileMock.mockResolvedValue({
       path: '/tmp/too-large.json',
@@ -280,10 +293,12 @@ describe('App', () => {
 
     expect(await screen.findByRole('heading', { name: 'Content too large' })).toBeInTheDocument();
     expect(screen.getByText(/Monaco stops tokenizing lines/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Abort' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open readable portion' })).toBeInTheDocument();
     expect(screen.getByTestId('empty-state-cta')).toBeInTheDocument();
     expect(screen.queryByTestId('output-editor')).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('button', { name: 'OK' }));
+    await user.click(screen.getByRole('button', { name: 'Abort' }));
 
     await waitFor(() => {
       expect(screen.queryByRole('heading', { name: 'Content too large' })).not.toBeInTheDocument();
@@ -316,7 +331,7 @@ describe('App', () => {
     expect(prettifierRunMock).not.toHaveBeenCalled();
   });
 
-  it('blocks oversized dropped content and keeps the current output intact after dismissing the dialog', async () => {
+  it('aborts oversized dropped content and keeps the current output intact after dismissing the dialog', async () => {
     const user = userEvent.setup();
     const droppedFile = {
       text: vi.fn().mockResolvedValue('x'.repeat(MONACO_MAX_TOKENIZATION_LINE_LENGTH)),
@@ -341,7 +356,7 @@ describe('App', () => {
     expect(screen.getByText(/Monaco stops tokenizing lines/i)).toBeInTheDocument();
     expect(screen.getByTestId('output-editor')).toHaveTextContent('"existing": true');
 
-    await user.click(screen.getByRole('button', { name: 'OK' }));
+    await user.click(screen.getByRole('button', { name: 'Abort' }));
 
     await waitFor(() => {
       expect(screen.queryByRole('heading', { name: 'Content too large' })).not.toBeInTheDocument();
@@ -361,6 +376,28 @@ describe('App', () => {
 
     expect(await screen.findByTestId('output-editor')).toHaveTextContent('"a": 1');
     expect(prettifierRunMock).not.toHaveBeenCalled();
+  });
+
+  it('opens the readable portion for oversized pasted content when confirmed', async () => {
+    const user = userEvent.setup();
+
+    await renderApp();
+
+    fireEvent.paste(screen.getByTestId('editor-shell'), {
+      clipboardData: {
+        getData: () => 'x'.repeat(MONACO_MAX_TOKENIZATION_LINE_LENGTH),
+      },
+    });
+
+    expect(await screen.findByRole('heading', { name: 'Content too large' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Open readable portion' }));
+
+    const output = await screen.findByTestId('output-editor');
+    expect(output.textContent).toHaveLength(MONACO_MAX_TOKENIZATION_LINE_LENGTH - 1);
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { name: 'Content too large' })).not.toBeInTheDocument();
+    });
   });
 
   it('stays in input mode and shows notice for empty open-file content', async () => {
@@ -1105,7 +1142,7 @@ describe('App', () => {
   });
 
   it('supports command shortcuts for pane switching, save/copy, new window, and reset', async () => {
-    const primaryModifierEventInit = getPrimaryModifierEventInit();
+    const user = userEvent.setup();
 
     act(() => {
       useUiStore.setState({
@@ -1117,25 +1154,25 @@ describe('App', () => {
 
     await renderApp();
 
-    fireEvent.keyDown(window, { key: 'i', ...primaryModifierEventInit });
+    await pressPrimaryShortcut(user, 'i');
     expect(screen.getByTestId('pane-segment-input')).toHaveAttribute('aria-pressed', 'true');
 
-    fireEvent.keyDown(window, { key: 'o', ...primaryModifierEventInit });
+    await pressPrimaryShortcut(user, 'o');
     expect(screen.getByTestId('pane-segment-output')).toHaveAttribute('aria-pressed', 'true');
 
-    fireEvent.keyDown(window, { key: 's', ...primaryModifierEventInit });
-    fireEvent.keyDown(window, { key: 'c', shiftKey: true, ...primaryModifierEventInit });
-    fireEvent.keyDown(window, { key: 'f', ...primaryModifierEventInit });
+    await pressPrimaryShortcut(user, 's');
+    await pressPrimaryShortcut(user, 'c', { shiftKey: true });
+    await pressPrimaryShortcut(user, 'f');
 
     expect(saveMock).toHaveBeenCalledTimes(1);
     expect(copyMock).toHaveBeenCalledTimes(1);
     expect(openFindMock).toHaveBeenCalledTimes(1);
 
-    fireEvent.keyDown(window, { key: 'n', ...primaryModifierEventInit });
+    await pressPrimaryShortcut(user, 'n');
     expect(openWindowMock).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId('pane-segment-output')).toHaveAttribute('aria-pressed', 'true');
 
-    fireEvent.keyDown(window, { key: 'n', shiftKey: true, ...primaryModifierEventInit });
+    await pressPrimaryShortcut(user, 'n', { shiftKey: true });
     expect(screen.getByTestId('pane-segment-input')).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByTestId('pane-segment-output')).toHaveAttribute('aria-pressed', 'false');
   });

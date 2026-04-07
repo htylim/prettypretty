@@ -4,7 +4,12 @@ import type { IndentSize } from '../../shared/preferences';
 import type { TelemetryEventName } from '../../shared/telemetry';
 import type { PaneMode, ThemeMode } from '../../shared/types';
 import type { InputEditorHandle } from '../components/InputEditor';
-import type { FallbackAgentOption, FallbackWaitState, IngestSource } from './appDomain';
+import type {
+  FallbackAgentOption,
+  FallbackWaitState,
+  IngestRejectionPrompt,
+  IngestSource,
+} from './appDomain';
 import { reportRendererError } from './reportRendererError';
 import { detectOutputLanguage } from '../output/detectOutputLanguage';
 import {
@@ -12,7 +17,6 @@ import {
   type ContextPrettifyTarget,
 } from '../output/contextPrettifyTarget';
 import {
-  selectIngestRejectionMessage,
   selectIndentSize,
   selectIngestNotice,
   selectInputText,
@@ -48,7 +52,7 @@ export type UseAppControllerResult = {
   indentSize: IndentSize;
   inputText: string;
   ingestNotice: string | null;
-  ingestRejectionMessage: string | null;
+  ingestRejectionPrompt: IngestRejectionPrompt | null;
   outputText: string;
   outputDocumentId: string;
   outputPanes: ReturnType<typeof useOutputPaneController>['outputPanes'];
@@ -87,6 +91,7 @@ export type UseAppControllerResult = {
   onIngestInput: (value: string, source: IngestSource) => void;
   onDismissIngestNotice: () => void;
   onDismissIngestRejection: () => void;
+  onOpenReadableIngestSlice: () => void;
   onOpenFile: () => Promise<void>;
   onOutputPaneHandleChange: ReturnType<typeof useOutputPaneController>['onOutputPaneHandleChange'];
   onOutputPaneFocus: (paneId: string) => void;
@@ -128,14 +133,12 @@ export const useAppController = ({
   const indentSize = useDocumentSession(selectIndentSize);
   const inputText = useDocumentSession(selectInputText);
   const ingestNotice = useDocumentSession(selectIngestNotice);
-  const ingestRejectionMessage = useDocumentSession(selectIngestRejectionMessage);
   const reset = useDocumentSession((state) => state.reset);
   const setPaneMode = useDocumentSession((state) => state.setPaneMode);
   const setThemeMode = useDocumentSession((state) => state.setThemeMode);
   const setIndentSize = useDocumentSession((state) => state.setIndentSize);
   const setInputText = useDocumentSession((state) => state.setInputText);
   const setIngestNotice = useDocumentSession((state) => state.setIngestNotice);
-  const setIngestRejectionMessage = useDocumentSession((state) => state.setIngestRejectionMessage);
   const {
     fallbackModalState,
     requestFallbackConfirmation,
@@ -179,10 +182,13 @@ export const useAppController = ({
     outputText,
     isLlmRunning,
     fallbackWaitState,
+    ingestRejectionPrompt: activeIngestRejectionPrompt,
     cancelActiveFallback,
     runPrettifier,
     runPrettifierRequest,
     ingestInputText,
+    openReadableIngestSlice,
+    dismissIngestRejection,
     resetPrettifierState,
     isInputAlreadyPrettified,
     reindentOutputIfPrettified,
@@ -498,7 +504,7 @@ export const useAppController = ({
     indentSize,
     inputText,
     ingestNotice,
-    ingestRejectionMessage,
+    ingestRejectionPrompt: activeIngestRejectionPrompt,
     outputText,
     outputDocumentId,
     outputPanes,
@@ -533,7 +539,8 @@ export const useAppController = ({
     onEditInputChange: setInputText,
     onIngestInput: ingestInputText,
     onDismissIngestNotice: () => setIngestNotice(null),
-    onDismissIngestRejection: () => setIngestRejectionMessage(null),
+    onDismissIngestRejection: dismissIngestRejection,
+    onOpenReadableIngestSlice: openReadableIngestSlice,
     onOpenFile: openFile,
     onOutputPaneHandleChange: registerOutputPaneHandle,
     onOutputPaneFocus: focusVisibleOutputPane,

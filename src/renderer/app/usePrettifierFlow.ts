@@ -5,18 +5,19 @@ import type { TelemetryEventName } from '../../shared/telemetry';
 import type { PaneMode } from '../../shared/types';
 import type { WindowApi } from '../../shared/window-api';
 import {
+  createIngestRejectionPrompt,
   EMPTY_FILE_NOTICE,
   type FallbackAgentOption,
   type FallbackWaitState,
+  type IngestRejectionPrompt,
   type IngestSource,
-  getMonacoIngestRejection,
-  getMonacoIngestRejectionMessage,
   getIngestEventName,
   getIngestTrigger,
   isFileIngestSource,
 } from './appDomain';
 import {
   selectInputText,
+  selectIngestRejectionPrompt,
   selectLastPrettifiedInput,
   selectOutputFormattingState,
   selectOutputText,
@@ -55,6 +56,7 @@ export type UsePrettifierFlowResult = {
   outputText: string;
   isLlmRunning: boolean;
   fallbackWaitState: FallbackWaitState | null;
+  ingestRejectionPrompt: IngestRejectionPrompt | null;
   cancelActiveFallback: () => Promise<void>;
   runPrettifierRequest: (
     nextInputText: string,
@@ -66,6 +68,8 @@ export type UsePrettifierFlowResult = {
     options: PrettifierRunOptions,
   ) => Promise<void>;
   ingestInputText: (nextText: string, source: IngestSource) => void;
+  openReadableIngestSlice: () => void;
+  dismissIngestRejection: () => void;
   resetPrettifierState: () => void;
   isInputAlreadyPrettified: (input: string) => boolean;
   reindentOutputIfPrettified: (options: {
@@ -97,12 +101,13 @@ export const usePrettifierFlow = ({
   const paneMode = useDocumentSession(selectPaneMode);
   const inputText = useDocumentSession(selectInputText);
   const outputText = useDocumentSession(selectOutputText);
+  const ingestRejectionPrompt = useDocumentSession(selectIngestRejectionPrompt);
   const lastPrettifiedInput = useDocumentSession(selectLastPrettifiedInput);
   const outputFormattingState = useDocumentSession(selectOutputFormattingState);
   const setPaneMode = useDocumentSession((state) => state.setPaneMode);
   const setInputText = useDocumentSession((state) => state.setInputText);
   const setIngestNotice = useDocumentSession((state) => state.setIngestNotice);
-  const setIngestRejectionMessage = useDocumentSession((state) => state.setIngestRejectionMessage);
+  const setIngestRejectionPrompt = useDocumentSession((state) => state.setIngestRejectionPrompt);
   const setOutputText = useDocumentSession((state) => state.setOutputText);
   const setOutputFormattingState = useDocumentSession((state) => state.setOutputFormattingState);
   const setLastPrettifiedInput = useDocumentSession((state) => state.setLastPrettifiedInput);
@@ -225,24 +230,30 @@ export const usePrettifierFlow = ({
   );
 
   const ingestInputText = useCallback(
-    (nextText: string, source: IngestSource): void => {
-      const monacoIngestRejection = getMonacoIngestRejection(nextText);
+    (
+      nextText: string,
+      source: IngestSource,
+      options?: { isReadableSlice?: boolean; originalCharCount?: number | null },
+    ): void => {
+      const ingestPrompt = createIngestRejectionPrompt(nextText, source);
       void logTelemetry(getIngestEventName(source), {
         source,
         inputLength: nextText.length,
         isEmpty: nextText.length === 0,
-        blockedByMonacoLimits: monacoIngestRejection !== null,
-        blockedByMonacoLimitReason: monacoIngestRejection?.reason ?? null,
-        blockedByMonacoLimitActual: monacoIngestRejection?.actual ?? null,
-        blockedByMonacoLimitThreshold: monacoIngestRejection?.limit ?? null,
+        blockedByMonacoLimits: ingestPrompt !== null,
+        blockedByMonacoLimitReason: ingestPrompt?.rejectionReason ?? null,
+        blockedByMonacoLimitActual: ingestPrompt?.rejectionActual ?? null,
+        blockedByMonacoLimitThreshold: ingestPrompt?.rejectionLimit ?? null,
+        openedReadableSlice: options?.isReadableSlice ?? false,
+        originalInputLength: options?.originalCharCount ?? null,
       });
 
-      if (monacoIngestRejection) {
-        setIngestRejectionMessage(getMonacoIngestRejectionMessage(monacoIngestRejection));
+      if (ingestPrompt) {
+        setIngestRejectionPrompt(ingestPrompt);
         return;
       }
 
-      setIngestRejectionMessage(null);
+      setIngestRejectionPrompt(null);
       setInputText(nextText);
 
       if (isFileIngestSource(source) && nextText.length === 0) {
@@ -265,15 +276,33 @@ export const usePrettifierFlow = ({
       resetToInputState,
       runPrettifier,
       setIngestNotice,
-      setIngestRejectionMessage,
+      setIngestRejectionPrompt,
       setInputText,
     ],
   );
 
+  const openReadableIngestSlice = useCallback((): void => {
+    const pendingPrompt = useDocumentSession.getState().ingestRejectionPrompt;
+    if (!pendingPrompt) {
+      return;
+    }
+
+    setIngestRejectionPrompt(null);
+    ingestInputText(pendingPrompt.recoveryText, pendingPrompt.source, {
+      isReadableSlice: true,
+      originalCharCount: pendingPrompt.originalCharCount,
+    });
+  }, [ingestInputText, setIngestRejectionPrompt]);
+
+  const dismissIngestRejection = useCallback((): void => {
+    setIngestRejectionPrompt(null);
+  }, [setIngestRejectionPrompt]);
+
   const resetPrettifierState = useCallback(() => {
     void requestFlow.discardActiveFallback();
+    setIngestRejectionPrompt(null);
     clearTransientOutputState('');
-  }, [clearTransientOutputState, requestFlow]);
+  }, [clearTransientOutputState, requestFlow, setIngestRejectionPrompt]);
 
   const isInputAlreadyPrettified = useCallback(
     (input: string): boolean => {
@@ -342,10 +371,13 @@ export const usePrettifierFlow = ({
     outputText,
     isLlmRunning: requestFlow.isLlmRunning,
     fallbackWaitState: requestFlow.fallbackWaitState,
+    ingestRejectionPrompt,
     cancelActiveFallback,
     runPrettifierRequest: requestFlow.requestPrettifier,
     runPrettifier,
     ingestInputText,
+    openReadableIngestSlice,
+    dismissIngestRejection,
     resetPrettifierState,
     isInputAlreadyPrettified,
     reindentOutputIfPrettified,

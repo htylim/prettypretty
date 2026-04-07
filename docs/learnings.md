@@ -27,6 +27,7 @@ These are the durable patterns worth keeping in mind when changing the codebase.
 - Treat Monaco integration as a real subsystem; changes there usually affect focus, view state, folding, and tests together.
 - Keep Monaco runtime ownership in focused runtime seams, not spread across view components and controller hooks.
 - Reject obviously oversized ingest payloads before they touch session state. Once Monaco-backed state mutates, "pretend nothing happened" recovery gets harder and leakier.
+- Keep Monaco ingest metrics and readable-prefix recovery on one shared scanner so newline handling and limit boundaries cannot drift between rejection and recovery paths.
 - Keep viewport movement/focus timing and editor lifecycle/folding as separate seams; they change for different reasons and should not be explained from one giant component.
 - Custom overlay menus need explicit backdrop `contextmenu` dismissal. Left-click-only close handling leaves stale overlays over Monaco surfaces.
 - If a pane shows rebased source excerpts instead of a full shared model, treat line-number presentation as explicit pane metadata. Do not fake source-linked numbering with ad hoc DOM patches.
@@ -70,9 +71,11 @@ These are the durable patterns worth keeping in mind when changing the codebase.
 - `pnpm check` is the baseline local gate.
 - Run `pnpm test:e2e` when behavior depends on Electron runtime, windows, menus, or preload.
 - If a change set is documentation-only, skip `pnpm check`, `pnpm test`, and `pnpm test:e2e`.
+- Wrap direct `window` event dispatches in `act(...)` in renderer tests. Global listeners do not always inherit the testing-library helpers that component-bound events do.
 - When an inline control’s meaning depends on arrow direction, lock the rendered SVG path in a unit test instead of only asserting state attributes.
 - For Electron Playwright E2E, Playwright `use.headless` does not by itself hide `BrowserWindow` instances. Hidden-window runs need an app-level visibility contract in the main-process window factories.
 - In the current E2E suite, document creation, relaunch, log-window, and reset flows all run correctly with hidden windows as long as the test is not asserting `BrowserWindow.isVisible() === true`.
 - If Playwright test tags drive runtime behavior, resolve them from `testInfo.titlePath`, not only the leaf `testInfo.title`, so suite-level tagging and `--grep` selection stay aligned.
 - Keep onboarding docs concise and current; move history and deep implementation detail out of the main docs.
 - When drafting a new spec, treat current code and current docs as the source of truth. Historical spec files are archival context only and must not drive new architecture decisions unless explicitly requested.
+- When an ingest guard needs a follow-up choice, store a typed prompt payload in session state instead of a raw message string so UI actions can resume the exact pending flow without reconstructing state from copy.

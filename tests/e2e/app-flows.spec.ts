@@ -1,6 +1,8 @@
 import type { Page } from '@playwright/test';
 import { expect, launchApp, test } from './support/electronApp';
 
+const MONACO_MAX_TOKENIZATION_LINE_LENGTH = 20_000;
+
 const dispatchPaste = async (page: Page, text: string): Promise<void> => {
   await page.evaluate((pasteText) => {
     const runtime = globalThis as unknown as {
@@ -120,6 +122,26 @@ test('supports ingest parity for drop and paste', async () => {
   await expect(page.getByTestId('empty-state-cta')).toBeVisible();
   await dispatchPaste(page, '{"via":"paste"}');
   await expect(page.getByTestId('output-editor')).toContainText('"via": "paste"');
+
+  await resetPreferences(page);
+  await app.close();
+});
+
+test('opens the readable portion after oversized paste is confirmed', async () => {
+  const app = await launchApp(test.info());
+  const page = await app.firstWindow();
+  await page.waitForLoadState('domcontentloaded');
+  await resetPreferences(page);
+
+  await dispatchPaste(page, 'x'.repeat(MONACO_MAX_TOKENIZATION_LINE_LENGTH));
+
+  await expect(page.getByRole('heading', { name: 'Content too large' })).toBeVisible();
+  await page.getByRole('button', { name: 'Open readable portion' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Content too large' })).toHaveCount(0);
+  await expect(page.getByTestId('empty-state-cta')).toHaveCount(0);
+  await expect(page.getByTestId('output-editor')).toBeVisible();
+  await expect(page.getByTestId('output-editor').locator('.view-line').first()).toContainText('x');
 
   await resetPreferences(page);
   await app.close();
