@@ -35,7 +35,7 @@ vi.mock('electron', () => {
     },
     app: {
       getName: vi.fn().mockReturnValue('prettypretty'),
-      getVersion: vi.fn().mockReturnValue('0.2.0'),
+      getVersion: vi.fn().mockReturnValue('0.3.0'),
     },
     clipboard: {
       writeText: writeTextMock,
