@@ -1,4 +1,5 @@
 import { areOutputPaneSourceRangesEqual, type OutputPaneSourceRange } from '../output/outputRange';
+import type { OutputLanguageId } from '../output/detectOutputLanguage';
 
 export type { OutputPaneSourceRange } from '../output/outputRange';
 
@@ -15,6 +16,7 @@ export type IndependentTextOutputPaneContent = {
   kind: 'independent-text';
   documentId: string;
   value: string;
+  languageOverride?: OutputLanguageId | null;
 };
 
 export type ExtractedSourceOutputPaneContent = {
@@ -41,6 +43,7 @@ export type OutputPaneContentInput =
   | {
       kind: 'independent-text';
       value: string;
+      languageOverride?: OutputLanguageId | null;
     };
 
 export type DerivedOutputPane = {
@@ -181,7 +184,7 @@ const areOutputPaneContentsEqual = (
   }
 
   return left.kind === 'independent-text' && right.kind === 'independent-text'
-    ? left.value === right.value
+    ? left.value === right.value && left.languageOverride === (right.languageOverride ?? null)
     : false;
 };
 
@@ -220,6 +223,7 @@ const createOutputPaneContent = (
     kind: 'independent-text',
     documentId: createDerivedPaneDocumentId(paneId, sequence),
     value: content.value,
+    languageOverride: content.languageOverride ?? null,
   };
 };
 

@@ -102,7 +102,11 @@ const createPrettifierResponse = (
 ): PrettifyRunResponse => ({
   status: 'applied-fallback',
   outputText: '{\n  "fallback": true\n}',
-  localDetection: 'malformed',
+  localResult: {
+    kind: 'failed',
+    family: 'json-like',
+    reason: 'malformed',
+  },
   fallbackStatus: 'applied',
   agentId: 'codex',
   durationMs: 10,

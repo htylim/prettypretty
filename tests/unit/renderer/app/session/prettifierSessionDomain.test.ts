@@ -16,11 +16,18 @@ describe('prettifierSessionDomain', () => {
       '{"a":1}',
       '{\n  "a": 1\n}',
       2,
+      {
+        kind: 'applied',
+        family: 'json-like',
+        mode: 'canonical',
+        variant: 'json',
+      },
       'json',
     );
 
     expect(nextState).toEqual({
       outputText: '{\n  "a": 1\n}',
+      outputLanguageOverride: 'json',
       outputFormattingState: {
         isPrettified: true,
         indentSize: 2,
@@ -32,11 +39,34 @@ describe('prettifierSessionDomain', () => {
     });
   });
 
+  it('treats token-preserving malformed json output as safely reindentable', () => {
+    const nextState = applyLocalPrettifyOutput(
+      createInitialPrettifierSessionState(),
+      '{"a":1,"b"',
+      '{\n  "a": 1,\n  "b"',
+      2,
+      {
+        kind: 'applied',
+        family: 'json-like',
+        mode: 'token-preserving',
+        variant: 'json-like-token-preserving',
+      },
+      'json',
+    );
+
+    expect(nextState.outputFormattingState).toEqual({
+      isPrettified: true,
+      indentSize: 2,
+      reindentStrategy: 'leading-whitespace',
+    });
+  });
+
   it('applies passthrough output into session state', () => {
     const nextState = applyPassthroughOutput(createInitialPrettifierSessionState(), '{bad');
 
     expect(nextState).toEqual({
       outputText: '{bad',
+      outputLanguageOverride: null,
       outputFormattingState: {
         isPrettified: false,
         indentSize: null,
@@ -60,6 +90,7 @@ describe('prettifierSessionDomain', () => {
     const reset = resetPrettifierSessionState({
       ...createInitialPrettifierSessionState(),
       outputText: '{\n  "a": 1\n}',
+      outputLanguageOverride: null,
       outputFormattingState: {
         isPrettified: true,
         indentSize: 2,
@@ -100,6 +131,7 @@ describe('prettifierSessionDomain', () => {
     expect(transition).not.toBeNull();
     expect(transition?.snapshot).toEqual({
       outputText: '{\n  "nested": {\n    "leaf": true\n  }\n}',
+      outputLanguageOverride: null,
       formattingState: {
         isPrettified: true,
         indentSize: 2,

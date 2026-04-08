@@ -1,18 +1,11 @@
 import type { IndentSize } from '../../shared/preferences';
-import type { LocalAppliedDetection, LocalFailedDetection } from '../../shared/prettifier';
-import { runLocalPrettifier } from '../../shared/localPrettifier';
+import { runLocalPrettifier, type LocalPrettifyResult } from '../../shared/localPrettifier';
+import { summarizeLocalPrettifyResult, type LocalPrettifySummary } from '../../shared/prettifier';
 
-export type PrettifyDetailedResult =
-  | {
-      kind: 'applied';
-      localDetection: LocalAppliedDetection;
-      outputText: string;
-    }
-  | {
-      kind: 'failed';
-      localDetection: LocalFailedDetection;
-      outputText: string;
-    };
+export type PrettifyDetailedResult = {
+  outputText: string;
+  localResult: LocalPrettifySummary;
+};
 
 export type PrettifierService = {
   prettify: (rawText: string) => Promise<string>;
@@ -26,19 +19,17 @@ export type PrettifierService = {
  */
 export const createPrettifierService = (indentSize: IndentSize): PrettifierService => {
   const prettifyDetailed = async (rawText: string): Promise<PrettifyDetailedResult> => {
-    const localResult = await runLocalPrettifier(rawText, indentSize);
+    const localResult: LocalPrettifyResult = await runLocalPrettifier(rawText, indentSize);
     if (localResult.kind === 'applied') {
       return {
-        kind: 'applied',
-        localDetection: localResult.detection,
         outputText: localResult.outputText,
+        localResult: summarizeLocalPrettifyResult(localResult),
       };
     }
 
     return {
-      kind: 'failed',
-      localDetection: localResult.detection,
       outputText: rawText,
+      localResult,
     };
   };
 

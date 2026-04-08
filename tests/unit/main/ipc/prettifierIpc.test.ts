@@ -76,7 +76,12 @@ describe('registerIpcHandlers prettifier channels', () => {
     prettifierService.run.mockReset().mockResolvedValue({
       status: 'applied-local',
       outputText: '{\n  "a": 1\n}',
-      localDetection: 'json',
+      localResult: {
+        kind: 'applied',
+        family: 'json-like',
+        mode: 'canonical',
+        variant: 'json',
+      },
       fallbackStatus: 'not-attempted',
       agentId: null,
       durationMs: 5,
@@ -143,7 +148,12 @@ describe('registerIpcHandlers prettifier channels', () => {
     expect(result).toEqual({
       status: 'applied-local',
       outputText: '{\n  "a": 1\n}',
-      localDetection: 'json',
+      localResult: {
+        kind: 'applied',
+        family: 'json-like',
+        mode: 'canonical',
+        variant: 'json',
+      },
       fallbackStatus: 'not-attempted',
       agentId: null,
       durationMs: 5,
@@ -221,7 +231,11 @@ describe('registerIpcHandlers prettifier channels', () => {
         return {
           status: 'applied-fallback',
           outputText: '{\n  "ok": true\n}',
-          localDetection: 'malformed',
+          localResult: {
+            kind: 'failed',
+            family: 'json-like',
+            reason: 'malformed',
+          },
           fallbackStatus: 'applied',
           agentId: 'codex',
           durationMs: 12,

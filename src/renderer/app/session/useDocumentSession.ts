@@ -20,6 +20,9 @@ type DocumentSessionActions = {
   setFallbackWarningLineThreshold: (fallbackWarningLineThreshold: number) => void;
   setOutputPaneChainState: (outputPaneChainState: OutputPaneChainState) => void;
   setOutputText: (outputText: string) => void;
+  setOutputLanguageOverride: (
+    outputLanguageOverride: DocumentSessionState['outputLanguageOverride'],
+  ) => void;
   setOutputFormattingState: (
     outputFormattingState: DocumentSessionState['outputFormattingState'],
   ) => void;
@@ -45,6 +48,7 @@ export const useDocumentSession = create<DocumentSessionStore>((set) => ({
     set({ fallbackWarningLineThreshold }),
   setOutputPaneChainState: (outputPaneChainState) => set({ outputPaneChainState }),
   setOutputText: (outputText) => set({ outputText }),
+  setOutputLanguageOverride: (outputLanguageOverride) => set({ outputLanguageOverride }),
   setOutputFormattingState: (outputFormattingState) => set({ outputFormattingState }),
   setFallbackWaitState: (fallbackWaitState) => set({ fallbackWaitState }),
   setFallbackModalState: (fallbackModalState) => set({ fallbackModalState }),

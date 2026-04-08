@@ -7,7 +7,13 @@ import {
 } from './agentFallbackExecutor';
 import { renderAgentPromptTemplate } from './agentPromptTemplate';
 import { runLocalPrettifier } from './localPrettifier';
-import type { PrettifyRunRequest, PrettifyRunResponse } from '../../shared/prettifier';
+import {
+  flattenLocalPrettifySummary,
+  summarizeLocalPrettifyResult,
+  type LocalPrettifySummary,
+  type PrettifyRunRequest,
+  type PrettifyRunResponse,
+} from '../../shared/prettifier';
 
 type PrettifierServiceDependencies = {
   preferencesService: Pick<PreferencesService, 'getAll'>;
@@ -32,9 +38,9 @@ export type PrettifierService = {
 const logCompletedRun = (logger: Logger, response: PrettifyRunResponse): PrettifyRunResponse => {
   logger.info('prettifier.run.completed', {
     status: response.status,
-    localDetection: response.localDetection,
     fallbackStatus: response.fallbackStatus,
     durationMs: response.durationMs,
+    ...flattenLocalPrettifySummary(response.localResult),
   });
 
   return response;
@@ -43,7 +49,7 @@ const logCompletedRun = (logger: Logger, response: PrettifyRunResponse): Prettif
 // Passthrough responses all preserve the original input; only the reason/status varies.
 const createPassthroughResponse = (
   request: PrettifyRunRequest,
-  localDetection: PrettifyRunResponse['localDetection'],
+  localResult: PrettifyRunResponse['localResult'],
   fallbackStatus: PrettifyRunResponse['fallbackStatus'],
   agentId: string | null,
   durationMs: number,
@@ -55,7 +61,7 @@ const createPassthroughResponse = (
   return {
     status,
     outputText: request.inputText,
-    localDetection,
+    localResult,
     fallbackStatus,
     agentId,
     durationMs,
@@ -64,7 +70,7 @@ const createPassthroughResponse = (
 
 const summarizeFallbackResult = (
   fallbackResult: AgentFallbackExecutionResult,
-  localDetection: PrettifyRunResponse['localDetection'],
+  localResult: PrettifyRunResponse['localResult'],
   request: PrettifyRunRequest,
   agentId: string,
   durationMs: number,
@@ -73,7 +79,7 @@ const summarizeFallbackResult = (
     return {
       status: 'applied-fallback',
       outputText: fallbackResult.outputText,
-      localDetection,
+      localResult,
       fallbackStatus: 'applied',
       agentId,
       durationMs,
@@ -83,7 +89,7 @@ const summarizeFallbackResult = (
   return {
     status: 'passthrough-fallback-failed',
     outputText: request.inputText,
-    localDetection,
+    localResult,
     fallbackStatus: fallbackResult.status,
     agentId,
     durationMs,
@@ -110,16 +116,17 @@ export const createPrettifierService = ({
       });
 
       const localResult = await runLocalPrettifier(request.inputText, request.indentSize);
+      const localSummary: LocalPrettifySummary = summarizeLocalPrettifyResult(localResult);
       logger.info('prettifier.local.detected', {
-        localDetection: localResult.detection,
         localResultKind: localResult.kind,
+        ...flattenLocalPrettifySummary(localSummary),
       });
 
       if (localResult.kind === 'applied') {
         return logCompletedRun(logger, {
           status: 'applied-local',
           outputText: localResult.outputText,
-          localDetection: localResult.detection,
+          localResult: localSummary,
           fallbackStatus: 'not-attempted',
           agentId: null,
           durationMs: getDurationMs(),
@@ -141,7 +148,7 @@ export const createPrettifierService = ({
           logger,
           createPassthroughResponse(
             request,
-            localResult.detection,
+            localSummary,
             'skipped-no-fallback',
             null,
             getDurationMs(),
@@ -162,7 +169,7 @@ export const createPrettifierService = ({
           logger,
           createPassthroughResponse(
             request,
-            localResult.detection,
+            localSummary,
             'skipped-invalid-agent',
             resolvedFallbackAgentId,
             getDurationMs(),
@@ -208,7 +215,7 @@ export const createPrettifierService = ({
           logger,
           createPassthroughResponse(
             request,
-            localResult.detection,
+            localSummary,
             'failed-spawn-error',
             fallbackAgent.id,
             getDurationMs(),
@@ -227,7 +234,7 @@ export const createPrettifierService = ({
 
       const response = summarizeFallbackResult(
         fallbackResult,
-        localResult.detection,
+        localSummary,
         request,
         fallbackAgent.id,
         getDurationMs(),

@@ -17,6 +17,7 @@ describe('outputPaneTypes', () => {
       value: '{\n  "leaf": true\n}',
       viewRange: null,
       testId: 'output-editor-pane-1',
+      paneDocumentLanguage: 'json',
     };
 
     expect(focusRequest.paneId).toBe(pane.paneId);

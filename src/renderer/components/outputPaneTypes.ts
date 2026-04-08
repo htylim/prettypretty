@@ -6,6 +6,7 @@ export type OutputPaneViewModel = {
   documentId: string;
   viewStateKey: string;
   value: string;
+  paneDocumentLanguage: OutputLanguageId;
   languageOverride?: OutputLanguageId | null;
   activeExtractedSourceRange?: OutputPaneSourceRange | null;
   lineNumberStart?: number | null;

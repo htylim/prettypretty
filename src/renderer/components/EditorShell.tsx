@@ -8,6 +8,7 @@ import {
 import type { IndentSize } from '../../shared/preferences';
 import type { PaneMode, ThemeMode } from '../../shared/types';
 import type { FallbackWaitState, IngestSource } from '../app/appDomain';
+import type { OutputLanguageId } from '../output/detectOutputLanguage';
 import { InputEditor, type InputEditorHandle } from './InputEditor';
 import {
   OutputPaneStrip,
@@ -71,6 +72,7 @@ type EditorShellProps = {
       hasSelection: boolean;
     },
     value: string,
+    paneDocumentLanguage: OutputLanguageId,
   ) => void;
   onDismissOutputContextMenu: () => void;
   onTriggerOutputContextPrettify: () => void;

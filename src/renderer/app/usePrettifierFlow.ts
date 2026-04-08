@@ -20,6 +20,7 @@ import {
   selectIngestRejectionPrompt,
   selectLastPrettifiedInput,
   selectOutputFormattingState,
+  selectOutputLanguageOverride,
   selectOutputText,
   selectPaneMode,
 } from './session/documentSessionSelectors';
@@ -34,6 +35,7 @@ import {
   type OutputReindentSnapshot,
 } from './session/prettifierSessionDomain';
 import { usePrettifierRequestFlow } from './usePrettifierRequestFlow';
+import { getLocalResultOutputLanguageOverride } from '../prettifier/localResultOutputLanguage';
 
 type PrettifierRunOptions = {
   switchToOutputOnComplete: boolean;
@@ -54,6 +56,7 @@ type UsePrettifierFlowOptions = {
 
 export type UsePrettifierFlowResult = {
   outputText: string;
+  outputLanguageOverride: ReturnType<typeof selectOutputLanguageOverride>;
   isLlmRunning: boolean;
   fallbackWaitState: FallbackWaitState | null;
   ingestRejectionPrompt: IngestRejectionPrompt | null;
@@ -101,6 +104,7 @@ export const usePrettifierFlow = ({
   const paneMode = useDocumentSession(selectPaneMode);
   const inputText = useDocumentSession(selectInputText);
   const outputText = useDocumentSession(selectOutputText);
+  const outputLanguageOverride = useDocumentSession(selectOutputLanguageOverride);
   const ingestRejectionPrompt = useDocumentSession(selectIngestRejectionPrompt);
   const lastPrettifiedInput = useDocumentSession(selectLastPrettifiedInput);
   const outputFormattingState = useDocumentSession(selectOutputFormattingState);
@@ -109,6 +113,7 @@ export const usePrettifierFlow = ({
   const setIngestNotice = useDocumentSession((state) => state.setIngestNotice);
   const setIngestRejectionPrompt = useDocumentSession((state) => state.setIngestRejectionPrompt);
   const setOutputText = useDocumentSession((state) => state.setOutputText);
+  const setOutputLanguageOverride = useDocumentSession((state) => state.setOutputLanguageOverride);
   const setOutputFormattingState = useDocumentSession((state) => state.setOutputFormattingState);
   const setLastPrettifiedInput = useDocumentSession((state) => state.setLastPrettifiedInput);
 
@@ -126,19 +131,21 @@ export const usePrettifierFlow = ({
   const applyTransientOutputState = useCallback(
     (nextState: PrettifierSessionState): void => {
       setOutputText(nextState.outputText);
+      setOutputLanguageOverride(nextState.outputLanguageOverride);
       setOutputFormattingState(nextState.outputFormattingState);
       setLastPrettifiedInput(nextState.lastPrettifiedInput);
     },
-    [setLastPrettifiedInput, setOutputFormattingState, setOutputText],
+    [setLastPrettifiedInput, setOutputFormattingState, setOutputLanguageOverride, setOutputText],
   );
 
   const clearTransientOutputState = useCallback(
     (nextOutputText: string): void => {
       setOutputText(nextOutputText);
+      setOutputLanguageOverride(null);
       setOutputFormattingState(createEmptyOutputFormattingState());
       setLastPrettifiedInput(null);
     },
-    [setLastPrettifiedInput, setOutputFormattingState, setOutputText],
+    [setLastPrettifiedInput, setOutputFormattingState, setOutputLanguageOverride, setOutputText],
   );
 
   const applyPrettifyResponse = useCallback(
@@ -146,13 +153,18 @@ export const usePrettifierFlow = ({
       const currentState = useDocumentSession.getState();
 
       if (response.status === 'applied-local') {
+        const outputLanguageHint = getLocalResultOutputLanguageOverride(
+          response.localResult,
+          response.outputText,
+        );
         applyTransientOutputState(
           applyLocalPrettifyOutput(
             currentState,
             currentState.outputText,
             response.outputText,
             indentSize,
-            response.localDetection,
+            response.localResult,
+            outputLanguageHint,
           ),
         );
         return;
@@ -208,6 +220,7 @@ export const usePrettifierFlow = ({
       options: PrettifierRunOptions,
     ): Promise<void> => {
       setOutputText(nextInputText);
+      setOutputLanguageOverride(null);
       setOutputFormattingState(createEmptyOutputFormattingState());
       setLastPrettifiedInput(null);
 
@@ -224,6 +237,7 @@ export const usePrettifierFlow = ({
       requestFlow,
       setLastPrettifiedInput,
       setOutputFormattingState,
+      setOutputLanguageOverride,
       setOutputText,
       showOutputIfRequested,
     ],
@@ -337,9 +351,10 @@ export const usePrettifierFlow = ({
       }
 
       setOutputText(snapshot.outputText);
+      setOutputLanguageOverride(snapshot.outputLanguageOverride);
       setOutputFormattingState({ ...snapshot.formattingState });
     },
-    [setOutputFormattingState, setOutputText],
+    [setOutputFormattingState, setOutputLanguageOverride, setOutputText],
   );
 
   const alignOutputIndentAfterPersist = useCallback(
@@ -369,6 +384,7 @@ export const usePrettifierFlow = ({
 
   return {
     outputText,
+    outputLanguageOverride,
     isLlmRunning: requestFlow.isLlmRunning,
     fallbackWaitState: requestFlow.fallbackWaitState,
     ingestRejectionPrompt,

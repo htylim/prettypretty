@@ -30,6 +30,7 @@ type OutputPaneStripProps = {
     paneId: string,
     request: OutputEditorContextMenuRequest,
     value: string,
+    paneDocumentLanguage: import('../output/detectOutputLanguage').OutputLanguageId,
   ) => void;
   onNavigatePaneViewport: (stepDelta: number) => void;
 };
@@ -89,7 +90,7 @@ export const OutputPaneStrip = ({
               activeExtractedSourceRange={pane.activeExtractedSourceRange}
               lineNumberStart={pane.lineNumberStart}
               onContextMenu={(request) => {
-                onPaneContextMenu(pane.paneId, request, pane.value);
+                onPaneContextMenu(pane.paneId, request, pane.value, pane.paneDocumentLanguage);
               }}
               onFocus={() => {
                 if (pane.paneId !== activePaneId) {

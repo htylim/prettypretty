@@ -12,54 +12,127 @@ export type PrettifyTrigger =
   | 'context-pane-prettify';
 
 /**
- * Local detections that mean shared parsing produced an immediate renderer/main
- * result with no fallback work required.
+ * High-level local parse/format families.
  */
-export type LocalAppliedDetection =
+export type LocalResultFamily = 'json-like' | 'graphql' | 'text';
+
+/**
+ * Applied local results carry both how the formatter behaved and the user-facing
+ * variant that is most useful for observability.
+ */
+export type LocalAppliedMode = 'canonical' | 'token-preserving' | 'passthrough';
+
+export type LocalAppliedVariant =
   | 'json'
   | 'ndjson'
   | 'json5'
   | 'python-like'
+  | 'json-like-token-preserving'
   | 'graphql'
   | 'text';
-
-/**
- * Local detections that mean shared parsing recognized a supported boundary but
- * could not complete a local prettify result.
- */
-export type LocalFailedDetection = 'unsupported' | 'malformed';
 
 /**
  * Structured-data detections all share the same normalization contract: parse
  * into data, reject runtime-only values, then emit canonical JSON text.
  */
-export type StructuredDataLocalDetection = Extract<
-  LocalAppliedDetection,
+export type StructuredDataLocalVariant = Extract<
+  LocalAppliedVariant,
   'json' | 'ndjson' | 'json5' | 'python-like'
 >;
 
 /**
- * Describes how far the local parser got before the app either prettified the
- * document or delegated to a fallback agent.
+ * Local failures stay explicit about the supported family boundary and why the
+ * local path stopped short of a final result.
  */
-export type LocalDetection = LocalAppliedDetection | LocalFailedDetection;
+export type LocalFailedReason = 'unsupported' | 'malformed';
 
 /**
  * Shared local prettifier result. Renderer and main both consume this contract
  * before deciding whether fallback orchestration is still allowed.
  */
-export type LocalPrettifyAppliedResult = {
-  kind: 'applied';
-  detection: LocalAppliedDetection;
-  outputText: string;
-};
+export type LocalPrettifyAppliedResult =
+  | {
+      kind: 'applied';
+      family: 'json-like';
+      mode: 'canonical';
+      variant: StructuredDataLocalVariant;
+      outputText: string;
+    }
+  | {
+      kind: 'applied';
+      family: 'json-like';
+      mode: 'token-preserving';
+      variant: 'json-like-token-preserving';
+      outputText: string;
+    }
+  | {
+      kind: 'applied';
+      family: 'graphql';
+      mode: 'canonical';
+      variant: 'graphql';
+      outputText: string;
+    }
+  | {
+      kind: 'applied';
+      family: 'text';
+      mode: 'passthrough';
+      variant: 'text';
+      outputText: string;
+    };
 
 export type LocalPrettifyFailedResult = {
   kind: 'failed';
-  detection: LocalFailedDetection;
+  family: Extract<LocalResultFamily, 'json-like' | 'graphql'>;
+  reason: LocalFailedReason;
 };
 
 export type LocalPrettifyResult = LocalPrettifyAppliedResult | LocalPrettifyFailedResult;
+
+export type LocalPrettifySummary =
+  | Omit<LocalPrettifyAppliedResult, 'outputText'>
+  | LocalPrettifyFailedResult;
+
+export const summarizeLocalPrettifyResult = (
+  localResult: LocalPrettifyResult,
+): LocalPrettifySummary => {
+  if (localResult.kind === 'failed') {
+    return localResult;
+  }
+
+  return {
+    kind: localResult.kind,
+    family: localResult.family,
+    mode: localResult.mode,
+    variant: localResult.variant,
+  };
+};
+
+export type FlattenedLocalPrettifySummary = {
+  localFamily: LocalResultFamily;
+  localMode: LocalAppliedMode | null;
+  localVariant: LocalAppliedVariant | null;
+  localFailureReason: LocalFailedReason | null;
+};
+
+export const flattenLocalPrettifySummary = (
+  localResult: LocalPrettifySummary,
+): FlattenedLocalPrettifySummary => {
+  if (localResult.kind === 'failed') {
+    return {
+      localFamily: localResult.family,
+      localMode: null,
+      localVariant: null,
+      localFailureReason: localResult.reason,
+    };
+  }
+
+  return {
+    localFamily: localResult.family,
+    localMode: localResult.mode,
+    localVariant: localResult.variant,
+    localFailureReason: null,
+  };
+};
 
 /**
  * Explains why fallback was skipped, succeeded, or failed after local parsing
@@ -111,7 +184,7 @@ export type PrettifyCancelRequest = {
 export type PrettifyRunResponse = {
   status: PrettifyRunStatus;
   outputText: string;
-  localDetection: LocalDetection;
+  localResult: LocalPrettifySummary;
   fallbackStatus: FallbackStatus;
   agentId: string | null;
   durationMs: number;

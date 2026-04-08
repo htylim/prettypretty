@@ -71,20 +71,33 @@ describe('PrettifierService', () => {
     expect(result).toContain('"value": true');
   });
 
-  it('returns original text for malformed payloads', async () => {
+  it('prettifies supported malformed json payloads locally', async () => {
     const prettifier = createPrettifierService(2);
-    const input = '{"a":1';
+    const input = '{"a":1,"b"';
 
-    await expect(prettifier.prettify(input)).resolves.toBe(input);
+    await expect(prettifier.prettify(input)).resolves.toBe('{\n  "a": 1,\n  "b"');
+    await expect(prettifier.prettifyDetailed(input)).resolves.toEqual({
+      outputText: '{\n  "a": 1,\n  "b"',
+      localResult: {
+        kind: 'applied',
+        family: 'json-like',
+        mode: 'token-preserving',
+        variant: 'json-like-token-preserving',
+      },
+    });
   });
 
   it('returns plain text as an applied local text result', async () => {
     const prettifier = createPrettifierService(2);
 
     await expect(prettifier.prettifyDetailed('hello world')).resolves.toEqual({
-      kind: 'applied',
-      localDetection: 'text',
       outputText: 'hello world',
+      localResult: {
+        kind: 'applied',
+        family: 'text',
+        mode: 'passthrough',
+        variant: 'text',
+      },
     });
   });
 
@@ -94,9 +107,12 @@ describe('PrettifierService', () => {
 
     await expect(prettifier.prettify(input)).resolves.toBe(input);
     await expect(prettifier.prettifyDetailed(input)).resolves.toEqual({
-      kind: 'failed',
-      localDetection: 'malformed',
       outputText: input,
+      localResult: {
+        kind: 'failed',
+        family: 'graphql',
+        reason: 'malformed',
+      },
     });
   });
 
@@ -105,9 +121,12 @@ describe('PrettifierService', () => {
     const input = '{bad';
 
     await expect(prettifier.prettifyDetailed(input)).resolves.toEqual({
-      kind: 'failed',
-      localDetection: 'malformed',
       outputText: input,
+      localResult: {
+        kind: 'failed',
+        family: 'json-like',
+        reason: 'malformed',
+      },
     });
   });
 
@@ -117,9 +136,13 @@ describe('PrettifierService', () => {
     const result = await prettifier.prettifyDetailed('type Shipment{id:ID! request_id:String}');
 
     expect(result).toEqual({
-      kind: 'applied',
-      localDetection: 'graphql',
       outputText: 'type Shipment {\n  id: ID!\n  request_id: String\n}',
+      localResult: {
+        kind: 'applied',
+        family: 'graphql',
+        mode: 'canonical',
+        variant: 'graphql',
+      },
     });
   });
 
@@ -138,10 +161,10 @@ describe('PrettifierService', () => {
     await expect(prettifier.prettify('true')).resolves.toBe('true');
   });
 
-  it('returns original text when parsed values are not JSON-serializable', async () => {
+  it('token-preserves json-like inputs when canonical serialization is unsupported', async () => {
     const prettifier = createPrettifierService(2);
     const input = '{value: NaN}';
 
-    await expect(prettifier.prettify(input)).resolves.toBe(input);
+    await expect(prettifier.prettify(input)).resolves.toBe('{\n  value: NaN\n}');
   });
 });

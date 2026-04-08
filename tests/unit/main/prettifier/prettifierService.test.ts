@@ -37,8 +37,13 @@ describe('prettifierService', () => {
     expect(response).toMatchObject({
       status: 'applied-local',
       fallbackStatus: 'not-attempted',
-      localDetection: 'text',
       outputText: 'hello world',
+      localResult: {
+        kind: 'applied',
+        family: 'text',
+        mode: 'passthrough',
+        variant: 'text',
+      },
     });
     expect(fallbackExecutor.execute).not.toHaveBeenCalled();
   });
@@ -68,7 +73,48 @@ describe('prettifierService', () => {
     expect(response).toMatchObject({
       status: 'applied-local',
       fallbackStatus: 'not-attempted',
-      localDetection: 'json',
+      localResult: {
+        kind: 'applied',
+        family: 'json-like',
+        mode: 'canonical',
+        variant: 'json',
+      },
+    });
+    expect(fallbackExecutor.execute).not.toHaveBeenCalled();
+  });
+
+  it('treats supported malformed json as an applied local result', async () => {
+    const preferencesService = {
+      getAll: vi.fn().mockResolvedValue(createDefaultPreferences()),
+    };
+    const fallbackExecutor = {
+      execute: vi.fn(),
+      cancel: vi.fn().mockReturnValue(false),
+    };
+    const logger = createLogger();
+    const service = createPrettifierService({
+      preferencesService,
+      logger,
+      fallbackExecutor,
+    });
+
+    const response = await service.run({
+      requestId: 1,
+      inputText: '{"a":1,"b"',
+      indentSize: 2,
+      trigger: 'switch-output',
+    });
+
+    expect(response).toMatchObject({
+      status: 'applied-local',
+      fallbackStatus: 'not-attempted',
+      outputText: '{\n  "a": 1,\n  "b"',
+      localResult: {
+        kind: 'applied',
+        family: 'json-like',
+        mode: 'token-preserving',
+        variant: 'json-like-token-preserving',
+      },
     });
     expect(fallbackExecutor.execute).not.toHaveBeenCalled();
   });
@@ -98,8 +144,13 @@ describe('prettifierService', () => {
     expect(response).toMatchObject({
       status: 'applied-local',
       fallbackStatus: 'not-attempted',
-      localDetection: 'ndjson',
       outputText: '{\n  "a": 1\n}\n{\n  "b": 2\n}',
+      localResult: {
+        kind: 'applied',
+        family: 'json-like',
+        mode: 'canonical',
+        variant: 'ndjson',
+      },
     });
     expect(fallbackExecutor.execute).not.toHaveBeenCalled();
   });
@@ -129,8 +180,13 @@ describe('prettifierService', () => {
     expect(response).toMatchObject({
       status: 'applied-local',
       fallbackStatus: 'not-attempted',
-      localDetection: 'graphql',
       outputText: 'type Shipment {\n  id: ID!\n  request_id: String\n}',
+      localResult: {
+        kind: 'applied',
+        family: 'graphql',
+        mode: 'canonical',
+        variant: 'graphql',
+      },
     });
     expect(fallbackExecutor.execute).not.toHaveBeenCalled();
   });
@@ -162,7 +218,11 @@ describe('prettifierService', () => {
       status: 'passthrough-no-fallback',
       fallbackStatus: 'skipped-no-fallback',
       outputText: '{bad',
-      localDetection: 'malformed',
+      localResult: {
+        kind: 'failed',
+        family: 'json-like',
+        reason: 'malformed',
+      },
     });
     expect(fallbackExecutor.execute).not.toHaveBeenCalled();
   });
@@ -194,7 +254,11 @@ describe('prettifierService', () => {
       status: 'passthrough-no-fallback',
       fallbackStatus: 'skipped-invalid-agent',
       outputText: '{bad',
-      localDetection: 'malformed',
+      localResult: {
+        kind: 'failed',
+        family: 'json-like',
+        reason: 'malformed',
+      },
     });
     expect(fallbackExecutor.execute).not.toHaveBeenCalled();
   });

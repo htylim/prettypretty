@@ -49,7 +49,12 @@ describe('usePrettifierRuntime', () => {
     const run = vi.fn().mockResolvedValue({
       status: 'applied-local',
       outputText: '{\n  "a": 1\n}',
-      localDetection: 'json',
+      localResult: {
+        kind: 'applied',
+        family: 'json-like',
+        mode: 'canonical',
+        variant: 'json',
+      },
       fallbackStatus: 'not-attempted',
       agentId: null,
       durationMs: 1,

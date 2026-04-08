@@ -64,6 +64,9 @@ These are the durable patterns worth keeping in mind when changing the codebase.
 - For GraphQL local formatting, use a formatter that preserves comments and block-string values. Raw AST print pipelines are not safe because they drop comments and can tempt follow-up indentation rewrites that change string payloads.
 - For XML, a raw-text structural scan is enough when it only claims quoted attribute values plus direct text or CDATA payloads, and it must bail out on malformed nesting instead of guessing.
 - For SQL, a lightweight scanner is enough when it only claims single-quoted string literals; keep key-hit targeting conservative and bail out on malformed strings or comments.
+- If JSON-like input is prettified locally without a successful canonical parse, keep the formatter token-preserving. It may improve whitespace and layout, but it must not invent punctuation, quotes, braces, brackets, or values, and it must not delete incomplete trailing fragments.
+- If local prettify semantics already know the output language, carry that override through renderer state instead of re-detecting from possibly invalid output text.
+- When a new prettify run replaces visible output before the async response arrives, clear any previous output-language override in the same state transition so Monaco language and context targeting cannot lag behind the in-flight text.
 
 ## Testing and Docs
 

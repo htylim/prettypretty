@@ -5,6 +5,7 @@ import type {
   PrettifyTrigger,
   PrettifierProgressEvent,
 } from '../../shared/prettifier';
+import { flattenLocalPrettifySummary } from '../../shared/prettifier';
 import type { TelemetryEventName } from '../../shared/telemetry';
 import type { WindowApi } from '../../shared/window-api';
 import {
@@ -174,11 +175,11 @@ export const usePrettifierRequestFlow = ({
       void logTelemetry('renderer.prettifier.local.result', {
         trigger,
         inputLength: nextInputText.length,
-        localDetection: localResult.localDetection,
-        localResultKind: localResult.kind,
+        localResultKind: localResult.localResult.kind,
+        ...flattenLocalPrettifySummary(localResult.localResult),
       });
 
-      if (localResult.kind === 'applied') {
+      if (localResult.localResult.kind === 'applied') {
         if (!isLatestPrettifyRequest(requestId, latestPrettifyRequestIdRef)) {
           return null;
         }
@@ -186,7 +187,7 @@ export const usePrettifierRequestFlow = ({
         return {
           status: 'applied-local',
           outputText: localResult.outputText,
-          localDetection: localResult.localDetection,
+          localResult: localResult.localResult,
           fallbackStatus: 'not-attempted',
           agentId: null,
           durationMs: getDurationMs(),
@@ -202,7 +203,7 @@ export const usePrettifierRequestFlow = ({
         return {
           status: 'passthrough-no-fallback',
           outputText: nextInputText,
-          localDetection: localResult.localDetection,
+          localResult: localResult.localResult,
           fallbackStatus: 'skipped-no-fallback',
           agentId: null,
           durationMs: getDurationMs(),
@@ -232,7 +233,7 @@ export const usePrettifierRequestFlow = ({
           return {
             status: 'passthrough-no-fallback',
             outputText: nextInputText,
-            localDetection: localResult.localDetection,
+            localResult: localResult.localResult,
             fallbackStatus: 'skipped-no-fallback',
             agentId: null,
             durationMs: getDurationMs(),
@@ -249,7 +250,7 @@ export const usePrettifierRequestFlow = ({
         return {
           status: 'passthrough-no-fallback',
           outputText: nextInputText,
-          localDetection: localResult.localDetection,
+          localResult: localResult.localResult,
           fallbackStatus: 'skipped-invalid-agent',
           agentId: effectiveFallbackAgentId,
           durationMs: getDurationMs(),
@@ -273,7 +274,7 @@ export const usePrettifierRequestFlow = ({
           return {
             status: 'passthrough-no-fallback',
             outputText: nextInputText,
-            localDetection: localResult.localDetection,
+            localResult: localResult.localResult,
             fallbackStatus: 'skipped-no-fallback',
             agentId: effectiveFallbackAgentId,
             durationMs: getDurationMs(),
@@ -291,7 +292,7 @@ export const usePrettifierRequestFlow = ({
         createCanceledResponse: () => ({
           status: 'passthrough-fallback-failed',
           outputText: nextInputText,
-          localDetection: localResult.localDetection,
+          localResult: localResult.localResult,
           fallbackStatus: 'failed-canceled',
           agentId: effectiveFallbackAgentId,
           durationMs: getDurationMs(),
@@ -326,7 +327,7 @@ export const usePrettifierRequestFlow = ({
         return {
           status: 'passthrough-fallback-failed',
           outputText: nextInputText,
-          localDetection: localResult.localDetection,
+          localResult: localResult.localResult,
           fallbackStatus: 'failed-spawn-error',
           agentId: effectiveFallbackAgentId,
           durationMs: getDurationMs(),

@@ -114,13 +114,16 @@
   - consume from renderer
 - Prettifier or fallback behavior
   - local/shared parsing lives in `src/shared/localPrettifier.ts`
-  - shared text-format helpers such as GraphQL formatting live in `src/shared/*`
+  - shared text-format helpers such as GraphQL formatting and JSON-like token-preserving formatting live in `src/shared/*`
   - shared indentation remapping lives in `src/shared/reindentText.ts`
   - use Prettier only as a formatter backend for formats where the product wants to preserve the source language as that language, and where Prettier is the safest formatter for the job
   - the current approved runtime Prettier use is GraphQL formatting in `src/shared/graphqlPrettifier.ts`
   - do not route JSON-family normalization through Prettier when the product behavior is to canonicalize input into JSON output rather than preserve the original source dialect
+  - keep JSON-like local formatting token-preserving when canonical parsing fails: it may normalize layout, but it must not invent or delete non-whitespace tokens
   - do not treat Prettier as the app's format detector or prettify orchestrator; format detection, malformed/unsupported classification, and fallback routing stay owned by the shared prettifier flow
-  - keep the malformed-vs-text boundary in shared local detection: plain unrecognized text is a local applied no-op (`text`), and `malformed` is only for recognized supported local syntax that fails parsing
+  - keep the malformed-vs-text boundary in shared local detection: plain unrecognized text is a local applied no-op (`text`), and `malformed` is only for recognized supported local syntax that fails both canonical and token-preserving handling
+  - keep shared local-result metadata explicit with `family`, `mode`, `variant`, and `reason` so canonical JSON-like output, token-preserving JSON-like output, GraphQL output, and failures stay observable in telemetry and renderer rules
+  - keep renderer output-language overrides derived from shared local-result semantics rather than re-detecting syntax from invalid prettified text
   - renderer prettifier session state decides whether an already-prettified output may be reindented by remapping leading whitespace or must stay fixed until the next real prettify run
   - main runtime behavior lives in `src/main/prettifier/*`
   - renderer session/domain behavior lives in `src/renderer/app/session/prettifierSessionDomain.ts`

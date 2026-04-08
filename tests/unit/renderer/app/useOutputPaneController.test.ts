@@ -2,6 +2,7 @@ import { act, render } from '@testing-library/react';
 import { createElement, forwardRef, useImperativeHandle } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OutputEditorHandle } from '../../../../src/renderer/components/OutputEditor';
+import type { OutputLanguageId } from '../../../../src/renderer/output/detectOutputLanguage';
 import { createInitialDocumentSessionState } from '../../../../src/renderer/app/session/documentSessionDomain';
 import { useDocumentSession } from '../../../../src/renderer/app/session/useDocumentSession';
 import { useOutputPaneController } from '../../../../src/renderer/app/useOutputPaneController';
@@ -13,10 +14,14 @@ type HarnessHandle = {
 type HarnessProps = {
   outputText: string;
   paneMode: 'input' | 'output';
+  rootOutputLanguageOverride?: OutputLanguageId | null;
 };
 
 const OutputPaneHarness = forwardRef<HarnessHandle, HarnessProps>((props, ref) => {
-  const controller = useOutputPaneController(props);
+  const controller = useOutputPaneController({
+    rootOutputLanguageOverride: null,
+    ...props,
+  });
 
   useImperativeHandle(
     ref,
@@ -64,6 +69,37 @@ describe('useOutputPaneController', () => {
     );
     expect(ref.current?.getController().leftVisiblePaneIndex).toBe(0);
     expect(ref.current?.getController().hasDerivedOutputPane).toBe(false);
+  });
+
+  it('preserves explicit root and child language overrides for invalid structured output', () => {
+    const ref = { current: null as HarnessHandle | null };
+    render(
+      createElement(OutputPaneHarness, {
+        outputText: '{\n  "root": 1,\n  "tail"',
+        rootOutputLanguageOverride: 'json',
+        paneMode: 'output',
+        ref,
+      }),
+    );
+
+    expect(ref.current?.getController().outputPanes[0]).toMatchObject({
+      paneDocumentLanguage: 'json',
+      languageOverride: 'json',
+    });
+
+    act(() => {
+      ref.current?.getController().onOpenOutputPane('output-root-pane', {
+        kind: 'independent-text',
+        value: '{\n  "nested": 1,\n  "tail"',
+        languageOverride: 'json',
+      });
+    });
+
+    expect(ref.current?.getController().outputPanes[1]).toMatchObject({
+      paneDocumentLanguage: 'json',
+      languageOverride: 'json',
+      value: '{\n  "nested": 1,\n  "tail"',
+    });
   });
 
   it('opens independent output panes and replaces descendant content from the reopened parent', () => {

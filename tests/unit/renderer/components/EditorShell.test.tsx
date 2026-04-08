@@ -53,6 +53,7 @@ const createOutputPanes = (): OutputPaneViewModel[] => [
     documentId: 'doc-1',
     viewStateKey: 'output-root-pane:doc-1',
     value: '{"a":1}',
+    paneDocumentLanguage: 'json',
     viewRange: null,
     testId: 'output-editor',
   },
@@ -225,6 +226,7 @@ describe('EditorShell', () => {
               documentId: 'doc-1',
               viewStateKey: 'output-pane-1:selection-1',
               value: '{"a":1}',
+              paneDocumentLanguage: 'json',
               viewRange: {
                 startLineNumber: 4,
                 startColumn: 1,

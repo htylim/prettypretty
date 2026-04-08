@@ -85,7 +85,12 @@ describe('usePrettifierRequestFlow', () => {
       expect(response).toEqual({
         status: 'applied-local',
         outputText: '{\n  "a": 1\n}',
-        localDetection: 'json',
+        localResult: {
+          kind: 'applied',
+          family: 'json-like',
+          mode: 'canonical',
+          variant: 'json',
+        },
         fallbackStatus: 'not-attempted',
         agentId: null,
         durationMs: expect.any(Number),
@@ -115,7 +120,12 @@ describe('usePrettifierRequestFlow', () => {
       expect(response).toEqual({
         status: 'applied-local',
         outputText: largePlainText,
-        localDetection: 'text',
+        localResult: {
+          kind: 'applied',
+          family: 'text',
+          mode: 'passthrough',
+          variant: 'text',
+        },
         fallbackStatus: 'not-attempted',
         agentId: null,
         durationMs: expect.any(Number),
@@ -162,7 +172,11 @@ describe('usePrettifierRequestFlow', () => {
     deferred.resolve({
       status: 'applied-fallback',
       outputText: '{\n  "ok": true\n}',
-      localDetection: 'malformed',
+      localResult: {
+        kind: 'failed',
+        family: 'json-like',
+        reason: 'malformed',
+      },
       fallbackStatus: 'applied',
       agentId: 'codex',
       durationMs: 9,
@@ -171,7 +185,11 @@ describe('usePrettifierRequestFlow', () => {
     await expect(requestPromise).resolves.toEqual({
       status: 'passthrough-fallback-failed',
       outputText: '{bad',
-      localDetection: 'malformed',
+      localResult: {
+        kind: 'failed',
+        family: 'json-like',
+        reason: 'malformed',
+      },
       fallbackStatus: 'failed-canceled',
       agentId: 'codex',
       durationMs: expect.any(Number),
@@ -200,7 +218,12 @@ describe('usePrettifierRequestFlow', () => {
       expect(response).toEqual({
         status: 'applied-local',
         outputText: '{\n  "a": 1\n}',
-        localDetection: 'json',
+        localResult: {
+          kind: 'applied',
+          family: 'json-like',
+          mode: 'canonical',
+          variant: 'json',
+        },
         fallbackStatus: 'not-attempted',
         agentId: null,
         durationMs: expect.any(Number),
@@ -213,7 +236,11 @@ describe('usePrettifierRequestFlow', () => {
     deferred.resolve({
       status: 'applied-fallback',
       outputText: '{\n  "ok": true\n}',
-      localDetection: 'malformed',
+      localResult: {
+        kind: 'failed',
+        family: 'json-like',
+        reason: 'malformed',
+      },
       fallbackStatus: 'applied',
       agentId: 'codex',
       durationMs: 9,

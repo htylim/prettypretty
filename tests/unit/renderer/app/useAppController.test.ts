@@ -91,6 +91,7 @@ describe('useAppController', () => {
 
     usePrettifierFlowMock.mockReturnValue({
       outputText: '{\n  "hello": true\n}',
+      outputLanguageOverride: null,
       isLlmRunning: false,
       fallbackWaitState: null,
       ingestRejectionPrompt: null,
@@ -98,7 +99,12 @@ describe('useAppController', () => {
       runPrettifierRequest: vi.fn().mockResolvedValue({
         status: 'applied-local',
         outputText: '{\n  "query": "formatted"\n}',
-        localDetection: 'json',
+        localResult: {
+          kind: 'applied',
+          family: 'json-like',
+          mode: 'canonical',
+          variant: 'json',
+        },
         fallbackStatus: 'not-attempted',
         agentId: null,
         durationMs: 1,
@@ -302,6 +308,7 @@ describe('useAppController', () => {
           hasSelection: false,
         },
         '{\n  "query": "{\\n  field\\n}"\n}',
+        'json',
       );
     });
 
@@ -320,6 +327,7 @@ describe('useAppController', () => {
           hasSelection: true,
         },
         '{\n  "query": "{\\n  field\\n}"\n}',
+        'json',
       );
     });
 
@@ -336,6 +344,7 @@ describe('useAppController', () => {
           hasSelection: false,
         },
         '{\n  "query": "{\\n  field\\n}"\n}',
+        'json',
       );
     });
 
@@ -399,6 +408,7 @@ describe('useAppController', () => {
           hasSelection: false,
         },
         '{\n  "query": "{\\n  field\\n}"\n}',
+        'json',
       );
     });
 
@@ -437,6 +447,7 @@ describe('useAppController', () => {
           hasSelection: false,
         },
         yamlText,
+        'yaml',
       );
     });
 
@@ -449,7 +460,12 @@ describe('useAppController', () => {
       runPrettifierRequest.mockResolvedValueOnce({
         status: 'applied-local',
         outputText: '{\n  "leaf": 1\n}',
-        localDetection: 'json',
+        localResult: {
+          kind: 'applied',
+          family: 'json-like',
+          mode: 'canonical',
+          variant: 'json',
+        },
         fallbackStatus: 'not-attempted',
         agentId: null,
         durationMs: 1,
@@ -486,6 +502,7 @@ describe('useAppController', () => {
           hasSelection: false,
         },
         tsText,
+        'typescript',
       );
     });
 
@@ -498,7 +515,12 @@ describe('useAppController', () => {
       runPrettifierRequest.mockResolvedValueOnce({
         status: 'applied-local',
         outputText: '{\n  "leaf": 1\n}',
-        localDetection: 'json',
+        localResult: {
+          kind: 'applied',
+          family: 'json-like',
+          mode: 'canonical',
+          variant: 'json',
+        },
         fallbackStatus: 'not-attempted',
         agentId: null,
         durationMs: 1,
@@ -551,6 +573,7 @@ describe('useAppController', () => {
           hasSelection: false,
         },
         jsonText,
+        'json',
       );
     });
 
@@ -563,7 +586,12 @@ describe('useAppController', () => {
       runPrettifierRequest.mockResolvedValueOnce({
         status: 'applied-local',
         outputText: decodedQuery,
-        localDetection: 'graphql',
+        localResult: {
+          kind: 'applied',
+          family: 'graphql',
+          mode: 'canonical',
+          variant: 'graphql',
+        },
         fallbackStatus: 'not-attempted',
         agentId: null,
         durationMs: 1,
@@ -600,6 +628,7 @@ describe('useAppController', () => {
           hasSelection: false,
         },
         graphqlText,
+        'graphql',
       );
     });
 
@@ -612,7 +641,12 @@ describe('useAppController', () => {
       runPrettifierRequest.mockResolvedValueOnce({
         status: 'applied-local',
         outputText: '{\n  "leaf": 1\n}',
-        localDetection: 'json',
+        localResult: {
+          kind: 'applied',
+          family: 'json-like',
+          mode: 'canonical',
+          variant: 'json',
+        },
         fallbackStatus: 'not-attempted',
         agentId: null,
         durationMs: 1,
@@ -649,6 +683,7 @@ describe('useAppController', () => {
           hasSelection: false,
         },
         xmlText,
+        'xml',
       );
     });
 
@@ -661,7 +696,12 @@ describe('useAppController', () => {
       runPrettifierRequest.mockResolvedValueOnce({
         status: 'applied-local',
         outputText: '{\n  "leaf": 1\n}',
-        localDetection: 'json',
+        localResult: {
+          kind: 'applied',
+          family: 'json-like',
+          mode: 'canonical',
+          variant: 'json',
+        },
         fallbackStatus: 'not-attempted',
         agentId: null,
         durationMs: 1,
@@ -698,6 +738,7 @@ describe('useAppController', () => {
           hasSelection: false,
         },
         sqlText,
+        'sql',
       );
     });
 
@@ -710,7 +751,12 @@ describe('useAppController', () => {
       runPrettifierRequest.mockResolvedValueOnce({
         status: 'applied-local',
         outputText: '{\n  "leaf": 1\n}',
-        localDetection: 'json',
+        localResult: {
+          kind: 'applied',
+          family: 'json-like',
+          mode: 'canonical',
+          variant: 'json',
+        },
         fallbackStatus: 'not-attempted',
         agentId: null,
         durationMs: 1,

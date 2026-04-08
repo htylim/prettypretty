@@ -36,6 +36,7 @@ type OutputPaneFocusRequest = {
 type UseOutputPaneControllerOptions = {
   paneMode: PaneMode;
   outputText: string;
+  rootOutputLanguageOverride: OutputLanguageId | null;
 };
 
 export type UseOutputPaneControllerResult = {
@@ -73,6 +74,7 @@ export type UseOutputPaneControllerResult = {
 export const useOutputPaneController = ({
   paneMode,
   outputText,
+  rootOutputLanguageOverride,
 }: UseOutputPaneControllerOptions): UseOutputPaneControllerResult => {
   const outputPaneHandlesRef = useRef(new Map<string, OutputEditorHandle>());
   const nextFocusRequestSequenceRef = useRef(1);
@@ -125,7 +127,7 @@ export const useOutputPaneController = ({
 
   const outputPanes = useMemo<OutputPaneViewModel[]>(() => {
     const languageByPaneId = new Map<string, OutputLanguageId>();
-    const rootLanguage = detectOutputLanguage(outputText);
+    const rootLanguage = rootOutputLanguageOverride ?? detectOutputLanguage(outputText);
     languageByPaneId.set(ROOT_OUTPUT_PANE_ID, rootLanguage);
 
     const rootPane: OutputPaneViewModel = {
@@ -133,7 +135,8 @@ export const useOutputPaneController = ({
       documentId: outputDocumentId,
       viewStateKey: getRootOutputPaneViewStateKey(outputDocumentId),
       value: outputText,
-      languageOverride: null,
+      paneDocumentLanguage: rootLanguage,
+      languageOverride: rootOutputLanguageOverride,
       activeExtractedSourceRange: getDirectChildExtractedSourceRange(
         outputPaneChainState,
         ROOT_OUTPUT_PANE_ID,
@@ -150,7 +153,9 @@ export const useOutputPaneController = ({
         const paneLanguage =
           pane.content.kind === 'extracted-source'
             ? parentLanguage
-            : detectOutputLanguage(pane.content.value);
+            : pane.content.kind === 'independent-text'
+              ? (pane.content.languageOverride ?? detectOutputLanguage(pane.content.value))
+              : detectOutputLanguage(pane.content.value);
         languageByPaneId.set(pane.paneId, paneLanguage);
 
         return {
@@ -158,7 +163,13 @@ export const useOutputPaneController = ({
           documentId: pane.content.documentId,
           viewStateKey: pane.viewStateKey,
           value: pane.content.value,
-          languageOverride: pane.content.kind === 'extracted-source' ? paneLanguage : null,
+          paneDocumentLanguage: paneLanguage,
+          languageOverride:
+            pane.content.kind === 'extracted-source'
+              ? paneLanguage
+              : pane.content.kind === 'independent-text'
+                ? (pane.content.languageOverride ?? null)
+                : null,
           activeExtractedSourceRange: getDirectChildExtractedSourceRange(
             outputPaneChainState,
             pane.paneId,
@@ -169,7 +180,7 @@ export const useOutputPaneController = ({
         };
       }),
     ];
-  }, [outputDocumentId, outputPaneChainState, outputText]);
+  }, [outputDocumentId, outputPaneChainState, outputText, rootOutputLanguageOverride]);
 
   const registerOutputPaneHandle = useCallback(
     (paneId: string, handle: OutputEditorHandle | null): void => {

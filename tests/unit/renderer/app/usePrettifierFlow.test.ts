@@ -16,6 +16,7 @@ import {
   selectIngestRejectionPrompt,
   selectIngestNotice,
   selectInputText,
+  selectOutputLanguageOverride,
   selectPaneMode,
   selectOutputText,
 } from '../../../../src/renderer/app/session/documentSessionSelectors';
@@ -50,7 +51,11 @@ const createPrettifierResponse = (
 ): PrettifyRunResponse => ({
   status: 'applied-fallback',
   outputText: '{\n  "fallback": true\n}',
-  localDetection: 'malformed',
+  localResult: {
+    kind: 'failed',
+    family: 'json-like',
+    reason: 'malformed',
+  },
   fallbackStatus: 'applied',
   agentId: 'codex',
   durationMs: 5,
@@ -78,6 +83,7 @@ type HarnessHandle = {
   getPaneMode: () => PaneMode;
   getInputText: () => string;
   getOutputText: () => string;
+  getOutputLanguageOverride: () => ReturnType<typeof selectOutputLanguageOverride>;
   getIngestNotice: () => string | null;
   getIngestRejectionPrompt: () => IngestRejectionPrompt | null;
   getIsLlmRunning: () => boolean;
@@ -117,6 +123,7 @@ const PrettifierHarness = forwardRef<HarnessHandle, HarnessProps>(
     const paneMode = useDocumentSession(selectPaneMode);
     const inputText = useDocumentSession(selectInputText);
     const outputText = useDocumentSession(selectOutputText);
+    const outputLanguageOverride = useDocumentSession(selectOutputLanguageOverride);
     const ingestNotice = useDocumentSession(selectIngestNotice);
     const ingestRejectionPrompt = useDocumentSession(selectIngestRejectionPrompt);
     const fallbackWaitState = useDocumentSession(selectFallbackWaitState);
@@ -142,6 +149,7 @@ const PrettifierHarness = forwardRef<HarnessHandle, HarnessProps>(
         getPaneMode: () => paneMode,
         getInputText: () => inputText,
         getOutputText: () => outputText,
+        getOutputLanguageOverride: () => outputLanguageOverride,
         getIngestNotice: () => ingestNotice,
         getIngestRejectionPrompt: () => ingestRejectionPrompt,
         getIsLlmRunning: () => flow.isLlmRunning,
@@ -154,6 +162,7 @@ const PrettifierHarness = forwardRef<HarnessHandle, HarnessProps>(
         ingestNotice,
         ingestRejectionPrompt,
         inputText,
+        outputLanguageOverride,
         outputText,
         paneMode,
       ],
@@ -345,6 +354,50 @@ describe('usePrettifierFlow', () => {
     });
     expect(ref.current?.getFallbackWaitState()).toBeNull();
     expect(ref.current?.getOutputText()).toContain('"done": true');
+  });
+
+  it('clears the root output language override as soon as a new prettify run starts', async () => {
+    const deferred = createDeferred<PrettifyRunResponse>();
+    const getAll = vi.fn().mockResolvedValue(createPreferences());
+    const run = vi.fn().mockReturnValue(deferred.promise);
+    const telemetry = vi.fn().mockResolvedValue(undefined);
+
+    useDocumentSession.setState({
+      ...createInitialDocumentSessionState(),
+      paneMode: 'output',
+      outputText: '{\n  "existing": true\n}',
+      outputLanguageOverride: 'json',
+      lastPrettifiedInput: '{"existing":true}',
+    });
+
+    const api: WindowApi = {
+      dialog: { openFile: vi.fn() },
+      file: { save: vi.fn() },
+      clipboard: { copy: vi.fn() },
+      app: createAppApi(),
+      logs: { getHistory: vi.fn(), onLine: vi.fn() },
+      preferences: { getAll, update: vi.fn(), reset: vi.fn() },
+      prettifier: { run, cancel: vi.fn().mockResolvedValue(true), onProgress: vi.fn() },
+      telemetry: { log: vi.fn() },
+    };
+    const ref = { current: null as HarnessHandle | null };
+
+    render(createElement(PrettifierHarness, { api, logTelemetry: telemetry, ref }));
+
+    act(() => {
+      void ref.current?.runPrettifier('{bad', 'switch-output', {
+        switchToOutputOnComplete: false,
+      });
+    });
+
+    expect(ref.current?.getOutputText()).toBe('{bad');
+    expect(ref.current?.getOutputLanguageOverride()).toBeNull();
+
+    deferred.resolve(createPrettifierResponse({ outputText: '{\n  "done": true\n}' }));
+
+    await waitFor(() => {
+      expect(run).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('treats non-remappable prettified output with a stale indent as needing a fresh prettify', () => {

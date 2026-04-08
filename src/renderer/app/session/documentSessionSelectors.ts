@@ -36,6 +36,12 @@ export const selectOutputText = (
   return state.outputText;
 };
 
+export const selectOutputLanguageOverride = (
+  state: DocumentSessionState,
+): DocumentSessionState['outputLanguageOverride'] => {
+  return state.outputLanguageOverride;
+};
+
 export const selectOutputFormattingState = (
   state: DocumentSessionState,
 ): DocumentSessionState['outputFormattingState'] => {

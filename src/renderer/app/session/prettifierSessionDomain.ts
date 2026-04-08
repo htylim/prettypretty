@@ -1,7 +1,8 @@
 import type { IndentSize } from '../../../shared/preferences';
-import type { LocalDetection, PrettifyRunStatus } from '../../../shared/prettifier';
+import type { LocalPrettifySummary, PrettifyRunStatus } from '../../../shared/prettifier';
 import { reindentText } from '../../../shared/reindentText';
 import type { PaneMode } from '../../../shared/types';
+import type { OutputLanguageId } from '../../output/detectOutputLanguage';
 import { detectFallbackFormatLabel } from '../../prettifier/detectFallbackFormat';
 import type { FallbackWaitState } from '../appDomain';
 
@@ -16,6 +17,7 @@ export type OutputFormattingState = {
 export type OutputReindentSnapshot = {
   outputText: string;
   formattingState: OutputFormattingState;
+  outputLanguageOverride: OutputLanguageId | null;
 };
 
 export type FallbackModalState =
@@ -29,6 +31,7 @@ export type FallbackModalState =
 
 export type PrettifierSessionState = {
   outputText: string;
+  outputLanguageOverride: OutputLanguageId | null;
   outputFormattingState: OutputFormattingState;
   fallbackWaitState: FallbackWaitState | null;
   fallbackModalState: FallbackModalState | null;
@@ -48,6 +51,7 @@ export const createEmptyOutputFormattingState = (): OutputFormattingState => ({
 
 export const createInitialPrettifierSessionState = (): PrettifierSessionState => ({
   outputText: '',
+  outputLanguageOverride: null,
   outputFormattingState: createEmptyOutputFormattingState(),
   fallbackWaitState: null,
   fallbackModalState: null,
@@ -57,6 +61,7 @@ export const createInitialPrettifierSessionState = (): PrettifierSessionState =>
 export const resetPrettifierSessionState = <T extends PrettifierSessionState>(state: T): T => ({
   ...state,
   outputText: '',
+  outputLanguageOverride: null,
   outputFormattingState: createEmptyOutputFormattingState(),
   fallbackWaitState: null,
   fallbackModalState: null,
@@ -78,18 +83,13 @@ export const isAppliedPrettifyStatus = (status: PrettifyRunStatus): boolean => {
 
 const canRemapLeadingWhitespace = (
   status: PrettifyRunStatus,
-  localDetection: LocalDetection,
+  localResult: LocalPrettifySummary,
 ): boolean => {
   if (status !== 'applied-local') {
     return false;
   }
 
-  return (
-    localDetection === 'json' ||
-    localDetection === 'ndjson' ||
-    localDetection === 'json5' ||
-    localDetection === 'python-like'
-  );
+  return localResult.kind === 'applied' && localResult.family === 'json-like';
 };
 
 const createPrettifiedOutputFormattingState = (
@@ -126,6 +126,7 @@ export const applyPassthroughOutput = (
 ): PrettifierSessionState => ({
   ...state,
   outputText: nextInputText,
+  outputLanguageOverride: null,
   outputFormattingState: createEmptyOutputFormattingState(),
   fallbackWaitState: null,
   lastPrettifiedInput: nextInputText,
@@ -136,13 +137,15 @@ export const applyLocalPrettifyOutput = (
   inputText: string,
   prettifiedText: string,
   indentSize: IndentSize,
-  localDetection: LocalDetection,
+  localResult: LocalPrettifySummary,
+  outputLanguageOverride: OutputLanguageId | null,
 ): PrettifierSessionState => ({
   ...state,
   outputText: prettifiedText,
+  outputLanguageOverride,
   outputFormattingState: createPrettifiedOutputFormattingState(
     indentSize,
-    canRemapLeadingWhitespace('applied-local', localDetection) ? 'leading-whitespace' : 'none',
+    canRemapLeadingWhitespace('applied-local', localResult) ? 'leading-whitespace' : 'none',
   ),
   fallbackWaitState: null,
   lastPrettifiedInput: inputText,
@@ -157,6 +160,7 @@ export const applyRemotePrettifyOutput = (
 ): PrettifierSessionState => ({
   ...state,
   outputText,
+  outputLanguageOverride: null,
   outputFormattingState: isAppliedPrettifyStatus(status)
     ? createPrettifiedOutputFormattingState(indentSize, 'none')
     : createEmptyOutputFormattingState(),
@@ -207,6 +211,7 @@ export const createOutputReindentTransition = (
     snapshot: {
       outputText: state.outputText,
       formattingState: { ...currentFormatting },
+      outputLanguageOverride: state.outputLanguageOverride,
     },
     nextState: {
       ...state,

@@ -11,11 +11,12 @@ import type {
   IngestSource,
 } from './appDomain';
 import { reportRendererError } from './reportRendererError';
-import { detectOutputLanguage } from '../output/detectOutputLanguage';
+import type { OutputLanguageId } from '../output/detectOutputLanguage';
 import {
   resolveContextPrettifyTarget,
   type ContextPrettifyTarget,
 } from '../output/contextPrettifyTarget';
+import { getLocalResultOutputLanguageOverride } from '../prettifier/localResultOutputLanguage';
 import {
   selectIndentSize,
   selectIngestNotice,
@@ -111,6 +112,7 @@ export type UseAppControllerResult = {
       hasSelection: boolean;
     },
     value: string,
+    paneDocumentLanguage: OutputLanguageId,
   ) => void;
   onDismissOutputContextMenu: () => void;
   onTriggerOutputContextPrettify: () => void;
@@ -180,6 +182,7 @@ export const useAppController = ({
 
   const {
     outputText,
+    outputLanguageOverride,
     isLlmRunning,
     fallbackWaitState,
     ingestRejectionPrompt: activeIngestRejectionPrompt,
@@ -225,6 +228,7 @@ export const useAppController = ({
   } = useOutputPaneController({
     paneMode,
     outputText,
+    rootOutputLanguageOverride: outputLanguageOverride,
   });
   const [outputContextMenuState, setOutputContextMenuState] =
     useState<OutputContextMenuState | null>(null);
@@ -415,8 +419,8 @@ export const useAppController = ({
         hasSelection: boolean;
       },
       value: string,
+      paneDocumentLanguage: OutputLanguageId,
     ): void => {
-      const paneDocumentLanguage = detectOutputLanguage(value);
       const target =
         request.hasSelection || !request.isContentHit || request.position === null
           ? null
@@ -451,6 +455,10 @@ export const useAppController = ({
     onOpenOutputPane(contextMenuState.paneId, {
       kind: 'independent-text',
       value: response.outputText,
+      languageOverride: getLocalResultOutputLanguageOverride(
+        response.localResult,
+        response.outputText,
+      ),
     });
   }, [dismissOutputContextMenu, onOpenOutputPane, outputContextMenuState, runPrettifierRequest]);
 

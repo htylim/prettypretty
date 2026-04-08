@@ -75,11 +75,13 @@
 - Local parser runs first.
 - Supported local formats:
   - JSON
+  - JSON-like token-preserving formatting for brace/bracket-delimited malformed input when the app can improve layout with whitespace only while preserving the original non-whitespace token stream
   - NDJSON
   - JSON5 / JS or TS object-literal style input
   - Python-like dict literals
   - GraphQL documents
 - If local parsing succeeds, output updates immediately.
+- For JSON-like token-preserving local success, the output may stay invalid JSON. The local formatter only improves layout; it does not repair missing punctuation or truncated tails.
 - Unrecognized plain text is treated as a local no-op (`text`) and does not trigger fallback.
 - If local parsing fails and fallback is available, renderer calls main-process fallback execution.
 - Pane-targeted prettify support is phase-shipped by syntax family; shipped support covers JSON/NDJSON, YAML, JavaScript/TypeScript string literals, GraphQL string values, XML attribute/text payloads, and SQL quoted string literals.
@@ -99,7 +101,7 @@
 ## Output Behavior
 
 - Output mode shows line numbers and a minimap.
-- Syntax highlighting is inferred from the rendered text.
+- Syntax highlighting is inferred from the rendered text unless local prettify returns an explicit language override for structured output.
 - Output uses inline fold controls instead of Monaco gutter fold controls.
 - Holding literal `Ctrl` changes the inline fold action to direct-child expand/collapse.
 - Holding `Shift` changes the inline fold action to source-block pane open/close.

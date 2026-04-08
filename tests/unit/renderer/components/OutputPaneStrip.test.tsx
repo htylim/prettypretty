@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi, beforeEach, afterAll, beforeAll } from 'vitest';
 import { OutputPaneStrip } from '../../../../src/renderer/components/OutputPaneStrip';
+import type { OutputPaneViewModel } from '../../../../src/renderer/components/outputPaneTypes';
 
 const focusMocksByTestId = new Map<string, ReturnType<typeof vi.fn>>();
 let nextAnimationFrameId = 1;
@@ -92,17 +93,47 @@ vi.mock('../../../../src/renderer/components/OutputEditor', async () => {
   };
 });
 
-const createPanes = () =>
-  [
-    {
-      paneId: 'output-root-pane',
-      documentId: 'root-doc',
-      viewStateKey: 'output-root-pane:root-doc',
-      value: '{\n  "root": true\n}',
-      viewRange: null,
-      testId: 'output-editor',
-    },
-  ] as const;
+const createRootPane = (): OutputPaneViewModel => ({
+  paneId: 'output-root-pane',
+  documentId: 'root-doc',
+  viewStateKey: 'output-root-pane:root-doc',
+  value: '{\n  "root": true\n}',
+  viewRange: null,
+  testId: 'output-editor',
+  paneDocumentLanguage: 'json',
+});
+
+const createSelectionPane = (
+  paneId: string,
+  value: string,
+  startLineNumber: number,
+  endLineNumber: number,
+): OutputPaneViewModel => ({
+  paneId,
+  documentId: 'root-doc',
+  viewStateKey: `${paneId}:selection-1`,
+  value,
+  viewRange: {
+    startLineNumber,
+    startColumn: 1,
+    endLineNumber,
+    endColumn: 2,
+  },
+  testId: `output-editor-pane-${paneId.slice(-1)}`,
+  paneDocumentLanguage: 'json',
+});
+
+const createIndependentPane = (paneId: string, value: string): OutputPaneViewModel => ({
+  paneId,
+  documentId: `${paneId}:document-1`,
+  viewStateKey: `${paneId}:content-1`,
+  value,
+  viewRange: null,
+  testId: `output-editor-pane-${paneId.slice(-1)}`,
+  paneDocumentLanguage: 'json',
+});
+
+const createPanes = () => [createRootPane()] as const;
 
 describe('OutputPaneStrip', () => {
   const paneItemPattern = /^output-pane-(?!strip)/u;
@@ -154,32 +185,8 @@ describe('OutputPaneStrip', () => {
         onPaneHandleChange={vi.fn()}
         panes={[
           ...createPanes(),
-          {
-            paneId: 'output-pane-1',
-            documentId: 'root-doc',
-            viewStateKey: 'output-pane-1:selection-1',
-            value: '{\n  "root": true,\n  "leaf": 1\n}',
-            viewRange: {
-              startLineNumber: 3,
-              startColumn: 1,
-              endLineNumber: 5,
-              endColumn: 2,
-            },
-            testId: 'output-editor-pane-1',
-          },
-          {
-            paneId: 'output-pane-2',
-            documentId: 'root-doc',
-            viewStateKey: 'output-pane-2:selection-1',
-            value: '{\n  "root": true,\n  "grandchild": true\n}',
-            viewRange: {
-              startLineNumber: 7,
-              startColumn: 1,
-              endLineNumber: 9,
-              endColumn: 2,
-            },
-            testId: 'output-editor-pane-2',
-          },
+          createSelectionPane('output-pane-1', '{\n  "root": true,\n  "leaf": 1\n}', 3, 5),
+          createSelectionPane('output-pane-2', '{\n  "root": true,\n  "grandchild": true\n}', 7, 9),
         ]}
         themeMode="dark"
       />,
@@ -210,17 +217,7 @@ describe('OutputPaneStrip', () => {
         onPaneFocus={vi.fn()}
         onPaneContextMenu={vi.fn()}
         onPaneHandleChange={vi.fn()}
-        panes={[
-          ...createPanes(),
-          {
-            paneId: 'output-pane-1',
-            documentId: 'output-pane-1:document-1',
-            viewStateKey: 'output-pane-1:content-1',
-            value: '{\n  "pretty": true\n}',
-            viewRange: null,
-            testId: 'output-editor-pane-1',
-          },
-        ]}
+        panes={[...createPanes(), createIndependentPane('output-pane-1', '{\n  "pretty": true\n}')]}
         themeMode="dark"
       />,
     );
@@ -244,32 +241,8 @@ describe('OutputPaneStrip', () => {
         onPaneHandleChange={vi.fn()}
         panes={[
           ...createPanes(),
-          {
-            paneId: 'output-pane-1',
-            documentId: 'root-doc',
-            viewStateKey: 'output-pane-1:selection-1',
-            value: '{\n  "first": true\n}',
-            viewRange: {
-              startLineNumber: 2,
-              startColumn: 1,
-              endLineNumber: 4,
-              endColumn: 2,
-            },
-            testId: 'output-editor-pane-1',
-          },
-          {
-            paneId: 'output-pane-2',
-            documentId: 'root-doc',
-            viewStateKey: 'output-pane-2:selection-1',
-            value: '{\n  "second": true\n}',
-            viewRange: {
-              startLineNumber: 5,
-              startColumn: 1,
-              endLineNumber: 7,
-              endColumn: 2,
-            },
-            testId: 'output-editor-pane-2',
-          },
+          createSelectionPane('output-pane-1', '{\n  "first": true\n}', 2, 4),
+          createSelectionPane('output-pane-2', '{\n  "second": true\n}', 5, 7),
         ]}
         themeMode="light"
       />,
@@ -289,32 +262,8 @@ describe('OutputPaneStrip', () => {
         onPaneHandleChange={vi.fn()}
         panes={[
           ...createPanes(),
-          {
-            paneId: 'output-pane-1',
-            documentId: 'root-doc',
-            viewStateKey: 'output-pane-1:selection-1',
-            value: '{\n  "first": true\n}',
-            viewRange: {
-              startLineNumber: 2,
-              startColumn: 1,
-              endLineNumber: 4,
-              endColumn: 2,
-            },
-            testId: 'output-editor-pane-1',
-          },
-          {
-            paneId: 'output-pane-2',
-            documentId: 'root-doc',
-            viewStateKey: 'output-pane-2:selection-1',
-            value: '{\n  "second": true\n}',
-            viewRange: {
-              startLineNumber: 5,
-              startColumn: 1,
-              endLineNumber: 7,
-              endColumn: 2,
-            },
-            testId: 'output-editor-pane-2',
-          },
+          createSelectionPane('output-pane-1', '{\n  "first": true\n}', 2, 4),
+          createSelectionPane('output-pane-2', '{\n  "second": true\n}', 5, 7),
         ]}
         themeMode="light"
       />,
@@ -343,32 +292,8 @@ describe('OutputPaneStrip', () => {
   it('waits for the pane strip to reach the requested viewport before focusing the target pane', () => {
     const panes = [
       ...createPanes(),
-      {
-        paneId: 'output-pane-1',
-        documentId: 'root-doc',
-        viewStateKey: 'output-pane-1:selection-1',
-        value: '{\n  "first": true\n}',
-        viewRange: {
-          startLineNumber: 2,
-          startColumn: 1,
-          endLineNumber: 4,
-          endColumn: 2,
-        },
-        testId: 'output-editor-pane-1',
-      },
-      {
-        paneId: 'output-pane-2',
-        documentId: 'root-doc',
-        viewStateKey: 'output-pane-2:selection-1',
-        value: '{\n  "second": true\n}',
-        viewRange: {
-          startLineNumber: 5,
-          startColumn: 1,
-          endLineNumber: 7,
-          endColumn: 2,
-        },
-        testId: 'output-editor-pane-2',
-      },
+      createSelectionPane('output-pane-1', '{\n  "first": true\n}', 2, 4),
+      createSelectionPane('output-pane-2', '{\n  "second": true\n}', 5, 7),
     ] as const;
     const { rerender } = render(
       <OutputPaneStrip

@@ -1,10 +1,11 @@
 import JSON5 from 'json5';
 import { prettifyGraphql } from './graphqlPrettifier';
+import { tryFormatJsonLikeTokenPreserving } from './jsonLikeTokenPreservingFormatter';
 import type { IndentSize } from './preferences';
 import type {
   LocalPrettifyAppliedResult,
   LocalPrettifyResult,
-  StructuredDataLocalDetection,
+  StructuredDataLocalVariant,
 } from './prettifier';
 
 export type { LocalPrettifyResult } from './prettifier';
@@ -179,7 +180,7 @@ export const isJsonSerializableValue = (value: unknown): boolean => {
 };
 
 type StructuredDataStrategy = {
-  detection: StructuredDataLocalDetection;
+  variant: StructuredDataLocalVariant;
   parse: (input: string) => unknown;
 };
 
@@ -261,30 +262,33 @@ const hasGraphqlMalformedSignal = (signalInput: string): boolean => {
 
 const STRUCTURED_DATA_STRATEGIES: StructuredDataStrategy[] = [
   {
-    detection: 'json',
+    variant: 'json',
     parse: (input) => JSON.parse(input) as unknown,
   },
   {
-    detection: 'ndjson',
+    variant: 'ndjson',
     parse: parseNdjson,
   },
   {
-    detection: 'json5',
+    variant: 'json5',
     parse: (input) => JSON5.parse(input) as unknown,
   },
   {
-    detection: 'python-like',
+    variant: 'python-like',
     parse: (input) => JSON5.parse(normalizePythonLiterals(input)) as unknown,
   },
 ];
 
-// JSON-family inputs share the same output contract: parse structured data,
-// reject runtime-only values, and emit normalized JSON text.
+// JSON-like inputs share the same canonical contract: parse to data, reject
+// runtime-only values, then emit normalized JSON text. If canonical parsing
+// cannot finish the job, fall through to token-preserving formatting.
 const tryApplyStructuredDataPrettifier = (
   inputText: string,
   trimmedInput: string,
   indentSize: IndentSize,
 ): LocalPrettifyResult | null => {
+  let sawUnsupportedJsonLikeValue = false;
+
   for (const strategy of STRUCTURED_DATA_STRATEGIES) {
     try {
       const parsed = strategy.parse(trimmedInput);
@@ -292,23 +296,25 @@ const tryApplyStructuredDataPrettifier = (
       if (!isStructuredValue(parsed)) {
         return {
           kind: 'applied',
-          detection: strategy.detection,
+          family: 'json-like',
+          mode: 'canonical',
+          variant: strategy.variant,
           outputText: inputText,
         };
       }
 
       if (!isJsonSerializableValue(parsed)) {
-        return {
-          kind: 'failed',
-          detection: 'unsupported',
-        };
+        sawUnsupportedJsonLikeValue = true;
+        continue;
       }
 
       return {
         kind: 'applied',
-        detection: strategy.detection,
+        family: 'json-like',
+        mode: 'canonical',
+        variant: strategy.variant,
         outputText:
-          strategy.detection === 'ndjson'
+          strategy.variant === 'ndjson'
             ? (parsed as unknown[])
                 .map((record) => JSON.stringify(record, null, indentSize))
                 .join('\n')
@@ -319,11 +325,28 @@ const tryApplyStructuredDataPrettifier = (
     }
   }
 
-  return null;
+  const tokenPreservingOutput = tryFormatJsonLikeTokenPreserving(trimmedInput, indentSize);
+  if (tokenPreservingOutput !== null) {
+    return {
+      kind: 'applied',
+      family: 'json-like',
+      mode: 'token-preserving',
+      variant: 'json-like-token-preserving',
+      outputText: tokenPreservingOutput,
+    };
+  }
+
+  return sawUnsupportedJsonLikeValue
+    ? {
+        kind: 'failed',
+        family: 'json-like',
+        reason: 'unsupported',
+      }
+    : null;
 };
 
 // GraphQL formatting is kept in a dedicated shared helper so the adapter seams
-// in renderer/main only consume a new local detection value.
+// in renderer/main only consume shared local-result metadata.
 const tryApplyGraphqlPrettifier = (
   trimmedInput: string,
   indentSize: IndentSize,
@@ -331,7 +354,9 @@ const tryApplyGraphqlPrettifier = (
   return prettifyGraphql(trimmedInput, indentSize)
     .then((outputText) => ({
       kind: 'applied' as const,
-      detection: 'graphql' as const,
+      family: 'graphql' as const,
+      mode: 'canonical' as const,
+      variant: 'graphql' as const,
       outputText,
     }))
     .catch(() => null);
@@ -358,13 +383,23 @@ const SUPPORTED_LOCAL_FORMAT_FAMILIES: readonly SupportedLocalFormatFamily[] = [
   },
 ];
 
-const hasSupportedMalformedSignal = (trimmedInput: string): boolean => {
+const getSupportedMalformedFamily = (
+  trimmedInput: string,
+): Extract<LocalPrettifyResult, { kind: 'failed' }>['family'] | null => {
   const signalInput = stripLeadingCommentsAndWhitespace(trimmedInput);
   if (!signalInput) {
-    return false;
+    return null;
   }
 
-  return SUPPORTED_LOCAL_FORMAT_FAMILIES.some((family) => family.hasMalformedSignal(signalInput));
+  if (hasStructuredDataMalformedSignal(signalInput)) {
+    return 'json-like';
+  }
+
+  if (hasGraphqlMalformedSignal(signalInput)) {
+    return 'graphql';
+  }
+
+  return null;
 };
 
 export const runLocalPrettifier = async (
@@ -376,7 +411,9 @@ export const runLocalPrettifier = async (
   if (!trimmedInput) {
     return {
       kind: 'applied',
-      detection: 'json',
+      family: 'json-like',
+      mode: 'canonical',
+      variant: 'json',
       outputText: '',
     };
   }
@@ -391,16 +428,20 @@ export const runLocalPrettifier = async (
   // Boundary rule: unsupported plain text is still a successful local no-op.
   // We only return malformed when there's a conservative signal that input
   // belongs to a supported local family but failed parse/format.
-  if (hasSupportedMalformedSignal(trimmedInput)) {
+  const malformedFamily = getSupportedMalformedFamily(trimmedInput);
+  if (malformedFamily) {
     return {
       kind: 'failed',
-      detection: 'malformed',
+      family: malformedFamily,
+      reason: 'malformed',
     };
   }
 
   return {
     kind: 'applied',
-    detection: 'text',
+    family: 'text',
+    mode: 'passthrough',
+    variant: 'text',
     outputText: inputText,
   };
 };
