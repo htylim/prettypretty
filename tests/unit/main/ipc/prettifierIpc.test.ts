@@ -61,6 +61,7 @@ describe('registerIpcHandlers prettifier channels', () => {
     getSnapshot: vi.fn().mockReturnValue(['{"event":"app.bootstrap.start"}']),
   };
   const onOpenWindow = vi.fn().mockResolvedValue(undefined);
+  const onConsumeInitialOpenFile = vi.fn().mockResolvedValue(null);
   const logger = {
     isVerboseEnabled: vi.fn(),
     info: vi.fn(),
@@ -99,6 +100,7 @@ describe('registerIpcHandlers prettifier channels', () => {
       logger,
       logStore,
       onOpenWindow,
+      onConsumeInitialOpenFile,
     });
   });
 

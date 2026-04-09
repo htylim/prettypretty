@@ -5,6 +5,9 @@
 - The app supports multiple independent document windows.
 - Each document window owns its own input/output session state.
 - A separate log window can be opened from the macOS app menu.
+- When the bundled app executable is on `PATH`, `prettypretty` opens a new empty document window.
+- When the bundled app executable is on `PATH`, `prettypretty <file>` opens a document window with that file preloaded.
+- Re-running the terminal command while the app is already open creates another document window in the existing app instance.
 
 ## Main Screen
 

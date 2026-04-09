@@ -13,6 +13,7 @@ const usePreferencesFlowMock = vi.fn();
 const useKeyboardShortcutsMock = vi.fn();
 const useMouseNavigationShortcutsMock = vi.fn();
 const openWindowMock = vi.fn();
+const consumeInitialOpenFileMock = vi.fn();
 const dialogOpenFileMock = vi.fn();
 const fileSaveMock = vi.fn();
 const clipboardCopyMock = vi.fn();
@@ -42,11 +43,15 @@ type HarnessHandle = {
 };
 
 type HarnessProps = {
+  initialOpenFile?: { path: string; content: string } | null;
   inputEditorRef: RefObject<InputEditorHandle | null>;
 };
 
 const ControllerHarness = forwardRef<HarnessHandle, HarnessProps>((props, ref) => {
-  const controller = useAppController(props);
+  const controller = useAppController({
+    initialOpenFile: props.initialOpenFile ?? null,
+    inputEditorRef: props.inputEditorRef,
+  });
 
   useImperativeHandle(
     ref,
@@ -130,6 +135,7 @@ describe('useAppController', () => {
     });
 
     openWindowMock.mockReset().mockResolvedValue(undefined);
+    consumeInitialOpenFileMock.mockReset().mockResolvedValue(null);
     dialogOpenFileMock.mockReset().mockResolvedValue(null);
     fileSaveMock.mockReset().mockResolvedValue(null);
     clipboardCopyMock.mockReset().mockResolvedValue(undefined);
@@ -157,6 +163,7 @@ describe('useAppController', () => {
         app: {
           getInfo: vi.fn(),
           openWindow: openWindowMock,
+          consumeInitialOpenFile: consumeInitialOpenFileMock,
           onResetCurrentWindow: (listener: () => void) => {
             onResetCurrentWindowListener = listener;
             return resetCurrentWindowUnsubscribeMock;
@@ -794,6 +801,48 @@ describe('useAppController', () => {
     expect(useDocumentSession.getState().ingestNotice).toBeNull();
     expect(ref.current?.getController().outputPanes).toHaveLength(1);
     expect(usePrettifierFlowMock.mock.results[0]?.value.resetPrettifierState).toHaveBeenCalled();
+  });
+
+  it('consumes an initial launch file and routes it through open-file ingestion', async () => {
+    const initialOpenFile = {
+      path: '/tmp/launch.json',
+      content: '{"launch":true}',
+    };
+    const inputEditorRef = createInputEditorRef();
+    const ref = { current: null as HarnessHandle | null };
+
+    const firstRender = render(
+      createElement(ControllerHarness, {
+        initialOpenFile,
+        inputEditorRef,
+        ref,
+      }),
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(usePrettifierFlowMock.mock.results[0]?.value.resetPrettifierState).toHaveBeenCalled();
+    expect(usePrettifierFlowMock.mock.results[0]?.value.ingestInputText).toHaveBeenCalledWith(
+      '{"launch":true}',
+      'open-file',
+    );
+
+    firstRender.unmount();
+    render(
+      createElement(ControllerHarness, {
+        initialOpenFile,
+        inputEditorRef,
+        ref,
+      }),
+    );
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(usePrettifierFlowMock.mock.results[0]?.value.ingestInputText).toHaveBeenCalledTimes(1);
   });
 
   it('blocks output mode switches while fallback execution is active', () => {

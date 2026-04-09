@@ -1,11 +1,11 @@
 import type { FileFilter, OpenDialogOptions, SaveDialogOptions } from 'electron';
 import { BrowserWindow, app, clipboard, dialog, ipcMain } from 'electron';
 import type { WebContents } from 'electron';
-import { readFile, writeFile } from 'node:fs/promises';
-import { extname } from 'node:path';
-import { IPCChannels } from '../../shared/ipc-contracts';
+import { writeFile } from 'node:fs/promises';
+import { IPCChannels, type OpenTextFile } from '../../shared/ipc-contracts';
 import type { Logger } from '../logging/logger';
 import type { SessionLogStore } from '../logging/sessionLogStore';
+import { readOpenTextFile } from '../launch/openTextFile';
 import { isTelemetryEvent } from '../logging/telemetryTypes';
 import { isPreferencesPatch } from '../preferences/preferencesTypes';
 import type { PrettifierService } from '../prettifier/prettifierService';
@@ -18,6 +18,7 @@ type IpcDependencies = {
   logger: Logger;
   logStore: Pick<SessionLogStore, 'getSnapshot'>;
   onOpenWindow: (window: BrowserWindow | null) => Promise<void>;
+  onConsumeInitialOpenFile: (window: BrowserWindow | null) => Promise<OpenTextFile | null>;
 };
 
 const isString = (value: unknown): value is string => {
@@ -99,6 +100,7 @@ export const registerIpcHandlers = ({
   logger,
   logStore,
   onOpenWindow,
+  onConsumeInitialOpenFile,
 }: IpcDependencies): void => {
   // Register once at startup. Each handler keeps platform APIs and filesystem
   // access in main while renderer code talks through typed contracts.
@@ -114,14 +116,7 @@ export const registerIpcHandlers = ({
       return null;
     }
 
-    const content = await readFile(path, 'utf8');
-    logger.info('ingest.open-file', {
-      fileExtension: extname(path),
-      contentLength: content.length,
-      isEmpty: content.length === 0,
-    });
-
-    return { path, content };
+    return readOpenTextFile(path, logger);
   });
 
   ipcMain.handle(IPCChannels.fileSave, async (event, content: unknown) => {
@@ -160,6 +155,10 @@ export const registerIpcHandlers = ({
 
   ipcMain.handle(IPCChannels.appOpenWindow, async (event) => {
     await onOpenWindow(getSenderWindow(event.sender));
+  });
+
+  ipcMain.handle(IPCChannels.appConsumeInitialOpenFile, async (event) => {
+    return onConsumeInitialOpenFile(getSenderWindow(event.sender));
   });
 
   ipcMain.handle(IPCChannels.logsGetHistory, () => {

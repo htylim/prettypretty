@@ -27,6 +27,23 @@ pnpm install
 pnpm dev
 ```
 
+## Terminal Launcher
+
+After installing the macOS app bundle in `/Applications`, put the bundled executable on `PATH`:
+
+```bash
+ln -sf /Applications/prettypretty.app/Contents/MacOS/prettypretty /usr/local/bin/prettypretty
+```
+
+Then:
+
+```bash
+prettypretty
+prettypretty ./sample.json
+```
+
+`prettypretty` opens a new empty document window. `prettypretty <file>` opens a document window with that file preloaded. If the app is already running, later terminal invocations are forwarded into the existing app instance.
+
 ## Commands
 
 ```bash

@@ -41,13 +41,17 @@ export const resolveWindowModeForTitlePath = (
   return hasVisibleWindowTag(titlePath) ? 'visible' : 'hidden';
 };
 
-const launchElectronApp = async (windowMode: E2EWindowMode): Promise<ElectronApplication> => {
+const launchElectronApp = async (
+  windowMode: E2EWindowMode,
+  extraArgs: string[] = [],
+): Promise<ElectronApplication> => {
   for (let attempt = 0; attempt < 5; attempt += 1) {
     try {
       return await electron.launch({
         args: [
           join(process.cwd(), 'out/main/index.js'),
           `${E2E_WINDOW_MODE_FLAG_PREFIX}${windowMode}`,
+          ...extraArgs,
         ],
       });
     } catch (error) {
@@ -69,8 +73,11 @@ const launchElectronApp = async (windowMode: E2EWindowMode): Promise<ElectronApp
  * Default every Playwright Electron launch to hidden-window mode, while still
  * allowing title-tagged tests to opt back into visible windows.
  */
-export const launchApp = async (testInfo: {
-  titlePath: readonly string[];
-}): Promise<ElectronApplication> => {
-  return await launchElectronApp(resolveWindowModeForTitlePath(testInfo.titlePath));
+export const launchApp = async (
+  testInfo: {
+    titlePath: readonly string[];
+  },
+  extraArgs: string[] = [],
+): Promise<ElectronApplication> => {
+  return await launchElectronApp(resolveWindowModeForTitlePath(testInfo.titlePath), extraArgs);
 };

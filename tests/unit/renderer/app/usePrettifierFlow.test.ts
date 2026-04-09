@@ -177,6 +177,7 @@ PrettifierHarness.displayName = 'PrettifierHarness';
 const createAppApi = () => ({
   getInfo: vi.fn(),
   openWindow: vi.fn(),
+  consumeInitialOpenFile: vi.fn().mockResolvedValue(null),
   onResetCurrentWindow: vi.fn().mockImplementation(() => vi.fn()),
   onNavigationCommand: vi.fn().mockImplementation(() => vi.fn()),
   initialThemeMode: null,

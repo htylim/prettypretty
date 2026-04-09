@@ -92,6 +92,7 @@ describe('registerIpcHandlers preferences channels', () => {
     getSnapshot: vi.fn().mockReturnValue(['{"event":"app.bootstrap.start"}']),
   };
   const onOpenWindow = vi.fn().mockResolvedValue(undefined);
+  const onConsumeInitialOpenFile = vi.fn().mockResolvedValue(null);
   const logger = {
     isVerboseEnabled: vi.fn(),
     info: vi.fn(),
@@ -108,6 +109,7 @@ describe('registerIpcHandlers preferences channels', () => {
     prettifierService.cancel.mockReset();
     logStore.getSnapshot.mockClear();
     onOpenWindow.mockReset().mockResolvedValue(undefined);
+    onConsumeInitialOpenFile.mockReset().mockResolvedValue(null);
     logger.isVerboseEnabled.mockReset();
     logger.info.mockReset();
     logger.warn.mockReset();
@@ -119,7 +121,14 @@ describe('registerIpcHandlers preferences channels', () => {
     showSaveDialogMock.mockReset();
     fromWebContentsMock.mockReset().mockReturnValue(parentWindow);
 
-    registerIpcHandlers({ preferencesService, prettifierService, logger, logStore, onOpenWindow });
+    registerIpcHandlers({
+      preferencesService,
+      prettifierService,
+      logger,
+      logStore,
+      onOpenWindow,
+      onConsumeInitialOpenFile,
+    });
   });
 
   it('registers preferences handlers', () => {
@@ -129,6 +138,7 @@ describe('registerIpcHandlers preferences channels', () => {
     expect(channels).toContain(IPCChannels.preferencesUpdate);
     expect(channels).toContain(IPCChannels.preferencesReset);
     expect(channels).toContain(IPCChannels.logsGetHistory);
+    expect(channels).toContain(IPCChannels.appConsumeInitialOpenFile);
   });
 
   it('forwards the sender window when opening a new window', async () => {
@@ -140,6 +150,27 @@ describe('registerIpcHandlers preferences channels', () => {
 
     expect(onOpenWindow).toHaveBeenCalledTimes(1);
     expect(onOpenWindow).toHaveBeenCalledWith(parentWindow);
+  });
+
+  it('returns the pending initial open file for the sender window', async () => {
+    onConsumeInitialOpenFile.mockResolvedValueOnce({
+      path: '/tmp/launch.json',
+      content: '{"launch":true}',
+    });
+    const consumeInitialOpenFileHandler = getRegisteredHandler(
+      IPCChannels.appConsumeInitialOpenFile,
+    );
+
+    const result = await consumeInitialOpenFileHandler({
+      sender: {},
+    });
+
+    expect(onConsumeInitialOpenFile).toHaveBeenCalledTimes(1);
+    expect(onConsumeInitialOpenFile).toHaveBeenCalledWith(parentWindow);
+    expect(result).toEqual({
+      path: '/tmp/launch.json',
+      content: '{"launch":true}',
+    });
   });
 
   it('forwards valid preferences update payloads to service', async () => {

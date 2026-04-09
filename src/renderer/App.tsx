@@ -1,4 +1,5 @@
 import { useRef } from 'react';
+import type { OpenTextFile } from '../shared/ipc-contracts';
 import { useAppController } from './app/useAppController';
 import { ConfirmationModal } from './components/ConfirmationModal';
 import { EditorShell } from './components/EditorShell';
@@ -6,9 +7,13 @@ import { FallbackAgentComboButton } from './components/FallbackAgentComboButton'
 import type { InputEditorHandle } from './components/InputEditor';
 import { Toolbar } from './components/Toolbar';
 
-export const App = () => {
+type AppProps = {
+  initialOpenFile?: OpenTextFile | null;
+};
+
+export const App = ({ initialOpenFile = null }: AppProps) => {
   const inputEditorRef = useRef<InputEditorHandle>(null);
-  const controller = useAppController({ inputEditorRef });
+  const controller = useAppController({ inputEditorRef, initialOpenFile });
   const enabledFallbackAgentOptions = controller.fallbackAgentOptions.filter(
     (option) => option.enabled,
   );

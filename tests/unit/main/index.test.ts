@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MenuItemConstructorOptions } from 'electron';
 import { IPCChannels } from '../../../src/shared/ipc-contracts';
 
@@ -9,9 +9,12 @@ const {
   appExitMock,
   appGetPathMock,
   appOnMock,
+  appQuitMock,
+  appRequestSingleInstanceLockMock,
   appSetNameMock,
   appWhenReadyMock,
   browserWindowConstructorMock,
+  browserWindowFromWebContentsMock,
   browserWindowGetFocusedWindowMock,
   browserWindowLoadFileMock,
   browserWindowLoadURLMock,
@@ -21,6 +24,7 @@ const {
   dialogShowSaveDialogMock,
   existsSyncMock,
   ipcHandleMock,
+  readFileMock,
   setApplicationMenuMock,
   shellOpenPathMock,
   showErrorBoxMock,
@@ -33,9 +37,12 @@ const {
     appExitMock: vi.fn(),
     appGetPathMock: vi.fn(),
     appOnMock: vi.fn(),
+    appQuitMock: vi.fn(),
+    appRequestSingleInstanceLockMock: vi.fn(),
     appSetNameMock: vi.fn(),
     appWhenReadyMock: vi.fn(),
     browserWindowConstructorMock: vi.fn(),
+    browserWindowFromWebContentsMock: vi.fn(),
     browserWindowGetFocusedWindowMock: vi.fn(),
     browserWindowLoadFileMock: vi.fn(),
     browserWindowLoadURLMock: vi.fn(),
@@ -45,6 +52,7 @@ const {
     dialogShowSaveDialogMock: vi.fn(),
     existsSyncMock: vi.fn(),
     ipcHandleMock: vi.fn(),
+    readFileMock: vi.fn(),
     setApplicationMenuMock: vi.fn(),
     shellOpenPathMock: vi.fn(),
     showErrorBoxMock: vi.fn(),
@@ -56,6 +64,15 @@ const {
 
 const browserWindows: BrowserWindowMock[] = [];
 let focusedWindow: BrowserWindowMock | null = null;
+const originalDefaultAppDescriptor = Object.getOwnPropertyDescriptor(process, 'defaultApp');
+
+const setDefaultApp = (value: boolean): void => {
+  Object.defineProperty(process, 'defaultApp', {
+    configurable: true,
+    value,
+    writable: true,
+  });
+};
 
 class BrowserWindowMock {
   id: number;
@@ -100,7 +117,7 @@ vi.mock('electron', () => {
   return {
     BrowserWindow: Object.assign(BrowserWindowMock, {
       getFocusedWindow: browserWindowGetFocusedWindowMock,
-      fromWebContents: vi.fn(),
+      fromWebContents: browserWindowFromWebContentsMock,
     }),
     Menu: {
       buildFromTemplate: buildFromTemplateMock,
@@ -115,6 +132,8 @@ vi.mock('electron', () => {
       getVersion: vi.fn().mockReturnValue('0.3.0'),
       on: appOnMock,
       exit: appExitMock,
+      quit: appQuitMock,
+      requestSingleInstanceLock: appRequestSingleInstanceLockMock,
       setName: appSetNameMock,
       whenReady: appWhenReadyMock,
     },
@@ -141,6 +160,12 @@ vi.mock('electron', () => {
 vi.mock('node:fs', () => {
   return {
     existsSync: existsSyncMock,
+  };
+});
+
+vi.mock('node:fs/promises', () => {
+  return {
+    readFile: readFileMock,
   };
 });
 
@@ -174,6 +199,20 @@ const waitForWindowCreation = async (): Promise<void> => {
   }
 
   throw new Error('Timed out waiting for main window creation');
+};
+
+const waitForWindowCount = async (expectedCount: number): Promise<void> => {
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    if (browserWindowConstructorMock.mock.calls.length >= expectedCount) {
+      return;
+    }
+
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
+  }
+
+  throw new Error(`Timed out waiting for ${expectedCount} windows`);
 };
 
 const getAppEventHandler = (event: string): ((...args: unknown[]) => void) => {
@@ -214,12 +253,22 @@ const loadMainEntry = async (): Promise<void> => {
   await waitForWindowCreation();
 };
 
+const createDeferred = <T>() => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolver) => {
+    resolve = resolver;
+  });
+
+  return { promise, resolve };
+};
+
 describe('main process window lifecycle', () => {
   beforeEach(() => {
     vi.resetModules();
     appEventHandlers.clear();
     browserWindows.length = 0;
     focusedWindow = null;
+    setDefaultApp(true);
 
     appGetPathMock.mockReset().mockReturnValue('/tmp/prettypretty-user-data');
     appOnMock
@@ -228,9 +277,12 @@ describe('main process window lifecycle', () => {
         appEventHandlers.set(event, handler);
       });
     appExitMock.mockReset();
+    appQuitMock.mockReset();
+    appRequestSingleInstanceLockMock.mockReset().mockReturnValue(true);
     appSetNameMock.mockReset();
     appWhenReadyMock.mockReset().mockResolvedValue(undefined);
     browserWindowConstructorMock.mockReset();
+    browserWindowFromWebContentsMock.mockReset().mockImplementation(() => focusedWindow);
     browserWindowGetFocusedWindowMock.mockReset().mockImplementation(() => focusedWindow);
     browserWindowLoadFileMock.mockReset().mockResolvedValue(undefined);
     browserWindowLoadURLMock.mockReset().mockResolvedValue(undefined);
@@ -240,6 +292,7 @@ describe('main process window lifecycle', () => {
     dialogShowSaveDialogMock.mockReset().mockResolvedValue({ canceled: true, filePath: null });
     existsSyncMock.mockReset().mockReturnValue(false);
     ipcHandleMock.mockReset();
+    readFileMock.mockReset();
     setApplicationMenuMock.mockReset();
     shellOpenPathMock.mockReset().mockResolvedValue('');
     showErrorBoxMock.mockReset();
@@ -273,8 +326,33 @@ describe('main process window lifecycle', () => {
     expect(browserWindowConstructorMock).toHaveBeenCalledTimes(2);
 
     getMenuItem('New Window').click?.(undefined as never, undefined, {} as never);
-    await flushMicrotasks();
+    await waitForWindowCount(3);
     expect(browserWindowConstructorMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('opens a startup launch file from packaged app argv and exposes it once to the window', async () => {
+    const launchPath = '/tmp/launch.json';
+    setDefaultApp(false);
+    process.argv = ['/Applications/prettypretty.app/Contents/MacOS/prettypretty', launchPath];
+    readFileMock.mockResolvedValue('{"launch":true}');
+
+    await loadMainEntry();
+
+    expect(browserWindowConstructorMock).toHaveBeenCalledTimes(1);
+    const consumeInitialOpenFileHandler = getRegisteredHandler(
+      IPCChannels.appConsumeInitialOpenFile,
+    );
+    browserWindowFromWebContentsMock.mockReturnValue(browserWindows[0]);
+
+    const firstResult = await consumeInitialOpenFileHandler({ sender: {} });
+    const secondResult = await consumeInitialOpenFileHandler({ sender: {} });
+
+    expect(readFileMock).toHaveBeenCalledWith('/tmp/launch.json', 'utf8');
+    expect(firstResult).toEqual({
+      path: '/tmp/launch.json',
+      content: '{"launch":true}',
+    });
+    expect(secondResult).toBeNull();
   });
 
   it('passes hidden E2E window mode through bootstrap window creation when requested', async () => {
@@ -317,7 +395,7 @@ describe('main process window lifecycle', () => {
       }),
     } as unknown as BrowserWindowMock;
 
-    await flushMicrotasks();
+    await waitForWindowCount(2);
 
     const secondWindowOptions = browserWindowConstructorMock.mock.calls[1]?.[0] as {
       x: number;
@@ -333,6 +411,68 @@ describe('main process window lifecycle', () => {
     getMenuItem('Reset Window').click?.(undefined as never, undefined, {} as never);
 
     expect(focusedWindowSendMock).toHaveBeenCalledWith(IPCChannels.appResetCurrentWindow);
+  });
+
+  it('opens a new empty window when a second terminal invocation has no file path', async () => {
+    await loadMainEntry();
+
+    getAppEventHandler('second-instance')(
+      {},
+      ['/Applications/prettypretty.app/Contents/MacOS/prettypretty'],
+      '/tmp',
+    );
+    await waitForWindowCount(2);
+
+    expect(browserWindowConstructorMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('queues empty second-instance launches that arrive before bootstrap is ready', async () => {
+    const whenReady = createDeferred<void>();
+    appWhenReadyMock.mockReset().mockReturnValue(whenReady.promise);
+
+    await import('../../../src/main/index');
+    await flushMicrotasks();
+
+    getAppEventHandler('second-instance')(
+      {},
+      ['/Applications/prettypretty.app/Contents/MacOS/prettypretty'],
+      '/tmp',
+    );
+
+    whenReady.resolve(undefined);
+    await flushMicrotasks();
+    await waitForWindowCount(2);
+
+    expect(browserWindowConstructorMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('opens launch files from second-instance argv in a new window', async () => {
+    const launchPath = '/tmp/second-instance.json';
+    setDefaultApp(false);
+    process.argv = ['/Applications/prettypretty.app/Contents/MacOS/prettypretty'];
+
+    await loadMainEntry();
+
+    readFileMock.mockResolvedValueOnce('{"second":true}');
+    getAppEventHandler('second-instance')(
+      {},
+      ['/Applications/prettypretty.app/Contents/MacOS/prettypretty', launchPath],
+      '/tmp',
+    );
+    await waitForWindowCount(2);
+
+    expect(browserWindowConstructorMock).toHaveBeenCalledTimes(2);
+    const consumeInitialOpenFileHandler = getRegisteredHandler(
+      IPCChannels.appConsumeInitialOpenFile,
+    );
+    browserWindowFromWebContentsMock.mockReturnValue(browserWindows[1]);
+
+    const result = await consumeInitialOpenFileHandler({ sender: {} });
+
+    expect(result).toEqual({
+      path: launchPath,
+      content: '{"second":true}',
+    });
   });
 
   it('quits on window-all-closed without platform exceptions', async () => {
@@ -355,4 +495,10 @@ describe('main process window lifecycle', () => {
 
     expect(terminateAllFallbackProcessesMock).toHaveBeenCalledTimes(2);
   });
+});
+
+afterAll(() => {
+  if (originalDefaultAppDescriptor) {
+    Object.defineProperty(process, 'defaultApp', originalDefaultAppDescriptor);
+  }
 });

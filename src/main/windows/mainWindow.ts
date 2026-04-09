@@ -96,6 +96,7 @@ const getStaggeredWindowPosition = (
 };
 
 type CreateMainWindowOptions = {
+  onWindowCreated?: (window: BrowserWindow) => void;
   referenceBounds?: Rectangle | null;
   windowMode?: E2EWindowMode;
 };
@@ -131,6 +132,7 @@ export const createMainWindow = async (
 
   const win = new BrowserWindow(windowOptions);
   mainWindows.add(win);
+  options.onWindowCreated?.(win);
   win.on?.('app-command', (event, command) => {
     if (!isBrowserNavigationCommand(command)) {
       return;

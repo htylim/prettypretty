@@ -1,4 +1,4 @@
-import type { AppInfo, OpenFileResult, SaveFileResult } from './ipc-contracts';
+import type { AppInfo, OpenFileResult, OpenTextFile, SaveFileResult } from './ipc-contracts';
 import type {
   PrettifyCancelRequest,
   PrettifierProgressEvent,
@@ -24,6 +24,7 @@ export interface WindowApi {
   app: {
     getInfo: () => Promise<AppInfo>;
     openWindow: () => Promise<void>;
+    consumeInitialOpenFile: () => Promise<OpenTextFile | null>;
     onResetCurrentWindow: (listener: () => void) => () => void;
     onNavigationCommand: (listener: (command: AppNavigationCommand) => void) => () => void;
     initialThemeMode: ThemeMode | null;

@@ -21,6 +21,7 @@ const prettifierCancelMock = vi.fn();
 const prettifierOnProgressMock = vi.fn();
 const telemetryLogMock = vi.fn();
 const openWindowMock = vi.fn();
+const consumeInitialOpenFileMock = vi.fn();
 const appOnResetCurrentWindowMock = vi.fn();
 const outputCollapseAllMock = vi.fn();
 const outputExpandAllMock = vi.fn();
@@ -185,6 +186,7 @@ beforeEach(() => {
   prettifierOnProgressMock.mockReset();
   telemetryLogMock.mockReset();
   openWindowMock.mockReset().mockResolvedValue(undefined);
+  consumeInitialOpenFileMock.mockReset().mockResolvedValue(null);
   appOnResetCurrentWindowMock.mockReset().mockImplementation((listener: () => void) => {
     onResetCurrentWindowListener = listener;
     return vi.fn();
@@ -236,6 +238,7 @@ beforeEach(() => {
       app: {
         getInfo: vi.fn().mockResolvedValue({ name: 'prettypretty', version: '0.3.0' }),
         openWindow: openWindowMock,
+        consumeInitialOpenFile: consumeInitialOpenFileMock,
         onResetCurrentWindow: appOnResetCurrentWindowMock,
         onNavigationCommand: vi.fn().mockImplementation(() => vi.fn()),
         initialThemeMode: null,

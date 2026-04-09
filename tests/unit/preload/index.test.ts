@@ -33,6 +33,7 @@ const loadPreloadApi = async () => {
     app: {
       initialThemeMode: string | null;
       openWindow: () => Promise<void>;
+      consumeInitialOpenFile: () => Promise<{ path: string; content: string } | null>;
       onResetCurrentWindow: (listener: () => void) => () => void;
       onNavigationCommand: (
         listener: (command: 'browser-backward' | 'browser-forward') => void,
@@ -83,6 +84,16 @@ describe('preload bridge', () => {
     await api.app.openWindow();
 
     expect(invokeMock).toHaveBeenCalledWith('app:open-window');
+  });
+
+  it('invokes app.consumeInitialOpenFile through ipcRenderer', async () => {
+    const api = await loadPreloadApi();
+    invokeMock.mockResolvedValueOnce({ path: '/tmp/sample.json', content: '{"a":1}' });
+
+    const result = await api.app.consumeInitialOpenFile();
+
+    expect(invokeMock).toHaveBeenCalledWith('app:consume-initial-open-file');
+    expect(result).toEqual({ path: '/tmp/sample.json', content: '{"a":1}' });
   });
 
   it('wires app.onResetCurrentWindow subscription and cleanup through ipcRenderer', async () => {

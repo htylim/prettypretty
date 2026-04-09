@@ -5,10 +5,14 @@
 - `src/main`
   - Electron main-process runtime
   - window lifecycle
+  - startup launch-file routing
   - menus
   - IPC handlers
   - preferences persistence
   - fallback process execution
+- `src/main/launch`
+  - terminal/macOS launch argument parsing
+  - startup file loading for document windows
 - `src/preload`
   - typed bridge exposed as `window.prettypretty`
   - no product logic
@@ -29,12 +33,17 @@
 - `src/main/index.ts`
   - composition root
   - bootstraps services
+  - owns startup/second-instance window routing
   - registers IPC
   - opens windows
+- `src/main/launch/*`
+  - resolves CLI/open-file launch targets
+  - reads startup file payloads for window-scoped ingestion
 - `src/main/ipc/index.ts`
   - IPC boundary
   - payload validation
   - file/dialog/clipboard bridging
+  - one-shot startup file handoff to renderer windows
 - `src/main/preferences/*`
   - main-process source of truth for persisted settings
 - `src/main/prettifier/*`
@@ -47,6 +56,9 @@
 
 - `src/renderer/App.tsx`
   - composition only
+- `src/renderer/RendererBootstrap.tsx`
+  - mounts the correct window shell immediately
+  - consumes window-scoped startup file payloads after first paint
 - `src/renderer/app/session/*`
   - document-session source of truth for renderer-visible window state
   - selectors, pure session domains, and focused runtime seams
@@ -74,8 +86,9 @@
 ### Startup
 
 1. Main bootstraps logging, preferences, IPC handlers, and menu wiring.
-2. Main creates a document window and passes initial theme data through preload.
-3. Renderer reads the preload bridge, seeds theme state, and mounts `App` or `LogWindowApp`.
+2. Main queues launch-file requests from packaged CLI args, macOS `open-file`, and second-instance invocations before choosing which windows to create.
+3. Main creates document windows, passes initial theme data through preload, and stores any startup file payload against the target window.
+4. Renderer reads the preload bridge, seeds theme state, mounts the correct shell immediately, and consumes any pending startup file after mount through `RendererBootstrap`.
 
 ### Prettify Flow
 

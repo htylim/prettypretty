@@ -39,6 +39,9 @@ These are the durable patterns worth keeping in mind when changing the codebase.
 - Main owns persisted preferences.
 - Renderer should use optimistic updates only with proper sequencing and rollback rules.
 - Validate IPC payloads at the main-process boundary, including primitive string payloads.
+- For startup file-open flows, keep the file payload window-scoped in main and let each renderer consume it once over preload IPC. Main-process push events race the renderer mount path too easily.
+- Do not block initial `root.render(...)` on preload IPC. Mount first, then resolve startup payloads from a focused bootstrap seam so IPC failures degrade to an empty window instead of a blank renderer.
+- If main accepts second-instance launches before startup wiring is ready, queue them explicitly. Relying on late-assigned callbacks drops early no-arg launches.
 
 ## Prettifier and Fallback
 

@@ -32,6 +32,7 @@ const api: WindowApi = {
     openWindow: async () => {
       await ipcRenderer.invoke(IPCChannels.appOpenWindow);
     },
+    consumeInitialOpenFile: () => ipcRenderer.invoke(IPCChannels.appConsumeInitialOpenFile),
     onResetCurrentWindow: (listener) => {
       const wrappedListener = () => {
         listener();

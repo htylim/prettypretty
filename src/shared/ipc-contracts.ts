@@ -1,7 +1,9 @@
-export type OpenFileResult = {
+export type OpenTextFile = {
   path: string;
   content: string;
-} | null;
+};
+
+export type OpenFileResult = OpenTextFile | null;
 
 export type SaveFileResult = {
   path: string;
@@ -18,6 +20,7 @@ export const IPCChannels = {
   clipboardCopy: 'clipboard:copy',
   appGetInfo: 'app:get-info',
   appOpenWindow: 'app:open-window',
+  appConsumeInitialOpenFile: 'app:consume-initial-open-file',
   appResetCurrentWindow: 'app:reset-current-window',
   appNavigationCommand: 'app:navigation-command',
   logsGetHistory: 'logs:get-history',

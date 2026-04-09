@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
+import type { OpenTextFile } from '../../shared/ipc-contracts';
 import type { IndentSize } from '../../shared/preferences';
 import type { TelemetryEventName } from '../../shared/telemetry';
 import type { PaneMode, ThemeMode } from '../../shared/types';
@@ -36,7 +37,12 @@ import { getWindowApi } from './windowApi';
 
 type TelemetryMeta = Record<string, string | number | boolean | null>;
 
+// StrictMode remounts this tree in dev, so remember which startup files have
+// already been applied within the current renderer process.
+const consumedInitialOpenFilePaths = new Set<string>();
+
 type UseAppControllerOptions = {
+  initialOpenFile: OpenTextFile | null;
   inputEditorRef: RefObject<InputEditorHandle | null>;
 };
 
@@ -127,6 +133,7 @@ export type UseAppControllerResult = {
  * composition-only.
  */
 export const useAppController = ({
+  initialOpenFile,
   inputEditorRef,
 }: UseAppControllerOptions): UseAppControllerResult => {
   const latestIndentSizeRequestIdRef = useRef(0);
@@ -471,6 +478,19 @@ export const useAppController = ({
       cancelPendingFallbackPrompts();
     };
   }, [cancelPendingFallbackPrompts]);
+
+  useEffect(() => {
+    if (!initialOpenFile || consumedInitialOpenFilePaths.has(initialOpenFile.path)) {
+      return;
+    }
+
+    consumedInitialOpenFilePaths.add(initialOpenFile.path);
+
+    queueMicrotask(() => {
+      resetCurrentWindow();
+      ingestInputText(initialOpenFile.content, 'open-file');
+    });
+  }, [initialOpenFile, ingestInputText, resetCurrentWindow]);
 
   useEffect(() => {
     const api = getWindowApi();

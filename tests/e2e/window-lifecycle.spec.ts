@@ -1,3 +1,6 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { ElectronApplication, Page } from '@playwright/test';
 import { expect, launchApp, test } from './support/electronApp';
 
@@ -123,6 +126,23 @@ test('toolbar New opens a second blank document window and preserves the existin
   await expect(firstWindow.getByTestId('output-editor')).toContainText('"window": "one"');
 
   await app.close();
+});
+
+test('launching with a file argument opens that file in the first document window', async () => {
+  const tempDirectory = await mkdtemp(join(tmpdir(), 'prettypretty-launch-'));
+  const filePath = join(tempDirectory, 'launch.json');
+  await writeFile(filePath, '{"launch":true}', 'utf8');
+
+  const app = await launchApp(test.info(), [filePath]);
+
+  try {
+    const firstWindow = await app.firstWindow();
+    await firstWindow.waitForLoadState('domcontentloaded');
+    await expect(firstWindow.getByTestId('output-editor')).toContainText('"launch": true');
+  } finally {
+    await app.close();
+    await rm(tempDirectory, { recursive: true, force: true });
+  }
 });
 
 test('Cmd+N opens a new document window and Cmd+Shift+N resets only the focused window', async () => {
