@@ -70,13 +70,19 @@ describe('usePrettifierRuntime', () => {
       });
     const api: WindowApi = {
       dialog: { openFile: vi.fn() },
-      file: { save: vi.fn() },
+      file: {
+        save: vi.fn(),
+        refreshOpenFile: vi.fn(),
+        commitOpenFileSource: vi.fn().mockResolvedValue(true),
+        clearOpenFileSource: vi.fn().mockResolvedValue(true),
+      },
       clipboard: { copy: vi.fn() },
       app: {
         getInfo: vi.fn(),
         openWindow: vi.fn(),
         consumeInitialOpenFile: vi.fn().mockResolvedValue(null),
         onResetCurrentWindow: vi.fn().mockImplementation(() => vi.fn()),
+        onRefreshCurrentWindow: vi.fn().mockImplementation(() => vi.fn()),
         onNavigationCommand: vi.fn().mockImplementation(() => vi.fn()),
         initialThemeMode: null,
       },

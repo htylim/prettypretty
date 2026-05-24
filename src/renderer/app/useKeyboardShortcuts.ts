@@ -12,6 +12,7 @@ type UseKeyboardShortcutsOptions = {
   handlePaneModeChange: (nextMode: PaneMode) => void;
   saveOutput: () => Promise<void>;
   copyOutput: () => Promise<void>;
+  refreshCurrentFile: () => void;
   openFind: () => void;
   closeOutputPane: () => void;
   navigateOutputPaneViewport: (stepDelta: number) => void;
@@ -27,6 +28,7 @@ export const useKeyboardShortcuts = ({
   handlePaneModeChange,
   saveOutput,
   copyOutput,
+  refreshCurrentFile,
   openFind,
   closeOutputPane,
   navigateOutputPaneViewport,
@@ -144,6 +146,12 @@ export const useKeyboardShortcuts = ({
         return;
       }
 
+      if (key === 'r') {
+        event.preventDefault();
+        refreshCurrentFile();
+        return;
+      }
+
       if (key === 'f') {
         if (!isOutputMode) {
           return;
@@ -168,6 +176,7 @@ export const useKeyboardShortcuts = ({
     openNewWindow,
     openFind,
     paneMode,
+    refreshCurrentFile,
     resetCurrentWindow,
     saveOutput,
   ]);

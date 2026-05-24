@@ -2,7 +2,15 @@ import type { FileFilter, OpenDialogOptions, SaveDialogOptions } from 'electron'
 import { BrowserWindow, app, clipboard, dialog, ipcMain } from 'electron';
 import type { WebContents } from 'electron';
 import { writeFile } from 'node:fs/promises';
-import { IPCChannels, type OpenTextFile } from '../../shared/ipc-contracts';
+import {
+  IPCChannels,
+  type ClearOpenFileSourceRequest,
+  type CommitOpenFileSourceRequest,
+  type FileSourceKind,
+  type OpenTextFile,
+  type RefreshOpenFileRequest,
+  type RefreshableOpenTextFile,
+} from '../../shared/ipc-contracts';
 import type { Logger } from '../logging/logger';
 import type { SessionLogStore } from '../logging/sessionLogStore';
 import { readOpenTextFile } from '../launch/openTextFile';
@@ -23,6 +31,36 @@ type IpcDependencies = {
 
 const isString = (value: unknown): value is string => {
   return typeof value === 'string';
+};
+
+const isNonEmptyString = (value: unknown): value is string => {
+  return typeof value === 'string' && value.length > 0;
+};
+
+const isRefreshOpenFileRequest = (value: unknown): value is RefreshOpenFileRequest => {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Partial<RefreshOpenFileRequest>;
+  return isNonEmptyString(candidate.path) && isNonEmptyString(candidate.sourceToken);
+};
+
+const isCommitOpenFileSourceRequest = (value: unknown): value is CommitOpenFileSourceRequest => {
+  return isRefreshOpenFileRequest(value);
+};
+
+const isClearOpenFileSourceRequest = (value: unknown): value is ClearOpenFileSourceRequest => {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const candidate = value as Partial<ClearOpenFileSourceRequest>;
+  return (
+    isNonEmptyString(candidate.path) &&
+    isNonEmptyString(candidate.sourceToken) &&
+    (candidate.scope === 'pending' || candidate.scope === 'committed')
+  );
 };
 
 const TEXT_FILE_FILTERS: FileFilter[] = [
@@ -102,10 +140,96 @@ export const registerIpcHandlers = ({
   onOpenWindow,
   onConsumeInitialOpenFile,
 }: IpcDependencies): void => {
+  type AuthorizedFileSource = {
+    sourceToken: string;
+    path: string;
+    sourceKind: FileSourceKind;
+  };
+
+  const pendingFileSourcesByWindowId = new Map<number, AuthorizedFileSource>();
+  const committedFileSourcesByWindowId = new Map<number, AuthorizedFileSource>();
+  const cleanupTrackedWindowIds = new Set<number>();
+  let nextSourceToken = 0;
+
+  const createSourceToken = (): string => {
+    nextSourceToken += 1;
+    return `file-source-${nextSourceToken}`;
+  };
+
+  const trackWindowSourceCleanup = (window: BrowserWindow): void => {
+    if (cleanupTrackedWindowIds.has(window.id)) {
+      return;
+    }
+
+    cleanupTrackedWindowIds.add(window.id);
+    if (typeof window.on !== 'function') {
+      return;
+    }
+
+    window.on('closed', () => {
+      pendingFileSourcesByWindowId.delete(window.id);
+      committedFileSourcesByWindowId.delete(window.id);
+      cleanupTrackedWindowIds.delete(window.id);
+    });
+  };
+
+  const createPendingFileSource = (
+    window: BrowserWindow,
+    path: string,
+    sourceKind: FileSourceKind,
+  ): AuthorizedFileSource => {
+    trackWindowSourceCleanup(window);
+    const source = {
+      sourceToken: createSourceToken(),
+      path,
+      sourceKind,
+    };
+    pendingFileSourcesByWindowId.set(window.id, source);
+    return source;
+  };
+
+  const attachPendingFileSource = (
+    window: BrowserWindow | null,
+    file: OpenTextFile | null,
+    sourceKind: FileSourceKind,
+  ): RefreshableOpenTextFile | null => {
+    if (!file) {
+      return null;
+    }
+
+    if (!window) {
+      throw new Error('Unable to authorize open file source without a document window');
+    }
+
+    const source = createPendingFileSource(window, file.path, sourceKind);
+    return {
+      ...file,
+      sourceToken: source.sourceToken,
+      sourceKind: source.sourceKind,
+    };
+  };
+
+  const matchesSource = (
+    source: AuthorizedFileSource | undefined,
+    payload: Pick<AuthorizedFileSource, 'sourceToken' | 'path'>,
+  ): source is AuthorizedFileSource => {
+    return source?.sourceToken === payload.sourceToken && source.path === payload.path;
+  };
+
+  const getAuthorizedSourceWindow = (sender: WebContents): BrowserWindow => {
+    const window = getSenderWindow(sender);
+    if (!window) {
+      throw new Error('Unauthorized refresh file request');
+    }
+
+    return window;
+  };
+
   // Register once at startup. Each handler keeps platform APIs and filesystem
   // access in main while renderer code talks through typed contracts.
   ipcMain.handle(IPCChannels.dialogOpenFile, async (event) => {
-    const result = await showOpenTextFileDialog(getSenderWindow(event.sender));
+    const window = getSenderWindow(event.sender);
+    const result = await showOpenTextFileDialog(window);
 
     if (result.canceled || result.filePaths.length === 0) {
       return null;
@@ -116,7 +240,67 @@ export const registerIpcHandlers = ({
       return null;
     }
 
-    return readOpenTextFile(path, logger);
+    return attachPendingFileSource(
+      window,
+      await readOpenTextFile(path, logger),
+      'dialog-open-file',
+    );
+  });
+
+  ipcMain.handle(IPCChannels.fileRefreshOpenFile, async (event, request: unknown) => {
+    const safeRequest = expectPayload(request, isRefreshOpenFileRequest, {
+      logger,
+      channel: IPCChannels.fileRefreshOpenFile,
+      message: 'Invalid refresh file payload',
+    });
+    const window = getAuthorizedSourceWindow(event.sender);
+    const committedSource = committedFileSourcesByWindowId.get(window.id);
+
+    if (!matchesSource(committedSource, safeRequest)) {
+      throw new Error('Unauthorized refresh file request');
+    }
+
+    const file = await readOpenTextFile(safeRequest.path, logger);
+    return attachPendingFileSource(window, file, 'refresh-file');
+  });
+
+  ipcMain.handle(IPCChannels.fileCommitOpenFileSource, async (event, request: unknown) => {
+    const safeRequest = expectPayload(request, isCommitOpenFileSourceRequest, {
+      logger,
+      channel: IPCChannels.fileCommitOpenFileSource,
+      message: 'Invalid file source commit payload',
+    });
+    const window = getAuthorizedSourceWindow(event.sender);
+    const pendingSource = pendingFileSourcesByWindowId.get(window.id);
+
+    if (!matchesSource(pendingSource, safeRequest)) {
+      throw new Error('Invalid file source commit payload');
+    }
+
+    pendingFileSourcesByWindowId.delete(window.id);
+    committedFileSourcesByWindowId.set(window.id, pendingSource);
+    return true;
+  });
+
+  ipcMain.handle(IPCChannels.fileClearOpenFileSource, async (event, request: unknown) => {
+    const safeRequest = expectPayload(request, isClearOpenFileSourceRequest, {
+      logger,
+      channel: IPCChannels.fileClearOpenFileSource,
+      message: 'Invalid file source clear payload',
+    });
+    const window = getAuthorizedSourceWindow(event.sender);
+    const sourceMap =
+      safeRequest.scope === 'pending'
+        ? pendingFileSourcesByWindowId
+        : committedFileSourcesByWindowId;
+    const source = sourceMap.get(window.id);
+
+    if (!matchesSource(source, safeRequest)) {
+      throw new Error('Invalid file source clear payload');
+    }
+
+    sourceMap.delete(window.id);
+    return true;
   });
 
   ipcMain.handle(IPCChannels.fileSave, async (event, content: unknown) => {
@@ -158,7 +342,12 @@ export const registerIpcHandlers = ({
   });
 
   ipcMain.handle(IPCChannels.appConsumeInitialOpenFile, async (event) => {
-    return onConsumeInitialOpenFile(getSenderWindow(event.sender));
+    const window = getSenderWindow(event.sender);
+    return attachPendingFileSource(
+      window,
+      await onConsumeInitialOpenFile(window),
+      'startup-open-file',
+    );
   });
 
   ipcMain.handle(IPCChannels.logsGetHistory, () => {

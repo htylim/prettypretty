@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
-import type { OpenTextFile } from '../../shared/ipc-contracts';
+import type { RefreshableOpenTextFile } from '../../shared/ipc-contracts';
 import type { IndentSize } from '../../shared/preferences';
 import type { TelemetryEventName } from '../../shared/telemetry';
 import type { PaneMode, ThemeMode } from '../../shared/types';
 import type { InputEditorHandle } from '../components/InputEditor';
+import type { EditorViewportSnapshot } from '../components/InputEditor';
+import type { OutputEditorHandle } from '../components/OutputEditor';
 import type {
   FallbackAgentOption,
   FallbackWaitState,
@@ -17,15 +19,18 @@ import {
   resolveContextPrettifyTarget,
   type ContextPrettifyTarget,
 } from '../output/contextPrettifyTarget';
+import { mapOutputPaneViewportSnapshotToRoot, ROOT_OUTPUT_PANE_ID } from './outputPaneDomain';
 import { getLocalResultOutputLanguageOverride } from '../prettifier/localResultOutputLanguage';
 import {
   selectIndentSize,
+  selectFileSource,
   selectIngestNotice,
   selectInputText,
   selectPaneMode,
   selectThemeMode,
 } from './session/documentSessionSelectors';
 import { useDocumentSession } from './session/useDocumentSession';
+import type { DocumentFileSource, DocumentSessionState } from './session/documentSessionDomain';
 import { useKeyboardShortcuts } from './useKeyboardShortcuts';
 import { useMouseNavigationShortcuts } from './useMouseNavigationShortcuts';
 import { useOutputPaneController } from './useOutputPaneController';
@@ -42,9 +47,54 @@ type TelemetryMeta = Record<string, string | number | boolean | null>;
 const consumedInitialOpenFilePaths = new Set<string>();
 
 type UseAppControllerOptions = {
-  initialOpenFile: OpenTextFile | null;
+  initialOpenFile: RefreshableOpenTextFile | null;
   inputEditorRef: RefObject<InputEditorHandle | null>;
 };
+
+type ResetDocumentSnapshot = Pick<
+  DocumentSessionState,
+  | 'paneMode'
+  | 'inputText'
+  | 'fileSource'
+  | 'ingestNotice'
+  | 'ingestRejectionPrompt'
+  | 'outputText'
+  | 'outputLanguageOverride'
+  | 'outputFormattingState'
+  | 'fallbackWaitState'
+  | 'fallbackModalState'
+  | 'lastPrettifiedInput'
+  | 'outputPaneChainState'
+>;
+
+export type DirtyRefreshPrompt = {
+  fileSource: DocumentFileSource;
+  inputText: string;
+};
+
+type RefreshRequestSnapshot = {
+  requestId: number;
+  fileSource: DocumentFileSource;
+  inputText: string;
+  paneMode: PaneMode;
+  viewportSnapshot: EditorViewportSnapshot | null;
+  viewportInteractionVersion: number;
+};
+
+const captureResetDocumentSnapshot = (state: DocumentSessionState): ResetDocumentSnapshot => ({
+  paneMode: state.paneMode,
+  inputText: state.inputText,
+  fileSource: state.fileSource,
+  ingestNotice: state.ingestNotice,
+  ingestRejectionPrompt: state.ingestRejectionPrompt,
+  outputText: state.outputText,
+  outputLanguageOverride: state.outputLanguageOverride,
+  outputFormattingState: state.outputFormattingState,
+  fallbackWaitState: state.fallbackWaitState,
+  fallbackModalState: state.fallbackModalState,
+  lastPrettifiedInput: state.lastPrettifiedInput,
+  outputPaneChainState: state.outputPaneChainState,
+});
 
 export type OutputContextMenuState = {
   paneId: string;
@@ -76,6 +126,9 @@ export type UseAppControllerResult = {
   fallbackModalState: FallbackModalState | null;
   fallbackAgentId: string | null;
   fallbackAgentOptions: FallbackAgentOption[];
+  canRefreshFile: boolean;
+  isRefreshingFile: boolean;
+  dirtyRefreshPrompt: DirtyRefreshPrompt | null;
   hasContent: boolean;
   hasDerivedOutputPane: boolean;
   canNavigateOutputPaneLeft: boolean;
@@ -87,6 +140,9 @@ export type UseAppControllerResult = {
   onExpandAll: () => void;
   onSave: () => Promise<void>;
   onCopy: () => Promise<void>;
+  onRefreshFile: () => void;
+  onCancelDirtyRefresh: () => void;
+  onConfirmDirtyRefresh: () => void;
   onCloseSplit: () => void;
   onNavigateOutputPaneViewport: (stepDelta: number) => void;
   onNavigateOutputPaneLeft: () => void;
@@ -122,6 +178,7 @@ export type UseAppControllerResult = {
   ) => void;
   onDismissOutputContextMenu: () => void;
   onTriggerOutputContextPrettify: () => void;
+  onViewportInteraction: () => void;
   onCancelFallback: () => void;
   onConfirmFallback: () => void;
   onSelectFallbackAgent: (agentId: string) => void;
@@ -141,6 +198,7 @@ export const useAppController = ({
   const themeMode = useDocumentSession(selectThemeMode);
   const indentSize = useDocumentSession(selectIndentSize);
   const inputText = useDocumentSession(selectInputText);
+  const fileSource = useDocumentSession(selectFileSource);
   const ingestNotice = useDocumentSession(selectIngestNotice);
   const reset = useDocumentSession((state) => state.reset);
   const setPaneMode = useDocumentSession((state) => state.setPaneMode);
@@ -148,6 +206,13 @@ export const useAppController = ({
   const setIndentSize = useDocumentSession((state) => state.setIndentSize);
   const setInputText = useDocumentSession((state) => state.setInputText);
   const setIngestNotice = useDocumentSession((state) => state.setIngestNotice);
+  const latestRefreshRequestIdRef = useRef(0);
+  const isRefreshingFileRef = useRef(false);
+  const pendingViewportRestoreRef = useRef<RefreshRequestSnapshot | null>(null);
+  const viewportInteractionVersionRef = useRef(0);
+  const [isRefreshingFile, setIsRefreshingFile] = useState(false);
+  const [viewportRestoreRequestId, setViewportRestoreRequestId] = useState(0);
+  const [dirtyRefreshPrompt, setDirtyRefreshPrompt] = useState<DirtyRefreshPrompt | null>(null);
   const {
     fallbackModalState,
     requestFallbackConfirmation,
@@ -225,6 +290,7 @@ export const useAppController = ({
     canNavigateOutputPaneRight,
     outputPaneFocusRequest,
     getActiveOutputPaneHandle,
+    getOutputPaneHandle,
     onOpenOutputPane,
     onToggleExtractedSourcePane,
     onOutputPaneHandleChange: registerOutputPaneHandle,
@@ -241,6 +307,13 @@ export const useAppController = ({
     useState<OutputContextMenuState | null>(null);
   const hasContent = inputText.trim().length > 0;
   const isOutputMode = paneMode === 'output';
+  const canRefreshFile =
+    fileSource !== null &&
+    !isRefreshingFile &&
+    fallbackWaitState === null &&
+    fallbackModalState === null &&
+    activeIngestRejectionPrompt === null &&
+    dirtyRefreshPrompt === null;
 
   const openFile = useCallback(async (): Promise<void> => {
     const api = getWindowApi();
@@ -250,7 +323,14 @@ export const useAppController = ({
 
     const file = await api.dialog.openFile();
     if (file) {
-      ingestInputText(file.content, 'open-file');
+      void ingestInputText(file.content, 'open-file', {
+        fileSource: {
+          sourceToken: file.sourceToken,
+          path: file.path,
+          sourceKind: file.sourceKind,
+          baselineText: file.content,
+        },
+      });
     }
   }, [ingestInputText]);
 
@@ -272,13 +352,391 @@ export const useAppController = ({
     await api.clipboard.copy(outputText);
   }, [outputText]);
 
+  const areFileSourcesEqual = useCallback(
+    (left: DocumentFileSource | null, right: DocumentFileSource | null): boolean => {
+      if (left === null || right === null) {
+        return left === right;
+      }
+
+      return (
+        left.sourceToken === right.sourceToken &&
+        left.path === right.path &&
+        left.sourceKind === right.sourceKind &&
+        left.lastLoadedText === right.lastLoadedText
+      );
+    },
+    [],
+  );
+
+  const isRefreshAvailableForSource = useCallback(
+    (source: DocumentFileSource | null, options: { ignoreDirtyPrompt?: boolean } = {}): boolean =>
+      source !== null &&
+      !isRefreshingFileRef.current &&
+      fallbackWaitState === null &&
+      fallbackModalState === null &&
+      activeIngestRejectionPrompt === null &&
+      (options.ignoreDirtyPrompt === true || dirtyRefreshPrompt === null),
+    [activeIngestRejectionPrompt, dirtyRefreshPrompt, fallbackModalState, fallbackWaitState],
+  );
+
+  const hasLiveRefreshBlocker = useCallback(
+    (options: { ignoreDirtyPrompt?: boolean } = {}): boolean => {
+      const state = useDocumentSession.getState();
+      return (
+        state.fallbackWaitState !== null ||
+        state.fallbackModalState !== null ||
+        state.ingestRejectionPrompt !== null ||
+        (options.ignoreDirtyPrompt !== true && dirtyRefreshPrompt !== null)
+      );
+    },
+    [dirtyRefreshPrompt],
+  );
+
+  const captureActiveViewportSnapshot = useCallback(
+    (mode: PaneMode): EditorViewportSnapshot | null => {
+      if (mode === 'input') {
+        return inputEditorRef.current?.captureViewportSnapshot() ?? null;
+      }
+
+      const outputSnapshot = getActiveOutputPaneHandle()?.captureViewportSnapshot() ?? null;
+      const rootSnapshot =
+        activeOutputPaneId === ROOT_OUTPUT_PANE_ID
+          ? null
+          : (getOutputPaneHandle(ROOT_OUTPUT_PANE_ID)?.captureViewportSnapshot() ?? null);
+      return mapOutputPaneViewportSnapshotToRoot(
+        useDocumentSession.getState().outputPaneChainState,
+        activeOutputPaneId,
+        outputSnapshot,
+        rootSnapshot,
+      );
+    },
+    [activeOutputPaneId, getActiveOutputPaneHandle, getOutputPaneHandle, inputEditorRef],
+  );
+
+  const tryRestoreViewportSnapshot = useCallback(
+    (snapshot: RefreshRequestSnapshot): boolean => {
+      if (latestRefreshRequestIdRef.current !== snapshot.requestId) {
+        return true;
+      }
+
+      if (snapshot.paneMode === 'input') {
+        const inputEditorHandle = inputEditorRef.current;
+        if (!inputEditorHandle) {
+          return false;
+        }
+
+        inputEditorHandle.restoreViewportSnapshot(snapshot.viewportSnapshot);
+        return true;
+      }
+
+      const rootOutputHandle = getOutputPaneHandle(ROOT_OUTPUT_PANE_ID);
+      if (!rootOutputHandle) {
+        return false;
+      }
+
+      rootOutputHandle.restoreViewportSnapshot(snapshot.viewportSnapshot);
+      return true;
+    },
+    [getOutputPaneHandle, inputEditorRef],
+  );
+
+  const restoreActiveViewportSnapshot = useCallback((snapshot: RefreshRequestSnapshot): void => {
+    pendingViewportRestoreRef.current = snapshot;
+    setViewportRestoreRequestId((requestId) => requestId + 1);
+  }, []);
+
+  useEffect(() => {
+    const pendingRestore = pendingViewportRestoreRef.current;
+    if (!pendingRestore || !tryRestoreViewportSnapshot(pendingRestore)) {
+      return;
+    }
+
+    pendingViewportRestoreRef.current = null;
+  }, [outputPanes, tryRestoreViewportSnapshot, viewportRestoreRequestId]);
+
+  const handleOutputPaneHandleChange = useCallback(
+    (paneId: string, handle: OutputEditorHandle | null): void => {
+      registerOutputPaneHandle(paneId, handle);
+      if (paneId !== ROOT_OUTPUT_PANE_ID || !handle) {
+        return;
+      }
+
+      const pendingRestore = pendingViewportRestoreRef.current;
+      if (!pendingRestore || !tryRestoreViewportSnapshot(pendingRestore)) {
+        return;
+      }
+
+      pendingViewportRestoreRef.current = null;
+    },
+    [registerOutputPaneHandle, tryRestoreViewportSnapshot],
+  );
+
+  const createRefreshSnapshot = useCallback(
+    (source: DocumentFileSource, requestId: number): RefreshRequestSnapshot => ({
+      requestId,
+      fileSource: source,
+      inputText: useDocumentSession.getState().inputText,
+      paneMode: useDocumentSession.getState().paneMode,
+      viewportSnapshot: captureActiveViewportSnapshot(useDocumentSession.getState().paneMode),
+      viewportInteractionVersion: viewportInteractionVersionRef.current,
+    }),
+    [captureActiveViewportSnapshot],
+  );
+
+  const isRefreshSnapshotCurrent = useCallback(
+    (snapshot: RefreshRequestSnapshot): boolean => {
+      const state = useDocumentSession.getState();
+      return (
+        latestRefreshRequestIdRef.current === snapshot.requestId &&
+        state.paneMode === snapshot.paneMode &&
+        state.inputText === snapshot.inputText &&
+        areFileSourcesEqual(state.fileSource, snapshot.fileSource)
+      );
+    },
+    [areFileSourcesEqual],
+  );
+
+  const isRefreshPostIngestFileCurrent = useCallback(
+    (snapshot: RefreshRequestSnapshot, refreshedFile: RefreshableOpenTextFile): boolean => {
+      const state = useDocumentSession.getState();
+      return (
+        latestRefreshRequestIdRef.current === snapshot.requestId &&
+        state.inputText === refreshedFile.content &&
+        areFileSourcesEqual(state.fileSource, {
+          sourceToken: refreshedFile.sourceToken,
+          path: refreshedFile.path,
+          sourceKind: refreshedFile.sourceKind,
+          lastLoadedText: refreshedFile.content,
+        })
+      );
+    },
+    [areFileSourcesEqual],
+  );
+
+  const runRefreshFromSnapshot = useCallback(
+    async (snapshot: RefreshRequestSnapshot): Promise<void> => {
+      const api = getWindowApi();
+      if (!api || !isRefreshAvailableForSource(snapshot.fileSource, { ignoreDirtyPrompt: true })) {
+        return;
+      }
+
+      isRefreshingFileRef.current = true;
+      setIsRefreshingFile(true);
+
+      try {
+        const refreshedFile = await api.file.refreshOpenFile({
+          path: snapshot.fileSource.path,
+          sourceToken: snapshot.fileSource.sourceToken,
+        });
+
+        if (!isRefreshSnapshotCurrent(snapshot)) {
+          void api.file
+            .clearOpenFileSource({
+              sourceToken: refreshedFile.sourceToken,
+              path: refreshedFile.path,
+              scope: 'pending',
+            })
+            .catch((error) => {
+              reportRendererError('Failed to clear stale refreshed file source', error);
+            });
+          return;
+        }
+
+        if (hasLiveRefreshBlocker({ ignoreDirtyPrompt: true })) {
+          void api.file
+            .clearOpenFileSource({
+              sourceToken: refreshedFile.sourceToken,
+              path: refreshedFile.path,
+              scope: 'pending',
+            })
+            .catch((error) => {
+              reportRendererError('Failed to clear blocked refreshed file source', error);
+            });
+          return;
+        }
+
+        const ingestResult = await ingestInputText(refreshedFile.content, 'refresh-file', {
+          fileSource: {
+            sourceToken: refreshedFile.sourceToken,
+            path: refreshedFile.path,
+            sourceKind: refreshedFile.sourceKind,
+            baselineText: refreshedFile.content,
+          },
+          switchToOutputOnComplete: snapshot.paneMode === 'output',
+          awaitPrettifierCompletion: true,
+          isCurrent: () =>
+            isRefreshSnapshotCurrent(snapshot) &&
+            !hasLiveRefreshBlocker({ ignoreDirtyPrompt: true }),
+        });
+        if (ingestResult !== 'accepted') {
+          return;
+        }
+
+        if (!isRefreshPostIngestFileCurrent(snapshot, refreshedFile)) {
+          return;
+        }
+
+        setOutputContextMenuState(null);
+        resetOutputPanes();
+        if (
+          useDocumentSession.getState().paneMode === snapshot.paneMode &&
+          viewportInteractionVersionRef.current === snapshot.viewportInteractionVersion
+        ) {
+          restoreActiveViewportSnapshot(snapshot);
+        }
+      } catch (error) {
+        if (
+          isRefreshSnapshotCurrent(snapshot) &&
+          !hasLiveRefreshBlocker({ ignoreDirtyPrompt: true })
+        ) {
+          setIngestNotice('Unable to refresh file.');
+          reportRendererError('Failed to refresh file', error);
+        }
+      } finally {
+        if (latestRefreshRequestIdRef.current === snapshot.requestId) {
+          isRefreshingFileRef.current = false;
+          setIsRefreshingFile(false);
+        }
+      }
+    },
+    [
+      ingestInputText,
+      hasLiveRefreshBlocker,
+      isRefreshAvailableForSource,
+      isRefreshPostIngestFileCurrent,
+      isRefreshSnapshotCurrent,
+      resetOutputPanes,
+      restoreActiveViewportSnapshot,
+      setIngestNotice,
+    ],
+  );
+
+  const refreshCurrentFile = useCallback((): void => {
+    const currentState = useDocumentSession.getState();
+    const currentFileSource = currentState.fileSource;
+    if (!currentFileSource || !isRefreshAvailableForSource(currentFileSource)) {
+      return;
+    }
+
+    if (currentState.inputText !== currentFileSource.lastLoadedText) {
+      setDirtyRefreshPrompt({
+        fileSource: currentFileSource,
+        inputText: currentState.inputText,
+      });
+      return;
+    }
+
+    const requestId = latestRefreshRequestIdRef.current + 1;
+    latestRefreshRequestIdRef.current = requestId;
+    void runRefreshFromSnapshot(createRefreshSnapshot(currentFileSource, requestId));
+  }, [createRefreshSnapshot, isRefreshAvailableForSource, runRefreshFromSnapshot]);
+
+  const cancelDirtyRefresh = useCallback((): void => {
+    setDirtyRefreshPrompt(null);
+  }, []);
+
+  const confirmDirtyRefresh = useCallback((): void => {
+    const prompt = dirtyRefreshPrompt;
+    if (!prompt) {
+      return;
+    }
+
+    setDirtyRefreshPrompt(null);
+    const currentState = useDocumentSession.getState();
+    if (
+      currentState.inputText !== prompt.inputText ||
+      !areFileSourcesEqual(currentState.fileSource, prompt.fileSource) ||
+      !isRefreshAvailableForSource(currentState.fileSource, { ignoreDirtyPrompt: true })
+    ) {
+      return;
+    }
+
+    const requestId = latestRefreshRequestIdRef.current + 1;
+    latestRefreshRequestIdRef.current = requestId;
+    void runRefreshFromSnapshot(createRefreshSnapshot(prompt.fileSource, requestId));
+  }, [
+    areFileSourcesEqual,
+    createRefreshSnapshot,
+    dirtyRefreshPrompt,
+    isRefreshAvailableForSource,
+    runRefreshFromSnapshot,
+  ]);
+
+  const isResetDocumentSnapshotCurrent = useCallback(
+    (snapshot: ResetDocumentSnapshot): boolean => {
+      const state = useDocumentSession.getState();
+      return (
+        state.paneMode === snapshot.paneMode &&
+        state.inputText === snapshot.inputText &&
+        areFileSourcesEqual(state.fileSource, snapshot.fileSource) &&
+        state.ingestNotice === snapshot.ingestNotice &&
+        state.ingestRejectionPrompt === snapshot.ingestRejectionPrompt &&
+        state.outputText === snapshot.outputText &&
+        state.outputLanguageOverride === snapshot.outputLanguageOverride &&
+        state.outputFormattingState === snapshot.outputFormattingState &&
+        state.fallbackWaitState === snapshot.fallbackWaitState &&
+        state.fallbackModalState === snapshot.fallbackModalState &&
+        state.lastPrettifiedInput === snapshot.lastPrettifiedInput &&
+        state.outputPaneChainState === snapshot.outputPaneChainState
+      );
+    },
+    [areFileSourcesEqual],
+  );
+
   const resetCurrentWindow = useCallback((): void => {
-    cancelPendingFallbackPrompts();
-    setOutputContextMenuState(null);
-    resetPrettifierState();
-    resetOutputPanes();
-    reset();
-  }, [cancelPendingFallbackPrompts, reset, resetOutputPanes, resetPrettifierState]);
+    const runReset = async (): Promise<void> => {
+      latestRefreshRequestIdRef.current += 1;
+      isRefreshingFileRef.current = false;
+      pendingViewportRestoreRef.current = null;
+      setIsRefreshingFile(false);
+      setDirtyRefreshPrompt(null);
+      const resetSnapshot = captureResetDocumentSnapshot(useDocumentSession.getState());
+      const sourceToClear = resetSnapshot.fileSource;
+
+      if (sourceToClear) {
+        const api = getWindowApi();
+        if (!api) {
+          setIngestNotice('Unable to refresh file.');
+          return;
+        }
+
+        try {
+          await api.file.clearOpenFileSource({
+            sourceToken: sourceToClear.sourceToken,
+            path: sourceToClear.path,
+            scope: 'committed',
+          });
+        } catch (error) {
+          setIngestNotice('Unable to refresh file.');
+          reportRendererError('Failed to clear file source before reset', error);
+          return;
+        }
+
+        if (!isResetDocumentSnapshotCurrent(resetSnapshot)) {
+          if (areFileSourcesEqual(useDocumentSession.getState().fileSource, sourceToClear)) {
+            useDocumentSession.getState().setFileSource(null);
+          }
+          return;
+        }
+      }
+
+      cancelPendingFallbackPrompts();
+      setOutputContextMenuState(null);
+      resetPrettifierState();
+      resetOutputPanes();
+      reset();
+    };
+
+    void runReset();
+  }, [
+    areFileSourcesEqual,
+    cancelPendingFallbackPrompts,
+    isResetDocumentSnapshotCurrent,
+    reset,
+    resetOutputPanes,
+    resetPrettifierState,
+    setIngestNotice,
+  ]);
 
   const openNewWindow = useCallback((): void => {
     const api = getWindowApi();
@@ -469,6 +927,24 @@ export const useAppController = ({
     });
   }, [dismissOutputContextMenu, onOpenOutputPane, outputContextMenuState, runPrettifierRequest]);
 
+  const recordViewportInteraction = useCallback((): void => {
+    viewportInteractionVersionRef.current += 1;
+  }, []);
+
+  useEffect(() => {
+    if (!dirtyRefreshPrompt) {
+      return;
+    }
+
+    const state = useDocumentSession.getState();
+    if (
+      state.inputText !== dirtyRefreshPrompt.inputText ||
+      !areFileSourcesEqual(state.fileSource, dirtyRefreshPrompt.fileSource)
+    ) {
+      setDirtyRefreshPrompt(null);
+    }
+  }, [areFileSourcesEqual, dirtyRefreshPrompt, fileSource, inputText]);
+
   useEffect(() => {
     document.documentElement.dataset.theme = themeMode;
   }, [themeMode]);
@@ -488,7 +964,14 @@ export const useAppController = ({
 
     queueMicrotask(() => {
       resetCurrentWindow();
-      ingestInputText(initialOpenFile.content, 'open-file');
+      void ingestInputText(initialOpenFile.content, 'open-file', {
+        fileSource: {
+          sourceToken: initialOpenFile.sourceToken,
+          path: initialOpenFile.path,
+          sourceKind: initialOpenFile.sourceKind,
+          baselineText: initialOpenFile.content,
+        },
+      });
     });
   }, [initialOpenFile, ingestInputText, resetCurrentWindow]);
 
@@ -505,6 +988,17 @@ export const useAppController = ({
     });
   }, [resetCurrentWindow]);
 
+  useEffect(() => {
+    const api = getWindowApi();
+    if (!api) {
+      return;
+    }
+
+    return api.app.onRefreshCurrentWindow(() => {
+      refreshCurrentFile();
+    });
+  }, [refreshCurrentFile]);
+
   useKeyboardShortcuts({
     isOutputMode,
     paneMode,
@@ -520,6 +1014,7 @@ export const useAppController = ({
     openFind: () => {
       getActiveOutputPaneHandle()?.openFind();
     },
+    refreshCurrentFile,
   });
   useMouseNavigationShortcuts({
     isOutputMode,
@@ -546,6 +1041,9 @@ export const useAppController = ({
     fallbackModalState,
     fallbackAgentId,
     fallbackAgentOptions,
+    canRefreshFile,
+    isRefreshingFile,
+    dirtyRefreshPrompt,
     hasContent,
     hasDerivedOutputPane: hasVisibleDerivedOutputPane,
     canNavigateOutputPaneLeft,
@@ -557,6 +1055,9 @@ export const useAppController = ({
     onExpandAll: expandActiveEditor,
     onSave: saveOutput,
     onCopy: copyOutput,
+    onRefreshFile: refreshCurrentFile,
+    onCancelDirtyRefresh: cancelDirtyRefresh,
+    onConfirmDirtyRefresh: confirmDirtyRefresh,
     onCloseSplit: closeDerivedOutputPane,
     onNavigateOutputPaneViewport: navigateOutputPaneViewport,
     onNavigateOutputPaneLeft: () => navigateOutputPaneViewport(-1),
@@ -565,17 +1066,21 @@ export const useAppController = ({
     onIndentSizeChange: persistIndentSize,
     onFallbackAgentIdChange: persistFallbackAgentId,
     onEditInputChange: setInputText,
-    onIngestInput: ingestInputText,
+    onIngestInput: (value, source) => {
+      setDirtyRefreshPrompt(null);
+      void ingestInputText(value, source);
+    },
     onDismissIngestNotice: () => setIngestNotice(null),
     onDismissIngestRejection: dismissIngestRejection,
     onOpenReadableIngestSlice: openReadableIngestSlice,
     onOpenFile: openFile,
-    onOutputPaneHandleChange: registerOutputPaneHandle,
+    onOutputPaneHandleChange: handleOutputPaneHandleChange,
     onOutputPaneFocus: focusVisibleOutputPane,
     onToggleExtractedSourcePane,
     onOutputPaneContextMenu: handleOutputPaneContextMenu,
     onDismissOutputContextMenu: dismissOutputContextMenu,
     onTriggerOutputContextPrettify: triggerOutputContextPrettify,
+    onViewportInteraction: recordViewportInteraction,
     onCancelFallback: () => {
       if (fallbackModalState?.kind === 'agent-selection') {
         settleFallbackAgentSelection(null);

@@ -70,6 +70,15 @@ export type OutputPaneChainState = {
   nextDerivedPaneSequence: number;
 };
 
+export type OutputPaneViewportSnapshot = {
+  lineNumber: number;
+  column: number;
+  topLineNumber: number;
+  scrollLeft: number;
+  scrollTop: number;
+  restoreScrollPosition?: boolean;
+};
+
 export const createOutputPaneChainState = (): OutputPaneChainState => ({
   activePaneId: ROOT_OUTPUT_PANE_ID,
   derivedPanes: [],
@@ -145,6 +154,50 @@ export const getOutputPaneViewRange = (
 
 export const getOutputPaneLineNumberStart = (content: OutputPaneContent): number | null => {
   return content.kind === 'extracted-source' ? content.lineNumberStart : null;
+};
+
+export const mapOutputPaneViewportSnapshotToRoot = (
+  state: Pick<OutputPaneChainState, 'derivedPanes'>,
+  paneId: string,
+  snapshot: OutputPaneViewportSnapshot | null,
+  previousRootSnapshot: OutputPaneViewportSnapshot | null = null,
+): OutputPaneViewportSnapshot | null => {
+  if (!snapshot || paneId === ROOT_OUTPUT_PANE_ID) {
+    return snapshot;
+  }
+
+  const pane = state.derivedPanes.find((derivedPane) => derivedPane.paneId === paneId);
+  if (!pane) {
+    return snapshot;
+  }
+
+  if (pane.content.kind === 'independent-text') {
+    return (
+      previousRootSnapshot ?? {
+        ...snapshot,
+        lineNumber: 1,
+        topLineNumber: 1,
+        restoreScrollPosition: false,
+      }
+    );
+  }
+
+  if (pane.content.kind === 'source-range') {
+    return {
+      ...snapshot,
+      restoreScrollPosition: false,
+    };
+  }
+
+  const startLineNumber = pane.content.lineNumberStart;
+  const lineNumber = startLineNumber + snapshot.lineNumber - 1;
+  const topLineNumber = startLineNumber + snapshot.topLineNumber - 1;
+  return {
+    ...snapshot,
+    lineNumber,
+    topLineNumber,
+    restoreScrollPosition: false,
+  };
 };
 
 export const toOutputPaneDescriptor = (

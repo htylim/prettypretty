@@ -24,6 +24,7 @@ type HarnessProps = {
   handlePaneModeChange: (nextMode: 'input' | 'output') => void;
   saveOutput: () => Promise<void>;
   copyOutput: () => Promise<void>;
+  refreshCurrentFile: () => void;
   openFind: () => void;
   closeOutputPane: () => void;
   navigateOutputPaneViewport: (stepDelta: number) => void;
@@ -44,6 +45,7 @@ const createDefaults = () => ({
   handlePaneModeChange: vi.fn(),
   saveOutput: vi.fn().mockResolvedValue(undefined),
   copyOutput: vi.fn().mockResolvedValue(undefined),
+  refreshCurrentFile: vi.fn(),
   openFind: vi.fn(),
   closeOutputPane: vi.fn(),
   navigateOutputPaneViewport: vi.fn(),
@@ -108,6 +110,23 @@ describe('useKeyboardShortcuts', () => {
     expect(defaults.resetCurrentWindow).toHaveBeenCalledTimes(1);
     expect(defaults.saveOutput).toHaveBeenCalledTimes(1);
     expect(defaults.openFind).toHaveBeenCalledTimes(1);
+  });
+
+  it('routes Cmd+R to refreshCurrentFile and ignores shifted Cmd+R', () => {
+    const defaults = createDefaults();
+    render(createElement(KeyboardHarness, defaults));
+
+    const refreshEvent = new KeyboardEvent('keydown', {
+      key: 'r',
+      metaKey: true,
+      bubbles: true,
+      cancelable: true,
+    });
+    window.dispatchEvent(refreshEvent);
+    fireEvent.keyDown(window, { key: 'r', metaKey: true, shiftKey: true });
+
+    expect(refreshEvent.defaultPrevented).toBe(true);
+    expect(defaults.refreshCurrentFile).toHaveBeenCalledTimes(1);
   });
 
   it('routes literal Ctrl+Left/Ctrl+Right to split navigation only in output mode', () => {

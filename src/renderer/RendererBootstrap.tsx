@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { OpenTextFile } from '../shared/ipc-contracts';
+import type { RefreshableOpenTextFile } from '../shared/ipc-contracts';
 import { App } from './App';
 import { LogWindowApp } from './LogWindowApp';
 
@@ -8,7 +8,7 @@ type RendererBootstrapProps = {
 };
 
 export const RendererBootstrap = ({ activeWindow }: RendererBootstrapProps) => {
-  const [initialOpenFile, setInitialOpenFile] = useState<OpenTextFile | null>(null);
+  const [initialOpenFile, setInitialOpenFile] = useState<RefreshableOpenTextFile | null>(null);
 
   useEffect(() => {
     if (activeWindow === 'log') {

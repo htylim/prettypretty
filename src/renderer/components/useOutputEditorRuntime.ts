@@ -14,6 +14,7 @@ import {
 import type { OutputPaneSourceRange } from '../output/outputRange';
 import { applyOutputViewRange } from '../output/outputViewRange';
 import { extractRebasedSourceBlockText, getDisplayedLineNumber } from '../output/sourceBlockPane';
+import type { EditorViewportSnapshot } from './InputEditor';
 
 const ACTIVE_EXTRACTED_SOURCE_DECORATION_CLASS = 'output-extracted-source-range';
 
@@ -63,6 +64,8 @@ export type OutputEditorRuntime = {
   expandAll: () => Promise<void>;
   focus: () => void;
   openFind: () => void;
+  captureViewportSnapshot: () => EditorViewportSnapshot | null;
+  restoreViewportSnapshot: (snapshot: EditorViewportSnapshot | null) => void;
 };
 
 const collapseViewRangeToStartLine = (viewRange: OutputPaneSourceRange): OutputPaneSourceRange => ({
@@ -266,6 +269,40 @@ export const useOutputEditorRuntime = ({
     void editor.getAction('actions.find')?.run();
   }, []);
 
+  const captureViewportSnapshot = useCallback((): EditorViewportSnapshot | null => {
+    const editor = editorRef.current;
+    const position = editor?.getPosition();
+    if (!editor || !position) {
+      return null;
+    }
+
+    return {
+      lineNumber: position.lineNumber,
+      column: position.column,
+      topLineNumber: editor.getVisibleRanges()[0]?.startLineNumber ?? position.lineNumber,
+      scrollLeft: editor.getScrollLeft(),
+      scrollTop: editor.getScrollTop(),
+    };
+  }, []);
+
+  const restoreViewportSnapshot = useCallback((snapshot: EditorViewportSnapshot | null): void => {
+    const editor = editorRef.current;
+    const model = editor?.getModel();
+    if (!editor || !model || !snapshot) {
+      return;
+    }
+
+    const lineNumber = Math.min(Math.max(snapshot.lineNumber, 1), model.getLineCount());
+    const column = Math.min(Math.max(snapshot.column, 1), model.getLineMaxColumn(lineNumber));
+    const topLineNumber = Math.min(Math.max(snapshot.topLineNumber, 1), model.getLineCount());
+    editor.setPosition({ lineNumber, column });
+    editor.revealLineNearTop(topLineNumber);
+    if (snapshot.restoreScrollPosition !== false) {
+      editor.setScrollLeft(snapshot.scrollLeft);
+      editor.setScrollTop(snapshot.scrollTop);
+    }
+  }, []);
+
   const handleCollapseAll = useCallback(async (): Promise<void> => {
     const editor = editorRef.current;
     if (!editor) {
@@ -400,8 +437,11 @@ export const useOutputEditorRuntime = ({
       expandAll: handleExpandAll,
       focus: handleFocus,
       openFind: handleOpenFind,
+      captureViewportSnapshot,
+      restoreViewportSnapshot,
     }),
     [
+      captureViewportSnapshot,
       handleBeforeMount,
       handleCollapseAll,
       handleEditorFocus,
@@ -410,6 +450,7 @@ export const useOutputEditorRuntime = ({
       handleMount,
       handleOpenFind,
       handleUnmount,
+      restoreViewportSnapshot,
     ],
   );
 };

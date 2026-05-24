@@ -170,6 +170,27 @@ describe('EditorShell', () => {
     expect(onIngestInput).toHaveBeenCalledWith('{"a":1}', 'paste');
   });
 
+  it('does not ingest paste events from the input editor', () => {
+    const onIngestInput = vi.fn();
+
+    render(
+      <EditorShell
+        {...createProps({
+          inputText: 'alpha',
+          onIngestInput,
+        })}
+      />,
+    );
+
+    fireEvent.paste(screen.getByTestId('input-editor'), {
+      clipboardData: {
+        getData: () => 'beta',
+      },
+    });
+
+    expect(onIngestInput).not.toHaveBeenCalled();
+  });
+
   it('routes empty pasted text through ingest callback', () => {
     const onIngestInput = vi.fn();
 

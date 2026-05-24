@@ -14,15 +14,27 @@ type InputEditorProps = {
   themeMode: ThemeMode;
   indentSize: IndentSize;
   onChange: (value: string) => void;
+  onViewportInteraction?: (() => void) | undefined;
 };
 
 export type InputEditorHandle = {
   collapseAll: () => void;
   expandAll: () => void;
+  captureViewportSnapshot: () => EditorViewportSnapshot | null;
+  restoreViewportSnapshot: (snapshot: EditorViewportSnapshot | null) => void;
+};
+
+export type EditorViewportSnapshot = {
+  lineNumber: number;
+  column: number;
+  topLineNumber: number;
+  scrollLeft: number;
+  scrollTop: number;
+  restoreScrollPosition?: boolean;
 };
 
 export const InputEditor = forwardRef<InputEditorHandle, InputEditorProps>(
-  ({ value, themeMode, indentSize, onChange }, ref) => {
+  ({ value, themeMode, indentSize, onChange, onViewportInteraction }, ref) => {
     const editorRef = useRef<MonacoEditor.IStandaloneCodeEditor | null>(null);
     const interactionDisposablesRef = useRef<Array<{ dispose: () => void }>>([]);
     const options = useMemo(() => getInputEditorOptions(indentSize), [indentSize]);
@@ -40,6 +52,38 @@ export const InputEditor = forwardRef<InputEditorHandle, InputEditorProps>(
         },
         expandAll: () => {
           void editorRef.current?.getAction('editor.unfoldAll')?.run();
+        },
+        captureViewportSnapshot: () => {
+          const editor = editorRef.current;
+          const position = editor?.getPosition();
+          if (!editor || !position) {
+            return null;
+          }
+
+          return {
+            lineNumber: position.lineNumber,
+            column: position.column,
+            topLineNumber: editor.getVisibleRanges()[0]?.startLineNumber ?? position.lineNumber,
+            scrollLeft: editor.getScrollLeft(),
+            scrollTop: editor.getScrollTop(),
+          };
+        },
+        restoreViewportSnapshot: (snapshot) => {
+          const editor = editorRef.current;
+          const model = editor?.getModel();
+          if (!editor || !model || !snapshot) {
+            return;
+          }
+
+          const lineNumber = Math.min(Math.max(snapshot.lineNumber, 1), model.getLineCount());
+          const column = Math.min(Math.max(snapshot.column, 1), model.getLineMaxColumn(lineNumber));
+          const topLineNumber = Math.min(Math.max(snapshot.topLineNumber, 1), model.getLineCount());
+          editor.setPosition({ lineNumber, column });
+          editor.revealLineNearTop(topLineNumber);
+          if (snapshot.restoreScrollPosition !== false) {
+            editor.setScrollLeft(snapshot.scrollLeft);
+            editor.setScrollTop(snapshot.scrollTop);
+          }
         },
       }),
       [],
@@ -63,7 +107,13 @@ export const InputEditor = forwardRef<InputEditorHandle, InputEditorProps>(
     };
 
     return (
-      <div className="input-editor" data-testid="input-editor">
+      <div
+        className="input-editor"
+        data-testid="input-editor"
+        onKeyDownCapture={onViewportInteraction}
+        onMouseDownCapture={onViewportInteraction}
+        onWheelCapture={onViewportInteraction}
+      >
         <Editor
           beforeMount={handleBeforeMount}
           height="100%"

@@ -1,4 +1,12 @@
-import type { AppInfo, OpenFileResult, OpenTextFile, SaveFileResult } from './ipc-contracts';
+import type {
+  AppInfo,
+  ClearOpenFileSourceRequest,
+  CommitOpenFileSourceRequest,
+  OpenFileResult,
+  RefreshableOpenTextFile,
+  RefreshOpenFileRequest,
+  SaveFileResult,
+} from './ipc-contracts';
 import type {
   PrettifyCancelRequest,
   PrettifierProgressEvent,
@@ -17,6 +25,9 @@ export interface WindowApi {
   };
   file: {
     save: (content: string) => Promise<SaveFileResult>;
+    refreshOpenFile: (request: RefreshOpenFileRequest) => Promise<RefreshableOpenTextFile>;
+    commitOpenFileSource: (request: CommitOpenFileSourceRequest) => Promise<boolean>;
+    clearOpenFileSource: (request: ClearOpenFileSourceRequest) => Promise<boolean>;
   };
   clipboard: {
     copy: (content: string) => Promise<void>;
@@ -24,8 +35,9 @@ export interface WindowApi {
   app: {
     getInfo: () => Promise<AppInfo>;
     openWindow: () => Promise<void>;
-    consumeInitialOpenFile: () => Promise<OpenTextFile | null>;
+    consumeInitialOpenFile: () => Promise<RefreshableOpenTextFile | null>;
     onResetCurrentWindow: (listener: () => void) => () => void;
+    onRefreshCurrentWindow: (listener: () => void) => () => void;
     onNavigationCommand: (listener: (command: AppNavigationCommand) => void) => () => void;
     initialThemeMode: ThemeMode | null;
   };

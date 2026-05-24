@@ -1,9 +1,11 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import type { IndentSize } from '../../shared/preferences';
 import type { PrettifyRunResponse, PrettifyTrigger } from '../../shared/prettifier';
 import type { TelemetryEventName } from '../../shared/telemetry';
 import type { PaneMode } from '../../shared/types';
 import type { WindowApi } from '../../shared/window-api';
+import type { DocumentFileSource } from './session/documentSessionDomain';
+import { reportRendererError } from './reportRendererError';
 import {
   createIngestRejectionPrompt,
   EMPTY_FILE_NOTICE,
@@ -11,6 +13,7 @@ import {
   type FallbackWaitState,
   type IngestRejectionPrompt,
   type IngestSource,
+  type PendingIngestFileSource,
   getIngestEventName,
   getIngestTrigger,
   isFileIngestSource,
@@ -39,6 +42,25 @@ import { getLocalResultOutputLanguageOverride } from '../prettifier/localResultO
 
 type PrettifierRunOptions = {
   switchToOutputOnComplete: boolean;
+  isResponseCurrent?: (() => boolean) | undefined;
+};
+
+type IngestInputTextOptions = {
+  isReadableSlice?: boolean;
+  originalCharCount?: number | null;
+  fileSource?: PendingIngestFileSource | null;
+  preservePendingFileSourceOnCommitFailure?: boolean;
+  switchToOutputOnComplete?: boolean;
+  awaitPrettifierCompletion?: boolean;
+  isCurrent?: () => boolean;
+};
+
+export type IngestInputTextResult = 'accepted' | 'blocked' | 'failed' | 'stale';
+
+type SourceTransitionSnapshot = {
+  inputText: string;
+  fileSource: DocumentFileSource | null;
+  ingestRejectionPrompt: IngestRejectionPrompt | null;
 };
 
 type TelemetryMeta = Record<string, string | number | boolean | null>;
@@ -70,7 +92,11 @@ export type UsePrettifierFlowResult = {
     trigger: PrettifyTrigger,
     options: PrettifierRunOptions,
   ) => Promise<void>;
-  ingestInputText: (nextText: string, source: IngestSource) => void;
+  ingestInputText: (
+    nextText: string,
+    source: IngestSource,
+    options?: IngestInputTextOptions,
+  ) => Promise<IngestInputTextResult>;
   openReadableIngestSlice: () => void;
   dismissIngestRejection: () => void;
   resetPrettifierState: () => void;
@@ -101,6 +127,7 @@ export const usePrettifierFlow = ({
   requestFallbackAgentSelection,
   logTelemetry,
 }: UsePrettifierFlowOptions): UsePrettifierFlowResult => {
+  const readableSliceRequestKeyRef = useRef<string | null>(null);
   const paneMode = useDocumentSession(selectPaneMode);
   const inputText = useDocumentSession(selectInputText);
   const outputText = useDocumentSession(selectOutputText);
@@ -110,6 +137,7 @@ export const usePrettifierFlow = ({
   const outputFormattingState = useDocumentSession(selectOutputFormattingState);
   const setPaneMode = useDocumentSession((state) => state.setPaneMode);
   const setInputText = useDocumentSession((state) => state.setInputText);
+  const setFileSource = useDocumentSession((state) => state.setFileSource);
   const setIngestNotice = useDocumentSession((state) => state.setIngestNotice);
   const setIngestRejectionPrompt = useDocumentSession((state) => state.setIngestRejectionPrompt);
   const setOutputText = useDocumentSession((state) => state.setOutputText);
@@ -127,6 +155,103 @@ export const usePrettifierFlow = ({
     requestFallbackAgentSelection,
     logTelemetry,
   });
+
+  const areFileSourcesEqual = useCallback(
+    (left: DocumentFileSource | null, right: DocumentFileSource | null): boolean => {
+      if (left === null || right === null) {
+        return left === right;
+      }
+
+      return (
+        left.sourceToken === right.sourceToken &&
+        left.path === right.path &&
+        left.sourceKind === right.sourceKind &&
+        left.lastLoadedText === right.lastLoadedText
+      );
+    },
+    [],
+  );
+
+  const captureSourceTransitionSnapshot = useCallback((): SourceTransitionSnapshot => {
+    const state = useDocumentSession.getState();
+    return {
+      inputText: state.inputText,
+      fileSource: state.fileSource,
+      ingestRejectionPrompt: state.ingestRejectionPrompt,
+    };
+  }, []);
+
+  const isSourceTransitionSnapshotCurrent = useCallback(
+    (snapshot: SourceTransitionSnapshot): boolean => {
+      const state = useDocumentSession.getState();
+      return (
+        state.inputText === snapshot.inputText &&
+        areFileSourcesEqual(state.fileSource, snapshot.fileSource) &&
+        state.ingestRejectionPrompt === snapshot.ingestRejectionPrompt
+      );
+    },
+    [areFileSourcesEqual],
+  );
+
+  const clearOpenFileSource = useCallback(
+    async (
+      source: Pick<DocumentFileSource, 'sourceToken' | 'path'>,
+      scope: 'pending' | 'committed',
+    ): Promise<boolean> => {
+      const api = getWindowApi();
+      if (!api) {
+        return false;
+      }
+
+      try {
+        await api.file.clearOpenFileSource({
+          sourceToken: source.sourceToken,
+          path: source.path,
+          scope,
+        });
+        return true;
+      } catch (error) {
+        reportRendererError('Failed to clear file source', error);
+        return false;
+      }
+    },
+    [getWindowApi],
+  );
+
+  const clearPendingPromptFileSource = useCallback(
+    (prompt: IngestRejectionPrompt | null): void => {
+      const pendingFileSource = prompt?.pendingFileSource;
+      if (!pendingFileSource) {
+        return;
+      }
+
+      void clearOpenFileSource(pendingFileSource, 'pending');
+    },
+    [clearOpenFileSource],
+  );
+
+  const clearCapturedIngestPrompt = useCallback(
+    (
+      snapshot: SourceTransitionSnapshot,
+      committedFileSource: Pick<DocumentFileSource, 'sourceToken' | 'path'> | null,
+    ): void => {
+      const promptToClear = snapshot.ingestRejectionPrompt;
+      const pendingPromptFileSource = promptToClear?.pendingFileSource;
+      if (
+        pendingPromptFileSource &&
+        (committedFileSource === null ||
+          pendingPromptFileSource.sourceToken !== committedFileSource.sourceToken ||
+          pendingPromptFileSource.path !== committedFileSource.path)
+      ) {
+        void clearOpenFileSource(pendingPromptFileSource, 'pending');
+      }
+
+      if (useDocumentSession.getState().ingestRejectionPrompt === promptToClear) {
+        setIngestRejectionPrompt(null);
+      }
+    },
+    [clearOpenFileSource, setIngestRejectionPrompt],
+  );
 
   const applyTransientOutputState = useCallback(
     (nextState: PrettifierSessionState): void => {
@@ -219,6 +344,8 @@ export const usePrettifierFlow = ({
       trigger: PrettifyTrigger,
       options: PrettifierRunOptions,
     ): Promise<void> => {
+      const inputSnapshot = useDocumentSession.getState().inputText;
+      const fileSourceSnapshot = useDocumentSession.getState().fileSource;
       setOutputText(nextInputText);
       setOutputLanguageOverride(null);
       setOutputFormattingState(createEmptyOutputFormattingState());
@@ -229,10 +356,26 @@ export const usePrettifierFlow = ({
         return;
       }
 
+      if (
+        inputSnapshot === nextInputText &&
+        useDocumentSession.getState().inputText !== nextInputText
+      ) {
+        return;
+      }
+
+      if (!areFileSourcesEqual(useDocumentSession.getState().fileSource, fileSourceSnapshot)) {
+        return;
+      }
+
+      if (options.isResponseCurrent && !options.isResponseCurrent()) {
+        return;
+      }
+
       applyPrettifyResponse(response);
       showOutputIfRequested(options.switchToOutputOnComplete);
     },
     [
+      areFileSourcesEqual,
       applyPrettifyResponse,
       requestFlow,
       setLastPrettifiedInput,
@@ -244,12 +387,19 @@ export const usePrettifierFlow = ({
   );
 
   const ingestInputText = useCallback(
-    (
+    async (
       nextText: string,
       source: IngestSource,
-      options?: { isReadableSlice?: boolean; originalCharCount?: number | null },
-    ): void => {
-      const ingestPrompt = createIngestRejectionPrompt(nextText, source);
+      options: IngestInputTextOptions = {},
+    ): Promise<IngestInputTextResult> => {
+      const pendingFileSource = options.fileSource ?? null;
+      const isIngestRequestCurrent = options.isCurrent ?? (() => true);
+      const ingestPrompt = createIngestRejectionPrompt(
+        nextText,
+        source,
+        pendingFileSource,
+        options.switchToOutputOnComplete ?? true,
+      );
       void logTelemetry(getIngestEventName(source), {
         source,
         inputLength: nextText.length,
@@ -263,32 +413,124 @@ export const usePrettifierFlow = ({
       });
 
       if (ingestPrompt) {
+        clearPendingPromptFileSource(useDocumentSession.getState().ingestRejectionPrompt);
         setIngestRejectionPrompt(ingestPrompt);
-        return;
+        return 'blocked';
       }
 
-      setIngestRejectionPrompt(null);
+      const sourceTransitionSnapshot = captureSourceTransitionSnapshot();
+      const currentFileSource = sourceTransitionSnapshot.fileSource;
+      if (pendingFileSource) {
+        if (!isIngestRequestCurrent()) {
+          void clearOpenFileSource(pendingFileSource, 'pending');
+          return 'stale';
+        }
+
+        const api = getWindowApi();
+        if (!api) {
+          setIngestNotice('Unable to refresh file.');
+          return 'failed';
+        }
+
+        try {
+          await api.file.commitOpenFileSource({
+            sourceToken: pendingFileSource.sourceToken,
+            path: pendingFileSource.path,
+          });
+        } catch (error) {
+          reportRendererError('Failed to commit file source', error);
+          if (!options.preservePendingFileSourceOnCommitFailure) {
+            void clearOpenFileSource(pendingFileSource, 'pending');
+          }
+          setIngestNotice('Unable to refresh file.');
+          return 'failed';
+        }
+
+        if (
+          !isIngestRequestCurrent() ||
+          !isSourceTransitionSnapshotCurrent(sourceTransitionSnapshot)
+        ) {
+          void clearOpenFileSource(pendingFileSource, 'committed');
+          if (
+            areFileSourcesEqual(
+              useDocumentSession.getState().fileSource,
+              sourceTransitionSnapshot.fileSource,
+            )
+          ) {
+            setFileSource(null);
+          }
+          return 'stale';
+        }
+
+        setFileSource({
+          sourceToken: pendingFileSource.sourceToken,
+          path: pendingFileSource.path,
+          sourceKind: pendingFileSource.sourceKind,
+          lastLoadedText: nextText,
+        });
+      } else if ((source === 'paste' || source === 'drop') && currentFileSource) {
+        const didClear = await clearOpenFileSource(currentFileSource, 'committed');
+        if (!didClear) {
+          setIngestNotice('Unable to refresh file.');
+          return 'failed';
+        }
+
+        if (!isSourceTransitionSnapshotCurrent(sourceTransitionSnapshot)) {
+          if (
+            areFileSourcesEqual(
+              useDocumentSession.getState().fileSource,
+              sourceTransitionSnapshot.fileSource,
+            )
+          ) {
+            setFileSource(null);
+          }
+          return 'stale';
+        }
+
+        setFileSource(null);
+      }
+
+      clearCapturedIngestPrompt(sourceTransitionSnapshot, pendingFileSource);
       setInputText(nextText);
 
       if (isFileIngestSource(source) && nextText.length === 0) {
         resetToInputState(EMPTY_FILE_NOTICE);
-        return;
+        return 'accepted';
       }
 
       if (nextText.trim().length === 0) {
         resetToInputState(source === 'paste' ? undefined : null);
-        return;
+        return 'accepted';
       }
 
       setIngestNotice(null);
-      void runPrettifier(nextText, getIngestTrigger(source), {
-        switchToOutputOnComplete: true,
+      const responseTransitionSnapshot = captureSourceTransitionSnapshot();
+      const responsePaneMode = useDocumentSession.getState().paneMode;
+      const prettifierPromise = runPrettifier(nextText, getIngestTrigger(source), {
+        isResponseCurrent: () =>
+          isSourceTransitionSnapshotCurrent(responseTransitionSnapshot) &&
+          useDocumentSession.getState().paneMode === responsePaneMode,
+        switchToOutputOnComplete: options.switchToOutputOnComplete ?? true,
       });
+      if (options.awaitPrettifierCompletion === true) {
+        await prettifierPromise;
+      } else {
+        void prettifierPromise;
+      }
+      return 'accepted';
     },
     [
+      areFileSourcesEqual,
+      captureSourceTransitionSnapshot,
+      clearCapturedIngestPrompt,
+      clearOpenFileSource,
+      clearPendingPromptFileSource,
       logTelemetry,
+      getWindowApi,
+      isSourceTransitionSnapshotCurrent,
       resetToInputState,
       runPrettifier,
+      setFileSource,
       setIngestNotice,
       setIngestRejectionPrompt,
       setInputText,
@@ -301,22 +543,51 @@ export const usePrettifierFlow = ({
       return;
     }
 
-    setIngestRejectionPrompt(null);
-    ingestInputText(pendingPrompt.recoveryText, pendingPrompt.source, {
+    const readableSliceRequestKey = pendingPrompt.pendingFileSource
+      ? `${pendingPrompt.pendingFileSource.sourceToken}:${pendingPrompt.pendingFileSource.path}`
+      : null;
+    if (
+      readableSliceRequestKey !== null &&
+      readableSliceRequestKeyRef.current === readableSliceRequestKey
+    ) {
+      return;
+    }
+
+    readableSliceRequestKeyRef.current = readableSliceRequestKey;
+    void ingestInputText(pendingPrompt.recoveryText, pendingPrompt.source, {
       isReadableSlice: true,
       originalCharCount: pendingPrompt.originalCharCount,
+      preservePendingFileSourceOnCommitFailure: true,
+      switchToOutputOnComplete: pendingPrompt.switchToOutputOnComplete,
+      fileSource: pendingPrompt.pendingFileSource
+        ? {
+            ...pendingPrompt.pendingFileSource,
+            baselineText: pendingPrompt.recoveryText,
+          }
+        : null,
+    }).finally(() => {
+      if (readableSliceRequestKeyRef.current === readableSliceRequestKey) {
+        readableSliceRequestKeyRef.current = null;
+      }
     });
-  }, [ingestInputText, setIngestRejectionPrompt]);
+  }, [ingestInputText]);
 
   const dismissIngestRejection = useCallback((): void => {
+    clearPendingPromptFileSource(useDocumentSession.getState().ingestRejectionPrompt);
     setIngestRejectionPrompt(null);
-  }, [setIngestRejectionPrompt]);
+  }, [clearPendingPromptFileSource, setIngestRejectionPrompt]);
 
   const resetPrettifierState = useCallback(() => {
     void requestFlow.discardActiveFallback();
+    clearPendingPromptFileSource(useDocumentSession.getState().ingestRejectionPrompt);
     setIngestRejectionPrompt(null);
     clearTransientOutputState('');
-  }, [clearTransientOutputState, requestFlow, setIngestRejectionPrompt]);
+  }, [
+    clearPendingPromptFileSource,
+    clearTransientOutputState,
+    requestFlow,
+    setIngestRejectionPrompt,
+  ]);
 
   const isInputAlreadyPrettified = useCallback(
     (input: string): boolean => {

@@ -24,6 +24,10 @@ const {
   decorationCollectionClearMock,
   decorationCollectionSetMock,
   editorRenderMock,
+  setPositionMock,
+  setScrollLeftMock,
+  setScrollTopMock,
+  revealLineNearTopMock,
 } = vi.hoisted(() => ({
   prepareMonacoEditorRuntimeMock: vi.fn(),
   retainSharedEditorModelMock: vi.fn(),
@@ -49,6 +53,10 @@ const {
   decorationCollectionClearMock: vi.fn(),
   decorationCollectionSetMock: vi.fn(),
   editorRenderMock: vi.fn(),
+  setPositionMock: vi.fn(),
+  setScrollLeftMock: vi.fn(),
+  setScrollTopMock: vi.fn(),
+  revealLineNearTopMock: vi.fn(),
 }));
 
 vi.mock('../../../../src/renderer/output/monacoEditorRuntime', () => ({
@@ -115,10 +123,20 @@ const editorMock = {
       token: 'view-state',
     }) as unknown as MonacoEditor.ICodeEditorViewState,
   focus: focusMock,
+  getPosition: () => ({ lineNumber: 8, column: 11 }),
+  getVisibleRanges: () => [{ startLineNumber: 7 }],
+  getScrollLeft: () => 18,
+  getScrollTop: () => 320,
   getModel: () =>
     ({
       getLineContent: () => '',
+      getLineCount: () => 6,
+      getLineMaxColumn: (lineNumber: number) => (lineNumber === 6 ? 5 : 12),
     }) as unknown as MonacoEditor.ITextModel,
+  setPosition: setPositionMock,
+  setScrollLeft: setScrollLeftMock,
+  setScrollTop: setScrollTopMock,
+  revealLineNearTop: revealLineNearTopMock,
   createDecorationsCollection: () => ({
     clear: decorationCollectionClearMock,
     set: decorationCollectionSetMock,
@@ -216,6 +234,10 @@ describe('useOutputEditorRuntime', () => {
     decorationCollectionClearMock.mockClear();
     decorationCollectionSetMock.mockClear();
     editorRenderMock.mockClear();
+    setPositionMock.mockClear();
+    setScrollLeftMock.mockClear();
+    setScrollTopMock.mockClear();
+    revealLineNearTopMock.mockClear();
   });
 
   it('owns Monaco lifecycle, focus queueing, and hidden-area updates', () => {
@@ -404,6 +426,55 @@ describe('useOutputEditorRuntime', () => {
       position: { lineNumber: 1, column: 1 },
       hasSelection: true,
     });
+  });
+
+  it('captures and restores output viewport snapshots with clamped line and column', () => {
+    const ref = { current: null as RuntimeHandle | null };
+
+    render(
+      createElement(RuntimeHarness, {
+        documentId: 'doc-viewport',
+        viewStateKey: 'output-root-pane:doc-viewport',
+        ref,
+      }),
+    );
+
+    act(() => {
+      ref.current?.beforeMount(monacoMock);
+      ref.current?.onMount(editorMock, monacoMock);
+    });
+
+    const snapshot = ref.current?.captureViewportSnapshot();
+    expect(snapshot).toEqual({
+      lineNumber: 8,
+      column: 11,
+      topLineNumber: 7,
+      scrollLeft: 18,
+      scrollTop: 320,
+    });
+
+    act(() => {
+      ref.current?.restoreViewportSnapshot(snapshot ?? null);
+    });
+
+    expect(setPositionMock).toHaveBeenCalledWith({ lineNumber: 6, column: 5 });
+    expect(setScrollLeftMock).toHaveBeenCalledWith(18);
+    expect(setScrollTopMock).toHaveBeenCalledWith(320);
+    expect(revealLineNearTopMock).toHaveBeenCalledWith(6);
+    expect(revealLineNearTopMock.mock.invocationCallOrder[0]).toBeLessThan(
+      setScrollTopMock.mock.invocationCallOrder[0]!,
+    );
+
+    act(() => {
+      ref.current?.restoreViewportSnapshot({
+        ...snapshot!,
+        lineNumber: 2,
+        column: 4,
+        topLineNumber: 6,
+      });
+    });
+
+    expect(revealLineNearTopMock).toHaveBeenLastCalledWith(6);
   });
 
   it('forwards extracted-source pane requests and source highlights through the runtime seam', () => {

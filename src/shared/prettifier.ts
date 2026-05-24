@@ -8,6 +8,7 @@ export type PrettifyTrigger =
   | 'ingest-open-file'
   | 'ingest-drop'
   | 'ingest-paste'
+  | 'refresh-file'
   | 'switch-output'
   | 'context-pane-prettify';
 

@@ -16,6 +16,10 @@ const {
   unfoldRunMock,
   getActionMock,
   foldToggleDisposeMock,
+  setPositionMock,
+  setScrollLeftMock,
+  setScrollTopMock,
+  revealLineNearTopMock,
 } = vi.hoisted(() => ({
   prepareMonacoEditorRuntimeMock: vi.fn(),
   getInputEditorOptionsMock: vi.fn(() => ({
@@ -28,6 +32,10 @@ const {
   unfoldRunMock: vi.fn(async () => undefined),
   getActionMock: vi.fn(),
   foldToggleDisposeMock: vi.fn(),
+  setPositionMock: vi.fn(),
+  setScrollLeftMock: vi.fn(),
+  setScrollTopMock: vi.fn(),
+  revealLineNearTopMock: vi.fn(),
 }));
 
 vi.mock('../../../../src/renderer/output/monacoEditorRuntime', () => ({
@@ -75,6 +83,18 @@ const editorMock = {
 
     return undefined;
   },
+  getPosition: () => ({ lineNumber: 7, column: 9 }),
+  getVisibleRanges: () => [{ startLineNumber: 6 }],
+  getScrollLeft: () => 12,
+  getScrollTop: () => 240,
+  getModel: () => ({
+    getLineCount: () => 5,
+    getLineMaxColumn: (lineNumber: number) => (lineNumber === 5 ? 4 : 10),
+  }),
+  setPosition: setPositionMock,
+  setScrollLeft: setScrollLeftMock,
+  setScrollTop: setScrollTopMock,
+  revealLineNearTop: revealLineNearTopMock,
 } as unknown as MonacoEditor.IStandaloneCodeEditor;
 
 vi.mock('@monaco-editor/react', async () => {
@@ -118,6 +138,10 @@ describe('InputEditor', () => {
     unfoldRunMock.mockClear();
     getActionMock.mockClear();
     foldToggleDisposeMock.mockClear();
+    setPositionMock.mockClear();
+    setScrollLeftMock.mockClear();
+    setScrollTopMock.mockClear();
+    revealLineNearTopMock.mockClear();
   });
 
   it('renders Monaco with shared options seam in editable mode', () => {
@@ -171,6 +195,47 @@ describe('InputEditor', () => {
     expect(getActionMock).toHaveBeenCalledWith('editor.unfoldAll');
     expect(foldRunMock).toHaveBeenCalledTimes(1);
     expect(unfoldRunMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('captures and restores viewport snapshots with clamped line and column', () => {
+    const handleRef = createRef<InputEditorHandle>();
+    render(
+      <InputEditor
+        ref={handleRef}
+        themeMode="light"
+        indentSize={2}
+        value="alpha"
+        onChange={vi.fn()}
+      />,
+    );
+
+    const snapshot = handleRef.current?.captureViewportSnapshot();
+    expect(snapshot).toEqual({
+      lineNumber: 7,
+      column: 9,
+      topLineNumber: 6,
+      scrollLeft: 12,
+      scrollTop: 240,
+    });
+
+    handleRef.current?.restoreViewportSnapshot(snapshot ?? null);
+
+    expect(setPositionMock).toHaveBeenCalledWith({ lineNumber: 5, column: 4 });
+    expect(setScrollLeftMock).toHaveBeenCalledWith(12);
+    expect(setScrollTopMock).toHaveBeenCalledWith(240);
+    expect(revealLineNearTopMock).toHaveBeenCalledWith(5);
+    expect(revealLineNearTopMock.mock.invocationCallOrder[0]).toBeLessThan(
+      setScrollTopMock.mock.invocationCallOrder[0]!,
+    );
+
+    handleRef.current?.restoreViewportSnapshot({
+      ...snapshot!,
+      lineNumber: 2,
+      column: 3,
+      topLineNumber: 5,
+    });
+
+    expect(revealLineNearTopMock).toHaveBeenLastCalledWith(5);
   });
 
   it('registers shared fold toggle wiring on mount', () => {

@@ -4,6 +4,7 @@ export type TelemetryMeta = Record<string, TelemetryValue>;
 
 export const TELEMETRY_EVENT_NAMES = [
   'renderer.ingest.open-file',
+  'renderer.ingest.refresh-file',
   'renderer.ingest.drop',
   'renderer.ingest.paste',
   'renderer.output.mode-switch',

@@ -84,6 +84,81 @@ const dispatchPaste = async (page: Page, text: string): Promise<void> => {
   }, text);
 };
 
+const primaryModifier = process.platform === 'darwin' ? 'Meta' : 'Control';
+
+const focusInputEditor = async (page: Page): Promise<void> => {
+  await page.getByTestId('pane-segment-input').click();
+  await expect(page.getByTestId('input-editor')).toBeVisible();
+  await page
+    .locator('[data-testid="input-editor"]')
+    .first()
+    .click({ force: true, position: { x: 90, y: 24 } });
+};
+
+const expectOutputText = async (page: Page, text: string): Promise<void> => {
+  await expect(page.getByTestId('output-editor')).toContainText(text);
+};
+
+const createPrettyNumberObject = (count: number): string => {
+  return `${JSON.stringify(
+    Object.fromEntries(
+      Array.from({ length: count }, (_, index) => [`line${index + 1}`, index + 1]),
+    ),
+    null,
+    2,
+  )}\n`;
+};
+
+const focusDocumentWindowByIndex = async (
+  app: ElectronApplication,
+  windowIndex: number,
+): Promise<void> => {
+  await app.evaluate(({ BrowserWindow, app: electronApp }, targetWindowIndex) => {
+    const targetWindow = BrowserWindow.getAllWindows().sort((left, right) => left.id - right.id)[
+      targetWindowIndex
+    ];
+    if (!targetWindow) {
+      throw new Error(`Document window ${targetWindowIndex} unavailable`);
+    }
+
+    electronApp.focus({ steal: true });
+    targetWindow.show();
+    targetWindow.moveTop();
+    targetWindow.focus();
+  }, windowIndex);
+};
+
+const clickRefreshFileMenuItemForWindowIndex = async (
+  app: ElectronApplication,
+  windowIndex: number,
+): Promise<void> => {
+  await app.evaluate(({ BrowserWindow, Menu }, targetWindowIndex) => {
+    const targetWindow = BrowserWindow.getAllWindows().sort((left, right) => left.id - right.id)[
+      targetWindowIndex
+    ];
+    if (!targetWindow) {
+      throw new Error(`Document window ${targetWindowIndex} unavailable`);
+    }
+
+    const appMenu = Menu.getApplicationMenu();
+    const refreshItem =
+      appMenu?.items
+        .find((item) => item.label === 'File')
+        ?.submenu?.items.find((item) => item.label === 'Refresh File') ?? null;
+    if (!refreshItem) {
+      throw new Error('Refresh File menu item unavailable');
+    }
+
+    const originalGetFocusedWindow = BrowserWindow.getFocusedWindow;
+    BrowserWindow.getFocusedWindow = () => targetWindow;
+    try {
+      refreshItem.click(undefined as never, undefined as never, {} as never);
+    } finally {
+      BrowserWindow.getFocusedWindow = originalGetFocusedWindow;
+    }
+  }, windowIndex);
+};
+
 const openLogWindow = async (app: ElectronApplication): Promise<Page> => {
   const logWindowPromise = app.waitForEvent('window');
 
@@ -139,6 +214,111 @@ test('launching with a file argument opens that file in the first document windo
     const firstWindow = await app.firstWindow();
     await firstWindow.waitForLoadState('domcontentloaded');
     await expect(firstWindow.getByTestId('output-editor')).toContainText('"launch": true');
+  } finally {
+    await app.close();
+    await rm(tempDirectory, { recursive: true, force: true });
+  }
+});
+
+test('refresh button reloads the current file and reruns prettify without changing pane mode', async () => {
+  const tempDirectory = await mkdtemp(join(tmpdir(), 'prettypretty-refresh-button-'));
+  const filePath = join(tempDirectory, 'refresh.json');
+  await writeFile(filePath, '{"version":1}', 'utf8');
+
+  const app = await launchApp(test.info(), [filePath]);
+
+  try {
+    const page = await app.firstWindow();
+    await page.waitForLoadState('domcontentloaded');
+    await expectOutputText(page, '"version": 1');
+    await expect(page.getByTestId('pane-segment-output')).toHaveAttribute('aria-pressed', 'true');
+
+    await writeFile(filePath, '{"version":2}', 'utf8');
+    await page.getByRole('button', { name: 'Refresh' }).click();
+
+    await expectOutputText(page, '"version": 2');
+    await expect(page.getByTestId('pane-segment-output')).toHaveAttribute('aria-pressed', 'true');
+  } finally {
+    await app.close();
+    await rm(tempDirectory, { recursive: true, force: true });
+  }
+});
+
+test('paste-backed input ignores Cmd+R refresh', async () => {
+  const app = await launchApp(test.info());
+
+  try {
+    const page = await app.firstWindow();
+    await page.waitForLoadState('domcontentloaded');
+
+    await dispatchPaste(page, '{"paste":1}');
+    await expectOutputText(page, '"paste": 1');
+    await expect(page.getByRole('button', { name: 'Refresh' })).toBeDisabled();
+
+    await page.keyboard.press(`${primaryModifier}+R`);
+    await expectOutputText(page, '"paste": 1');
+  } finally {
+    await app.close();
+  }
+});
+
+test('refresh clamps preserved line when refreshed content is shorter', async () => {
+  const tempDirectory = await mkdtemp(join(tmpdir(), 'prettypretty-refresh-clamp-'));
+  const filePath = join(tempDirectory, 'long.json');
+  await writeFile(filePath, createPrettyNumberObject(80), 'utf8');
+
+  const app = await launchApp(test.info(), [filePath]);
+
+  try {
+    const page = await app.firstWindow();
+    await page.waitForLoadState('domcontentloaded');
+    await expectOutputText(page, '"line1": 1');
+
+    await focusInputEditor(page);
+    await page.locator('[data-testid="input-editor"] .monaco-scrollable-element').first().hover();
+    for (let wheelCount = 0; wheelCount < 20; wheelCount += 1) {
+      await page.mouse.wheel(0, 10_000);
+    }
+    await expect(page.getByTestId('input-editor')).toContainText('"line80": 80');
+
+    await writeFile(filePath, createPrettyNumberObject(40), 'utf8');
+    await page.getByRole('button', { name: 'Refresh' }).click();
+
+    await expect(page.getByTestId('input-editor')).toContainText('"line40": 40');
+    await expect(page.getByTestId('pane-segment-input')).toHaveAttribute('aria-pressed', 'true');
+  } finally {
+    await app.close();
+    await rm(tempDirectory, { recursive: true, force: true });
+  }
+});
+
+test('Refresh File menu item refreshes the focused file-backed window @requires-visible-window', async () => {
+  const tempDirectory = await mkdtemp(join(tmpdir(), 'prettypretty-refresh-shortcut-'));
+  const firstFilePath = join(tempDirectory, 'first.json');
+  const secondFilePath = join(tempDirectory, 'second.json');
+  await writeFile(firstFilePath, '{"window":"one","version":1}', 'utf8');
+  await writeFile(secondFilePath, '{"window":"two","version":1}', 'utf8');
+
+  const app = await launchApp(test.info(), [firstFilePath, secondFilePath]);
+
+  try {
+    await waitForWindowCount(app, 2);
+    const firstWindow = app.windows()[0];
+    const secondWindow = app.windows()[1];
+    if (!firstWindow || !secondWindow) {
+      throw new Error('Expected two document windows');
+    }
+
+    await expectOutputText(firstWindow, '"window": "one"');
+    await expectOutputText(secondWindow, '"window": "two"');
+
+    await writeFile(firstFilePath, '{"window":"one","version":2}', 'utf8');
+    await writeFile(secondFilePath, '{"window":"two","version":2}', 'utf8');
+    await focusDocumentWindowByIndex(app, 0);
+    await clickRefreshFileMenuItemForWindowIndex(app, 0);
+
+    await expectOutputText(firstWindow, '"version": 2');
+    await expectOutputText(secondWindow, '"version": 1');
   } finally {
     await app.close();
     await rm(tempDirectory, { recursive: true, force: true });

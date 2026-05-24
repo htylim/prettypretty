@@ -32,6 +32,30 @@ describe('documentSessionDomain', () => {
       fallbackWaitState: null,
       fallbackModalState: null,
       lastPrettifiedInput: null,
+      fileSource: null,
+    });
+  });
+
+  it('tracks refreshable file source in initial and updated document session state', () => {
+    const initial = createInitialDocumentSessionState();
+
+    expect(initial.fileSource).toBeNull();
+
+    expect({
+      ...initial,
+      fileSource: {
+        sourceToken: 'token-1',
+        path: '/tmp/source.json',
+        sourceKind: 'dialog-open-file',
+        lastLoadedText: '{"a":1}',
+      },
+    }).toMatchObject({
+      fileSource: {
+        sourceToken: 'token-1',
+        path: '/tmp/source.json',
+        sourceKind: 'dialog-open-file',
+        lastLoadedText: '{"a":1}',
+      },
     });
   });
 
@@ -49,9 +73,11 @@ describe('documentSessionDomain', () => {
         recoveryText: 'partial',
         source: 'paste',
         originalCharCount: 10,
+        switchToOutputOnComplete: true,
         rejectionReason: 'char-count',
         rejectionActual: 10,
         rejectionLimit: 9,
+        pendingFileSource: null,
       },
       fallbackAgentId: 'codex',
       fallbackAgentOptions: [{ id: 'codex', name: 'Codex', enabled: true }],
@@ -61,6 +87,12 @@ describe('documentSessionDomain', () => {
         derivedPanes: [],
         leftVisiblePaneIndex: 0,
         nextDerivedPaneSequence: 9,
+      },
+      fileSource: {
+        sourceToken: 'token-1',
+        path: '/tmp/source.json',
+        sourceKind: 'dialog-open-file',
+        lastLoadedText: '{"a":1}',
       },
     });
 
@@ -90,6 +122,31 @@ describe('documentSessionDomain', () => {
       fallbackWaitState: null,
       fallbackModalState: null,
       lastPrettifiedInput: null,
+      fileSource: null,
     });
+  });
+
+  it('reset clears refreshable file source while preserving preferences', () => {
+    const reset = resetDocumentSessionEditorState({
+      ...createInitialDocumentSessionState(),
+      themeMode: 'dark',
+      indentSize: 6,
+      fallbackAgentId: 'codex',
+      fallbackAgentOptions: [{ id: 'codex', name: 'Codex', enabled: true }],
+      fallbackWarningLineThreshold: 420,
+      fileSource: {
+        sourceToken: 'token-1',
+        path: '/tmp/source.json',
+        sourceKind: 'startup-open-file',
+        lastLoadedText: '{"a":1}',
+      },
+    });
+
+    expect(reset.fileSource).toBeNull();
+    expect(reset.themeMode).toBe('dark');
+    expect(reset.indentSize).toBe(6);
+    expect(reset.fallbackAgentId).toBe('codex');
+    expect(reset.fallbackAgentOptions).toEqual([{ id: 'codex', name: 'Codex', enabled: true }]);
+    expect(reset.fallbackWarningLineThreshold).toBe(420);
   });
 });

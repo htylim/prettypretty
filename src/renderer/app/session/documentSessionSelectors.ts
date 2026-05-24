@@ -18,6 +18,12 @@ export const selectInputText = (state: DocumentSessionState): DocumentSessionSta
   return state.inputText;
 };
 
+export const selectFileSource = (
+  state: DocumentSessionState,
+): DocumentSessionState['fileSource'] => {
+  return state.fileSource;
+};
+
 export const selectIngestNotice = (
   state: DocumentSessionState,
 ): DocumentSessionState['ingestNotice'] => {

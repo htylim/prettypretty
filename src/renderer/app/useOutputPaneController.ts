@@ -53,6 +53,7 @@ export type UseOutputPaneControllerResult = {
   canNavigateOutputPaneRight: boolean;
   outputPaneFocusRequest: OutputPaneFocusRequest | null;
   getActiveOutputPaneHandle: () => OutputEditorHandle | null;
+  getOutputPaneHandle: (paneId: string) => OutputEditorHandle | null;
   onOutputPaneHandleChange: (paneId: string, handle: OutputEditorHandle | null) => void;
   onOutputPaneFocus: (paneId: string) => void;
   onOpenOutputPane: (parentPaneId: string, content: OutputPaneContentInput) => void;
@@ -316,6 +317,10 @@ export const useOutputPaneController = ({
     return outputPaneHandlesRef.current.get(fallbackPaneId) ?? null;
   }, [outputPaneChainState]);
 
+  const getOutputPaneHandle = useCallback((paneId: string): OutputEditorHandle | null => {
+    return outputPaneHandlesRef.current.get(paneId) ?? null;
+  }, []);
+
   const resetOutputPanes = useCallback((): void => {
     outputPaneHandlesRef.current.clear();
     nextFocusRequestSequenceRef.current = 1;
@@ -337,6 +342,7 @@ export const useOutputPaneController = ({
     canNavigateOutputPaneRight: canNavigateOutputPaneViewportRight(outputPaneChainState),
     outputPaneFocusRequest,
     getActiveOutputPaneHandle,
+    getOutputPaneHandle,
     onOutputPaneHandleChange: registerOutputPaneHandle,
     onOutputPaneFocus: focusVisibleOutputPane,
     onOpenOutputPane: openOutputPane,

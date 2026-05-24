@@ -41,6 +41,8 @@ const createOutputEditorHandle = (): OutputEditorHandle => ({
   expandAll: vi.fn(),
   focus: vi.fn(),
   openFind: vi.fn(),
+  captureViewportSnapshot: vi.fn().mockReturnValue(null),
+  restoreViewportSnapshot: vi.fn(),
 });
 
 describe('useOutputPaneController', () => {

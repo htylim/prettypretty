@@ -30,6 +30,15 @@ const isMonacoFindWidgetTarget = (target: EventTarget | null): boolean => {
   return targetElement?.closest('.find-widget') !== null;
 };
 
+const isInputEditorTarget = (target: EventTarget | null): boolean => {
+  if (!(target instanceof Node)) {
+    return false;
+  }
+
+  const targetElement = target instanceof Element ? target : target.parentElement;
+  return targetElement?.closest('[data-testid="input-editor"]') !== null;
+};
+
 type EditorShellProps = {
   paneMode: PaneMode;
   themeMode: ThemeMode;
@@ -77,6 +86,7 @@ type EditorShellProps = {
   onDismissOutputContextMenu: () => void;
   onTriggerOutputContextPrettify: () => void;
   onNavigateOutputPaneViewport: (stepDelta: number) => void;
+  onViewportInteraction?: (() => void) | undefined;
 };
 
 export const EditorShell = ({
@@ -104,6 +114,7 @@ export const EditorShell = ({
   onDismissOutputContextMenu,
   onTriggerOutputContextPrettify,
   onNavigateOutputPaneViewport,
+  onViewportInteraction,
 }: EditorShellProps) => {
   const shellRef = useRef<HTMLElement | null>(null);
   const hasContent = inputText.trim().length > 0;
@@ -161,7 +172,7 @@ export const EditorShell = ({
   };
 
   const handlePaste: ClipboardEventHandler<HTMLDivElement> = (event) => {
-    if (isMonacoFindWidgetTarget(event.target)) {
+    if (isMonacoFindWidgetTarget(event.target) || isInputEditorTarget(event.target)) {
       return;
     }
 
@@ -236,6 +247,7 @@ export const EditorShell = ({
           themeMode={themeMode}
           indentSize={indentSize}
           onChange={onEditInputChange}
+          onViewportInteraction={onViewportInteraction}
         />
       ) : (
         <div className="output-pane">
@@ -248,6 +260,7 @@ export const EditorShell = ({
             onPaneContextMenu={onOutputPaneContextMenu}
             onPaneFocus={onOutputPaneFocus}
             onPaneHandleChange={onOutputPaneHandleChange}
+            onViewportInteraction={onViewportInteraction}
             panes={outputPanes}
             themeMode={themeMode}
             {...(onToggleExtractedSourcePane ? { onToggleExtractedSourcePane } : {})}

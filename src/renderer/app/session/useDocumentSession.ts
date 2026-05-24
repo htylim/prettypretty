@@ -11,6 +11,7 @@ type DocumentSessionActions = {
   setThemeMode: (mode: DocumentSessionState['themeMode']) => void;
   setIndentSize: (size: DocumentSessionState['indentSize']) => void;
   setInputText: (text: string) => void;
+  setFileSource: (fileSource: DocumentSessionState['fileSource']) => void;
   setIngestNotice: (notice: string | null) => void;
   setIngestRejectionPrompt: (prompt: DocumentSessionState['ingestRejectionPrompt']) => void;
   setFallbackAgentId: (fallbackAgentId: string | null) => void;
@@ -40,6 +41,7 @@ export const useDocumentSession = create<DocumentSessionStore>((set) => ({
   setThemeMode: (mode) => set({ themeMode: mode }),
   setIndentSize: (size) => set({ indentSize: size }),
   setInputText: (text) => set({ inputText: text }),
+  setFileSource: (fileSource) => set({ fileSource }),
   setIngestNotice: (notice) => set({ ingestNotice: notice }),
   setIngestRejectionPrompt: (prompt) => set({ ingestRejectionPrompt: prompt }),
   setFallbackAgentId: (fallbackAgentId) => set({ fallbackAgentId }),

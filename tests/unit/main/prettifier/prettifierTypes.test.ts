@@ -14,4 +14,15 @@ describe('prettifierTypes', () => {
       }),
     ).toBe(true);
   });
+
+  it('accepts the refresh-file trigger in prettifier requests', () => {
+    expect(
+      isPrettifyRunRequest({
+        requestId: 1,
+        inputText: '{"fresh":true}',
+        indentSize: 2,
+        trigger: 'refresh-file',
+      }),
+    ).toBe(true);
+  });
 });

@@ -102,6 +102,15 @@
 8. Main executes the configured fallback agent and streams progress back by request id.
 9. Renderer shows a wait screen, supports cancel, and resolves the active request to either the final result or passthrough through session state or the targeted output pane.
 
+### File Refresh Flow
+
+1. Main creates a window-scoped pending file source only after a trusted dialog or startup file read succeeds.
+2. Renderer commits that pending source only after the shared ingest path accepts the content into the visible session.
+3. Refresh requests include the current path and source token; main re-reads only when they match the sender window's committed source.
+4. Successful refresh reads return a new pending source token for the same path. The previous committed source stays active until renderer accepts and commits the refreshed content.
+5. Renderer guards refresh reads and final prettifier responses with session snapshots so stale async results cannot overwrite later edits or source changes.
+6. Accepted paste, untrusted drop, and reset clear the committed source before mutating the visible session into a non-refreshable state.
+
 ### Preferences Flow
 
 1. Main owns persisted preferences.

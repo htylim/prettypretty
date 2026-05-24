@@ -21,7 +21,10 @@ import {
   selectOutputText,
 } from '../../../../src/renderer/app/session/documentSessionSelectors';
 import { useDocumentSession } from '../../../../src/renderer/app/session/useDocumentSession';
-import { usePrettifierFlow } from '../../../../src/renderer/app/usePrettifierFlow';
+import {
+  type IngestInputTextResult,
+  usePrettifierFlow,
+} from '../../../../src/renderer/app/usePrettifierFlow';
 import { MONACO_MAX_TOKENIZATION_LINE_LENGTH } from '../../../../src/renderer/app/appDomain';
 
 const createPreferences = (overrides: Partial<Preferences> = {}): Preferences => ({
@@ -71,14 +74,29 @@ const createDeferred = <T>() => {
 };
 
 type HarnessHandle = {
-  ingestInputText: (nextText: string, source: IngestSource) => void;
+  ingestInputText: (
+    nextText: string,
+    source: IngestSource,
+    options?: {
+      fileSource?: {
+        sourceToken: string;
+        path: string;
+        sourceKind: 'dialog-open-file' | 'startup-open-file' | 'refresh-file';
+        baselineText: string;
+      };
+      switchToOutputOnComplete?: boolean;
+      awaitPrettifierCompletion?: boolean;
+      isCurrent?: () => boolean;
+    },
+  ) => Promise<IngestInputTextResult>;
   openReadableIngestSlice: () => void;
   dismissIngestRejection: () => void;
   cancelActiveFallback: () => Promise<void>;
+  resetPrettifierState: () => void;
   runPrettifier: (
     nextInputText: string,
     trigger: PrettifyTrigger,
-    options: { switchToOutputOnComplete: boolean },
+    options: { switchToOutputOnComplete: boolean; isResponseCurrent?: () => boolean },
   ) => Promise<void>;
   getPaneMode: () => PaneMode;
   getInputText: () => string;
@@ -145,6 +163,7 @@ const PrettifierHarness = forwardRef<HarnessHandle, HarnessProps>(
         openReadableIngestSlice: flow.openReadableIngestSlice,
         dismissIngestRejection: flow.dismissIngestRejection,
         cancelActiveFallback: flow.cancelActiveFallback,
+        resetPrettifierState: flow.resetPrettifierState,
         runPrettifier: flow.runPrettifier,
         getPaneMode: () => paneMode,
         getInputText: () => inputText,
@@ -179,8 +198,50 @@ const createAppApi = () => ({
   openWindow: vi.fn(),
   consumeInitialOpenFile: vi.fn().mockResolvedValue(null),
   onResetCurrentWindow: vi.fn().mockImplementation(() => vi.fn()),
+  onRefreshCurrentWindow: vi.fn().mockImplementation(() => vi.fn()),
   onNavigationCommand: vi.fn().mockImplementation(() => vi.fn()),
   initialThemeMode: null,
+});
+
+const createWindowApi = (overrides: Partial<WindowApi> = {}): WindowApi =>
+  ({
+    dialog: { openFile: vi.fn() },
+    file: {
+      save: vi.fn(),
+      refreshOpenFile: vi.fn(),
+      commitOpenFileSource: vi.fn().mockResolvedValue(true),
+      clearOpenFileSource: vi.fn().mockResolvedValue(true),
+    },
+    clipboard: { copy: vi.fn() },
+    app: createAppApi(),
+    logs: { getHistory: vi.fn(), onLine: vi.fn() },
+    preferences: {
+      getAll: vi.fn().mockResolvedValue(createPreferences()),
+      update: vi.fn(),
+      reset: vi.fn(),
+    },
+    prettifier: {
+      run: vi.fn().mockResolvedValue(createPrettifierResponse()),
+      cancel: vi.fn().mockResolvedValue(true),
+      onProgress: vi.fn().mockImplementation(() => vi.fn()),
+    },
+    telemetry: { log: vi.fn() },
+    ...overrides,
+  }) as WindowApi;
+
+const createPendingFileSource = (
+  overrides: Partial<{
+    sourceToken: string;
+    path: string;
+    sourceKind: 'dialog-open-file' | 'startup-open-file' | 'refresh-file';
+    baselineText: string;
+  }> = {},
+) => ({
+  sourceToken: 'token-1',
+  path: '/tmp/source.json',
+  sourceKind: 'dialog-open-file' as const,
+  baselineText: '{"a":1}',
+  ...overrides,
 });
 
 describe('usePrettifierFlow', () => {
@@ -195,7 +256,12 @@ describe('usePrettifierFlow', () => {
     const telemetry = vi.fn().mockResolvedValue(undefined);
     const api: WindowApi = {
       dialog: { openFile: vi.fn() },
-      file: { save: vi.fn() },
+      file: {
+        save: vi.fn(),
+        refreshOpenFile: vi.fn(),
+        commitOpenFileSource: vi.fn().mockResolvedValue(true),
+        clearOpenFileSource: vi.fn().mockResolvedValue(true),
+      },
       clipboard: { copy: vi.fn() },
       app: createAppApi(),
       logs: { getHistory: vi.fn(), onLine: vi.fn() },
@@ -220,6 +286,81 @@ describe('usePrettifierFlow', () => {
     expect(run).not.toHaveBeenCalled();
   });
 
+  it('awaits prettifier completion when ingestion requests it', async () => {
+    const deferred = createDeferred<PrettifyRunResponse>();
+    const run = vi.fn().mockReturnValue(deferred.promise);
+    const api = createWindowApi({
+      prettifier: {
+        run,
+        cancel: vi.fn().mockResolvedValue(true),
+        onProgress: vi.fn().mockImplementation(() => vi.fn()),
+      },
+    });
+    const ref = { current: null as HarnessHandle | null };
+
+    render(createElement(PrettifierHarness, { api, logTelemetry: vi.fn(), ref }));
+
+    let settled = false;
+    let ingestPromise!: Promise<IngestInputTextResult>;
+    act(() => {
+      ingestPromise = ref.current!.ingestInputText('{bad', 'refresh-file', {
+        awaitPrettifierCompletion: true,
+      });
+      void ingestPromise.then(() => {
+        settled = true;
+      });
+    });
+
+    await waitFor(() => {
+      expect(run).toHaveBeenCalled();
+    });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    await act(async () => {
+      deferred.resolve(createPrettifierResponse());
+      await expect(ingestPromise).resolves.toBe('accepted');
+    });
+    expect(settled).toBe(true);
+  });
+
+  it('does not apply prettifier output when the response guard turns stale after request', async () => {
+    const deferred = createDeferred<PrettifyRunResponse>();
+    const run = vi.fn().mockReturnValue(deferred.promise);
+    const api = createWindowApi({
+      prettifier: {
+        run,
+        cancel: vi.fn().mockResolvedValue(true),
+        onProgress: vi.fn().mockImplementation(() => vi.fn()),
+      },
+    });
+    const ref = { current: null as HarnessHandle | null };
+    let isResponseCurrent = true;
+
+    render(createElement(PrettifierHarness, { api, logTelemetry: vi.fn(), ref }));
+
+    let prettifierPromise!: Promise<void>;
+    act(() => {
+      prettifierPromise = ref.current!.runPrettifier('{bad', 'refresh-file', {
+        switchToOutputOnComplete: true,
+        isResponseCurrent: () => isResponseCurrent,
+      });
+    });
+
+    await waitFor(() => {
+      expect(run).toHaveBeenCalled();
+    });
+
+    isResponseCurrent = false;
+    await act(async () => {
+      deferred.resolve(createPrettifierResponse());
+      await prettifierPromise;
+    });
+
+    expect(ref.current?.getOutputText()).toBe('{bad');
+    expect(ref.current?.getPaneMode()).toBe('input');
+  });
+
   it('prompts before opening a readable slice for oversized ingest input', async () => {
     useDocumentSession.setState({
       ...createInitialDocumentSessionState(),
@@ -233,7 +374,12 @@ describe('usePrettifierFlow', () => {
     const telemetry = vi.fn().mockResolvedValue(undefined);
     const api: WindowApi = {
       dialog: { openFile: vi.fn() },
-      file: { save: vi.fn() },
+      file: {
+        save: vi.fn(),
+        refreshOpenFile: vi.fn(),
+        commitOpenFileSource: vi.fn().mockResolvedValue(true),
+        clearOpenFileSource: vi.fn().mockResolvedValue(true),
+      },
       clipboard: { copy: vi.fn() },
       app: createAppApi(),
       logs: { getHistory: vi.fn(), onLine: vi.fn() },
@@ -307,7 +453,12 @@ describe('usePrettifierFlow', () => {
     const telemetry = vi.fn().mockResolvedValue(undefined);
     const api: WindowApi = {
       dialog: { openFile: vi.fn() },
-      file: { save: vi.fn() },
+      file: {
+        save: vi.fn(),
+        refreshOpenFile: vi.fn(),
+        commitOpenFileSource: vi.fn().mockResolvedValue(true),
+        clearOpenFileSource: vi.fn().mockResolvedValue(true),
+      },
       clipboard: { copy: vi.fn() },
       app: createAppApi(),
       logs: { getHistory: vi.fn(), onLine: vi.fn() },
@@ -373,7 +524,12 @@ describe('usePrettifierFlow', () => {
 
     const api: WindowApi = {
       dialog: { openFile: vi.fn() },
-      file: { save: vi.fn() },
+      file: {
+        save: vi.fn(),
+        refreshOpenFile: vi.fn(),
+        commitOpenFileSource: vi.fn().mockResolvedValue(true),
+        clearOpenFileSource: vi.fn().mockResolvedValue(true),
+      },
       clipboard: { copy: vi.fn() },
       app: createAppApi(),
       logs: { getHistory: vi.fn(), onLine: vi.fn() },
@@ -436,7 +592,12 @@ describe('usePrettifierFlow', () => {
     const telemetry = vi.fn().mockResolvedValue(undefined);
     const api: WindowApi = {
       dialog: { openFile: vi.fn() },
-      file: { save: vi.fn() },
+      file: {
+        save: vi.fn(),
+        refreshOpenFile: vi.fn(),
+        commitOpenFileSource: vi.fn().mockResolvedValue(true),
+        clearOpenFileSource: vi.fn().mockResolvedValue(true),
+      },
       clipboard: { copy: vi.fn() },
       app: createAppApi(),
       logs: { getHistory: vi.fn(), onLine: vi.fn() },
@@ -491,7 +652,12 @@ describe('usePrettifierFlow', () => {
     const telemetry = vi.fn().mockResolvedValue(undefined);
     const api: WindowApi = {
       dialog: { openFile: vi.fn() },
-      file: { save: vi.fn() },
+      file: {
+        save: vi.fn(),
+        refreshOpenFile: vi.fn(),
+        commitOpenFileSource: vi.fn().mockResolvedValue(true),
+        clearOpenFileSource: vi.fn().mockResolvedValue(true),
+      },
       clipboard: { copy: vi.fn() },
       app: createAppApi(),
       logs: { getHistory: vi.fn(), onLine: vi.fn() },
@@ -557,7 +723,12 @@ describe('usePrettifierFlow', () => {
     const telemetry = vi.fn().mockResolvedValue(undefined);
     const api: WindowApi = {
       dialog: { openFile: vi.fn() },
-      file: { save: vi.fn() },
+      file: {
+        save: vi.fn(),
+        refreshOpenFile: vi.fn(),
+        commitOpenFileSource: vi.fn().mockResolvedValue(true),
+        clearOpenFileSource: vi.fn().mockResolvedValue(true),
+      },
       clipboard: { copy: vi.fn() },
       app: createAppApi(),
       logs: { getHistory: vi.fn(), onLine: vi.fn() },
@@ -591,5 +762,662 @@ describe('usePrettifierFlow', () => {
       expect(confirmation).toHaveBeenCalledWith(3);
     });
     expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it('sets file source only after accepted open-file ingestion', async () => {
+    const commitOpenFileSource = vi.fn().mockResolvedValue(true);
+    const api = createWindowApi({
+      file: {
+        save: vi.fn(),
+        refreshOpenFile: vi.fn(),
+        commitOpenFileSource,
+        clearOpenFileSource: vi.fn().mockResolvedValue(true),
+      },
+    } as Partial<WindowApi>);
+    const ref = { current: null as HarnessHandle | null };
+
+    render(createElement(PrettifierHarness, { api, logTelemetry: vi.fn(), ref }));
+
+    act(() => {
+      ref.current?.ingestInputText('{"a":1}', 'open-file', {
+        fileSource: createPendingFileSource(),
+      });
+    });
+
+    await waitFor(() => {
+      expect(useDocumentSession.getState().fileSource).toEqual({
+        sourceToken: 'token-1',
+        path: '/tmp/source.json',
+        sourceKind: 'dialog-open-file',
+        lastLoadedText: '{"a":1}',
+      });
+    });
+    expect(commitOpenFileSource).toHaveBeenCalledWith({
+      sourceToken: 'token-1',
+      path: '/tmp/source.json',
+    });
+  });
+
+  it('sets required file source token path and sourceKind for dialog and startup files', async () => {
+    const api = createWindowApi();
+    const ref = { current: null as HarnessHandle | null };
+
+    render(createElement(PrettifierHarness, { api, logTelemetry: vi.fn(), ref }));
+
+    act(() => {
+      ref.current?.ingestInputText('{"dialog":true}', 'open-file', {
+        fileSource: createPendingFileSource({
+          sourceToken: 'dialog-token',
+          path: '/tmp/dialog.json',
+          sourceKind: 'dialog-open-file',
+          baselineText: '{"dialog":true}',
+        }),
+      });
+    });
+
+    await waitFor(() => {
+      expect(useDocumentSession.getState().fileSource).toMatchObject({
+        sourceToken: 'dialog-token',
+        path: '/tmp/dialog.json',
+        sourceKind: 'dialog-open-file',
+      });
+    });
+
+    act(() => {
+      ref.current?.ingestInputText('{"startup":true}', 'open-file', {
+        fileSource: createPendingFileSource({
+          sourceToken: 'startup-token',
+          path: '/tmp/startup.json',
+          sourceKind: 'startup-open-file',
+          baselineText: '{"startup":true}',
+        }),
+      });
+    });
+
+    await waitFor(() => {
+      expect(useDocumentSession.getState().fileSource).toMatchObject({
+        sourceToken: 'startup-token',
+        path: '/tmp/startup.json',
+        sourceKind: 'startup-open-file',
+      });
+    });
+  });
+
+  it('clears file source after paste ingestion', async () => {
+    const clearOpenFileSource = vi.fn().mockResolvedValue(true);
+    const api = createWindowApi({
+      file: {
+        save: vi.fn(),
+        refreshOpenFile: vi.fn(),
+        commitOpenFileSource: vi.fn().mockResolvedValue(true),
+        clearOpenFileSource,
+      },
+    } as Partial<WindowApi>);
+    useDocumentSession.setState({
+      ...createInitialDocumentSessionState(),
+      fileSource: {
+        sourceToken: 'token-1',
+        path: '/tmp/source.json',
+        sourceKind: 'dialog-open-file',
+        lastLoadedText: '{"a":1}',
+      },
+    });
+    const ref = { current: null as HarnessHandle | null };
+
+    render(createElement(PrettifierHarness, { api, logTelemetry: vi.fn(), ref }));
+
+    act(() => {
+      ref.current?.ingestInputText('{"pasted":true}', 'paste');
+    });
+
+    await waitFor(() => {
+      expect(useDocumentSession.getState().fileSource).toBeNull();
+    });
+    expect(clearOpenFileSource).toHaveBeenCalledWith({
+      sourceToken: 'token-1',
+      path: '/tmp/source.json',
+      scope: 'committed',
+    });
+  });
+
+  it('clears file source after drop ingestion without trusted path', async () => {
+    const api = createWindowApi();
+    useDocumentSession.setState({
+      ...createInitialDocumentSessionState(),
+      fileSource: {
+        sourceToken: 'token-1',
+        path: '/tmp/source.json',
+        sourceKind: 'dialog-open-file',
+        lastLoadedText: '{"a":1}',
+      },
+    });
+    const ref = { current: null as HarnessHandle | null };
+
+    render(createElement(PrettifierHarness, { api, logTelemetry: vi.fn(), ref }));
+
+    act(() => {
+      ref.current?.ingestInputText('{"dropped":true}', 'drop');
+    });
+
+    await waitFor(() => {
+      expect(useDocumentSession.getState().fileSource).toBeNull();
+    });
+  });
+
+  it('defers file source update when file-backed ingest is blocked by Monaco limits', async () => {
+    const commitOpenFileSource = vi.fn().mockResolvedValue(true);
+    const api = createWindowApi({
+      file: {
+        save: vi.fn(),
+        refreshOpenFile: vi.fn(),
+        commitOpenFileSource,
+        clearOpenFileSource: vi.fn().mockResolvedValue(true),
+      },
+    } as Partial<WindowApi>);
+    const ref = { current: null as HarnessHandle | null };
+
+    render(createElement(PrettifierHarness, { api, logTelemetry: vi.fn(), ref }));
+
+    act(() => {
+      ref.current?.ingestInputText('x'.repeat(MONACO_MAX_TOKENIZATION_LINE_LENGTH), 'open-file', {
+        fileSource: createPendingFileSource({
+          baselineText: 'x'.repeat(MONACO_MAX_TOKENIZATION_LINE_LENGTH),
+        }),
+      });
+    });
+
+    await waitFor(() => {
+      expect(ref.current?.getIngestRejectionPrompt()).not.toBeNull();
+    });
+    expect(useDocumentSession.getState().fileSource).toBeNull();
+    expect(commitOpenFileSource).not.toHaveBeenCalled();
+  });
+
+  it('sets file source to readable slice after accepting blocked file-backed ingest', async () => {
+    const clearOpenFileSource = vi.fn().mockResolvedValue(true);
+    const api = createWindowApi({
+      file: {
+        save: vi.fn(),
+        refreshOpenFile: vi.fn(),
+        commitOpenFileSource: vi.fn().mockResolvedValue(true),
+        clearOpenFileSource,
+      },
+    } as Partial<WindowApi>);
+    const ref = { current: null as HarnessHandle | null };
+
+    render(createElement(PrettifierHarness, { api, logTelemetry: vi.fn(), ref }));
+
+    act(() => {
+      ref.current?.ingestInputText('x'.repeat(MONACO_MAX_TOKENIZATION_LINE_LENGTH), 'open-file', {
+        fileSource: createPendingFileSource({
+          baselineText: 'x'.repeat(MONACO_MAX_TOKENIZATION_LINE_LENGTH),
+        }),
+      });
+    });
+
+    await waitFor(() => {
+      expect(ref.current?.getIngestRejectionPrompt()).not.toBeNull();
+    });
+
+    act(() => {
+      ref.current?.openReadableIngestSlice();
+    });
+
+    await waitFor(() => {
+      expect(useDocumentSession.getState().fileSource?.lastLoadedText).toHaveLength(
+        MONACO_MAX_TOKENIZATION_LINE_LENGTH - 1,
+      );
+    });
+    expect(ref.current?.getIngestRejectionPrompt()).toBeNull();
+    expect(clearOpenFileSource).not.toHaveBeenCalledWith({
+      sourceToken: 'token-1',
+      path: '/tmp/source.json',
+      scope: 'pending',
+    });
+  });
+
+  it('keeps oversized readable-slice refresh in input mode when requested', async () => {
+    const api = createWindowApi({
+      file: {
+        save: vi.fn(),
+        refreshOpenFile: vi.fn(),
+        commitOpenFileSource: vi.fn().mockResolvedValue(true),
+        clearOpenFileSource: vi.fn().mockResolvedValue(true),
+      },
+    } as Partial<WindowApi>);
+    const ref = { current: null as HarnessHandle | null };
+
+    render(createElement(PrettifierHarness, { api, logTelemetry: vi.fn(), ref }));
+
+    act(() => {
+      ref.current?.ingestInputText(
+        'x'.repeat(MONACO_MAX_TOKENIZATION_LINE_LENGTH),
+        'refresh-file',
+        {
+          fileSource: createPendingFileSource({
+            sourceKind: 'refresh-file',
+            baselineText: 'x'.repeat(MONACO_MAX_TOKENIZATION_LINE_LENGTH),
+          }),
+          switchToOutputOnComplete: false,
+        },
+      );
+    });
+
+    await waitFor(() => {
+      expect(ref.current?.getIngestRejectionPrompt()).not.toBeNull();
+    });
+
+    act(() => {
+      ref.current?.openReadableIngestSlice();
+    });
+
+    await waitFor(() => {
+      expect(ref.current?.getIngestRejectionPrompt()).toBeNull();
+    });
+    expect(ref.current?.getPaneMode()).toBe('input');
+  });
+
+  it('keeps blocked file-backed ingest prompt when readable-slice commit fails', async () => {
+    const clearOpenFileSource = vi.fn().mockResolvedValue(true);
+    const api = createWindowApi({
+      file: {
+        save: vi.fn(),
+        refreshOpenFile: vi.fn(),
+        commitOpenFileSource: vi.fn().mockRejectedValue(new Error('commit failed')),
+        clearOpenFileSource,
+      },
+    } as Partial<WindowApi>);
+    const ref = { current: null as HarnessHandle | null };
+
+    render(createElement(PrettifierHarness, { api, logTelemetry: vi.fn(), ref }));
+
+    act(() => {
+      ref.current?.ingestInputText('x'.repeat(MONACO_MAX_TOKENIZATION_LINE_LENGTH), 'open-file', {
+        fileSource: createPendingFileSource({
+          sourceToken: 'blocked-token',
+          baselineText: 'x'.repeat(MONACO_MAX_TOKENIZATION_LINE_LENGTH),
+        }),
+      });
+    });
+
+    await waitFor(() => {
+      expect(ref.current?.getIngestRejectionPrompt()?.pendingFileSource?.sourceToken).toBe(
+        'blocked-token',
+      );
+    });
+
+    act(() => {
+      ref.current?.openReadableIngestSlice();
+    });
+
+    await waitFor(() => {
+      expect(ref.current?.getIngestNotice()).toBe('Unable to refresh file.');
+    });
+    expect(ref.current?.getIngestRejectionPrompt()?.pendingFileSource?.sourceToken).toBe(
+      'blocked-token',
+    );
+    expect(clearOpenFileSource).not.toHaveBeenCalledWith({
+      sourceToken: 'blocked-token',
+      path: '/tmp/source.json',
+      scope: 'pending',
+    });
+  });
+
+  it('ignores duplicate readable-slice accepts while file-source commit is in flight', async () => {
+    const commitDeferred = createDeferred<boolean>();
+    const commitOpenFileSource = vi.fn().mockReturnValue(commitDeferred.promise);
+    const api = createWindowApi({
+      file: {
+        save: vi.fn(),
+        refreshOpenFile: vi.fn(),
+        commitOpenFileSource,
+        clearOpenFileSource: vi.fn().mockResolvedValue(true),
+      },
+    } as Partial<WindowApi>);
+    const ref = { current: null as HarnessHandle | null };
+
+    render(createElement(PrettifierHarness, { api, logTelemetry: vi.fn(), ref }));
+
+    act(() => {
+      ref.current?.ingestInputText('x'.repeat(MONACO_MAX_TOKENIZATION_LINE_LENGTH), 'open-file', {
+        fileSource: createPendingFileSource({
+          baselineText: 'x'.repeat(MONACO_MAX_TOKENIZATION_LINE_LENGTH),
+        }),
+      });
+    });
+
+    await waitFor(() => {
+      expect(ref.current?.getIngestRejectionPrompt()).not.toBeNull();
+    });
+
+    act(() => {
+      ref.current?.openReadableIngestSlice();
+      ref.current?.openReadableIngestSlice();
+    });
+
+    expect(commitOpenFileSource).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      commitDeferred.resolve(true);
+      await commitDeferred.promise;
+    });
+
+    await waitFor(() => {
+      expect(useDocumentSession.getState().fileSource?.lastLoadedText).toHaveLength(
+        MONACO_MAX_TOKENIZATION_LINE_LENGTH - 1,
+      );
+    });
+    expect(ref.current?.getIngestNotice()).toBeNull();
+  });
+
+  it('commits empty trusted file as refreshable with empty baseline', async () => {
+    const api = createWindowApi();
+    const ref = { current: null as HarnessHandle | null };
+
+    render(createElement(PrettifierHarness, { api, logTelemetry: vi.fn(), ref }));
+
+    act(() => {
+      ref.current?.ingestInputText('', 'open-file', {
+        fileSource: createPendingFileSource({ baselineText: '' }),
+      });
+    });
+
+    await waitFor(() => {
+      expect(useDocumentSession.getState().fileSource).toMatchObject({
+        sourceToken: 'token-1',
+        path: '/tmp/source.json',
+        lastLoadedText: '',
+      });
+    });
+    expect(ref.current?.getPaneMode()).toBe('input');
+    expect(ref.current?.getIngestNotice()).toBe('File has no content.');
+  });
+
+  it('stores pending file-source metadata on blocked file-backed ingest prompts', async () => {
+    const ref = { current: null as HarnessHandle | null };
+
+    render(
+      createElement(PrettifierHarness, { api: createWindowApi(), logTelemetry: vi.fn(), ref }),
+    );
+
+    act(() => {
+      ref.current?.ingestInputText('x'.repeat(MONACO_MAX_TOKENIZATION_LINE_LENGTH), 'open-file', {
+        fileSource: createPendingFileSource({
+          sourceToken: 'blocked-token',
+          path: '/tmp/blocked.json',
+          sourceKind: 'refresh-file',
+          baselineText: 'x'.repeat(MONACO_MAX_TOKENIZATION_LINE_LENGTH),
+        }),
+      });
+    });
+
+    await waitFor(() => {
+      expect(ref.current?.getIngestRejectionPrompt()).toMatchObject({
+        pendingFileSource: {
+          sourceToken: 'blocked-token',
+          path: '/tmp/blocked.json',
+          sourceKind: 'refresh-file',
+        },
+      });
+    });
+  });
+
+  it('stale dialog-open commit result does not overwrite newer input', async () => {
+    const commitDeferred = createDeferred<boolean>();
+    const clearOpenFileSource = vi.fn().mockResolvedValue(true);
+    const api = createWindowApi({
+      file: {
+        save: vi.fn(),
+        refreshOpenFile: vi.fn(),
+        commitOpenFileSource: vi.fn().mockReturnValue(commitDeferred.promise),
+        clearOpenFileSource,
+      },
+    } as Partial<WindowApi>);
+    const ref = { current: null as HarnessHandle | null };
+
+    render(createElement(PrettifierHarness, { api, logTelemetry: vi.fn(), ref }));
+
+    act(() => {
+      void ref.current?.ingestInputText('{"file":true}', 'open-file', {
+        fileSource: createPendingFileSource(),
+      });
+      useDocumentSession.setState({ inputText: 'newer edit' });
+    });
+
+    await act(async () => {
+      commitDeferred.resolve(true);
+      await commitDeferred.promise;
+    });
+
+    await waitFor(() => {
+      expect(clearOpenFileSource).toHaveBeenCalledWith({
+        sourceToken: 'token-1',
+        path: '/tmp/source.json',
+        scope: 'committed',
+      });
+    });
+    expect(useDocumentSession.getState().inputText).toBe('newer edit');
+    expect(useDocumentSession.getState().fileSource).toBeNull();
+  });
+
+  it('stale refresh commit result does not overwrite an invalidated refresh request', async () => {
+    const commitDeferred = createDeferred<boolean>();
+    const clearOpenFileSource = vi.fn().mockResolvedValue(true);
+    const api = createWindowApi({
+      file: {
+        save: vi.fn(),
+        refreshOpenFile: vi.fn(),
+        commitOpenFileSource: vi.fn().mockReturnValue(commitDeferred.promise),
+        clearOpenFileSource,
+      },
+    } as Partial<WindowApi>);
+    const ref = { current: null as HarnessHandle | null };
+    let isCurrent = true;
+    useDocumentSession.setState({
+      inputText: '{"old":true}',
+      fileSource: {
+        sourceToken: 'old-token',
+        path: '/tmp/source.json',
+        sourceKind: 'dialog-open-file',
+        lastLoadedText: '{"old":true}',
+      },
+    });
+
+    render(createElement(PrettifierHarness, { api, logTelemetry: vi.fn(), ref }));
+
+    let ingestPromise: Promise<IngestInputTextResult> | undefined;
+    act(() => {
+      ingestPromise = ref.current?.ingestInputText('{"file":true}', 'refresh-file', {
+        fileSource: createPendingFileSource({
+          sourceToken: 'refresh-token',
+          sourceKind: 'refresh-file',
+          baselineText: '{"file":true}',
+        }),
+        isCurrent: () => isCurrent,
+      });
+    });
+
+    isCurrent = false;
+    await act(async () => {
+      commitDeferred.resolve(true);
+      await commitDeferred.promise;
+    });
+
+    await expect(ingestPromise).resolves.toBe('stale');
+    expect(clearOpenFileSource).toHaveBeenCalledWith({
+      sourceToken: 'refresh-token',
+      path: '/tmp/source.json',
+      scope: 'committed',
+    });
+    expect(useDocumentSession.getState().inputText).toBe('{"old":true}');
+    expect(useDocumentSession.getState().fileSource).toBeNull();
+  });
+
+  it('stale dialog-open commit result does not dismiss a newer blocked prompt', async () => {
+    const commitDeferred = createDeferred<boolean>();
+    const clearOpenFileSource = vi.fn().mockResolvedValue(true);
+    const api = createWindowApi({
+      file: {
+        save: vi.fn(),
+        refreshOpenFile: vi.fn(),
+        commitOpenFileSource: vi.fn().mockReturnValue(commitDeferred.promise),
+        clearOpenFileSource,
+      },
+    } as Partial<WindowApi>);
+    const ref = { current: null as HarnessHandle | null };
+
+    render(createElement(PrettifierHarness, { api, logTelemetry: vi.fn(), ref }));
+
+    act(() => {
+      void ref.current?.ingestInputText('{"file":true}', 'open-file', {
+        fileSource: createPendingFileSource({ sourceToken: 'first-token' }),
+      });
+    });
+
+    act(() => {
+      ref.current?.ingestInputText('x'.repeat(MONACO_MAX_TOKENIZATION_LINE_LENGTH), 'open-file', {
+        fileSource: createPendingFileSource({
+          sourceToken: 'second-token',
+          path: '/tmp/second.json',
+          baselineText: 'x'.repeat(MONACO_MAX_TOKENIZATION_LINE_LENGTH),
+        }),
+      });
+    });
+
+    await waitFor(() => {
+      expect(ref.current?.getIngestRejectionPrompt()?.pendingFileSource?.sourceToken).toBe(
+        'second-token',
+      );
+    });
+
+    await act(async () => {
+      commitDeferred.resolve(true);
+      await commitDeferred.promise;
+    });
+
+    expect(ref.current?.getIngestRejectionPrompt()?.pendingFileSource?.sourceToken).toBe(
+      'second-token',
+    );
+    expect(clearOpenFileSource).toHaveBeenCalledWith({
+      sourceToken: 'first-token',
+      path: '/tmp/source.json',
+      scope: 'committed',
+    });
+    expect(clearOpenFileSource).not.toHaveBeenCalledWith({
+      sourceToken: 'second-token',
+      path: '/tmp/second.json',
+      scope: 'pending',
+    });
+  });
+
+  it('clears pending file-source token when commit fails', async () => {
+    const clearOpenFileSource = vi.fn().mockResolvedValue(true);
+    const api = createWindowApi({
+      file: {
+        save: vi.fn(),
+        refreshOpenFile: vi.fn(),
+        commitOpenFileSource: vi.fn().mockRejectedValue(new Error('commit failed')),
+        clearOpenFileSource,
+      },
+    } as Partial<WindowApi>);
+    const ref = { current: null as HarnessHandle | null };
+
+    render(createElement(PrettifierHarness, { api, logTelemetry: vi.fn(), ref }));
+
+    act(() => {
+      void ref.current?.ingestInputText('{"file":true}', 'open-file', {
+        fileSource: createPendingFileSource(),
+      });
+    });
+
+    await waitFor(() => {
+      expect(ref.current?.getIngestNotice()).toBe('Unable to refresh file.');
+    });
+    expect(clearOpenFileSource).toHaveBeenCalledWith({
+      sourceToken: 'token-1',
+      path: '/tmp/source.json',
+      scope: 'pending',
+    });
+    expect(useDocumentSession.getState().fileSource).toBeNull();
+  });
+
+  it('stale paste clear result does not overwrite newer input', async () => {
+    const clearDeferred = createDeferred<boolean>();
+    const api = createWindowApi({
+      file: {
+        save: vi.fn(),
+        refreshOpenFile: vi.fn(),
+        commitOpenFileSource: vi.fn().mockResolvedValue(true),
+        clearOpenFileSource: vi.fn().mockReturnValue(clearDeferred.promise),
+      },
+    } as Partial<WindowApi>);
+    useDocumentSession.setState({
+      ...createInitialDocumentSessionState(),
+      inputText: '{"old":true}',
+      fileSource: {
+        sourceToken: 'token-1',
+        path: '/tmp/source.json',
+        sourceKind: 'dialog-open-file',
+        lastLoadedText: '{"old":true}',
+      },
+    });
+    const ref = { current: null as HarnessHandle | null };
+
+    render(createElement(PrettifierHarness, { api, logTelemetry: vi.fn(), ref }));
+
+    act(() => {
+      void ref.current?.ingestInputText('{"paste":true}', 'paste');
+      useDocumentSession.setState({ inputText: 'newer edit' });
+    });
+
+    await act(async () => {
+      clearDeferred.resolve(true);
+      await clearDeferred.promise;
+    });
+
+    expect(useDocumentSession.getState().inputText).toBe('newer edit');
+    expect(useDocumentSession.getState().fileSource).toBeNull();
+  });
+
+  it('clears stale pending file-source token when a blocked prompt is replaced', async () => {
+    const clearOpenFileSource = vi.fn().mockResolvedValue(true);
+    const api = createWindowApi({
+      file: {
+        save: vi.fn(),
+        refreshOpenFile: vi.fn(),
+        commitOpenFileSource: vi.fn().mockResolvedValue(true),
+        clearOpenFileSource,
+      },
+    } as Partial<WindowApi>);
+    const ref = { current: null as HarnessHandle | null };
+
+    render(createElement(PrettifierHarness, { api, logTelemetry: vi.fn(), ref }));
+
+    act(() => {
+      ref.current?.ingestInputText('x'.repeat(MONACO_MAX_TOKENIZATION_LINE_LENGTH), 'open-file', {
+        fileSource: createPendingFileSource({ sourceToken: 'first-token' }),
+      });
+    });
+
+    await waitFor(() => {
+      expect(ref.current?.getIngestRejectionPrompt()?.pendingFileSource?.sourceToken).toBe(
+        'first-token',
+      );
+    });
+
+    act(() => {
+      ref.current?.ingestInputText('y'.repeat(MONACO_MAX_TOKENIZATION_LINE_LENGTH), 'open-file', {
+        fileSource: createPendingFileSource({
+          sourceToken: 'second-token',
+          path: '/tmp/second.json',
+        }),
+      });
+    });
+
+    expect(clearOpenFileSource).toHaveBeenCalledWith({
+      sourceToken: 'first-token',
+      path: '/tmp/source.json',
+      scope: 'pending',
+    });
   });
 });

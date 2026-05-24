@@ -29,11 +29,13 @@ export const openPreferencesFile = async (): Promise<void> => {
 type ApplicationMenuOptions = {
   onViewLog?: () => void;
   onNewWindow?: () => void;
+  onRefreshWindow?: () => void;
   onResetWindow?: () => void;
 };
 
 const createFileMenu = ({
   onNewWindow,
+  onRefreshWindow,
   onResetWindow,
 }: ApplicationMenuOptions): MenuItemConstructorOptions => ({
   label: 'File',
@@ -46,6 +48,13 @@ const createFileMenu = ({
       },
     },
     {
+      label: 'Refresh File',
+      accelerator: 'CommandOrControl+R',
+      click: () => {
+        onRefreshWindow?.();
+      },
+    },
+    {
       label: 'Reset Window',
       accelerator: 'CommandOrControl+Shift+N',
       click: () => {
@@ -54,6 +63,17 @@ const createFileMenu = ({
     },
     { type: 'separator' },
     { role: 'close' },
+  ],
+});
+
+const createViewMenu = (): MenuItemConstructorOptions => ({
+  label: 'View',
+  submenu: [
+    { role: 'resetZoom' },
+    { role: 'zoomIn' },
+    { role: 'zoomOut' },
+    { type: 'separator' },
+    { role: 'togglefullscreen' },
   ],
 });
 
@@ -92,7 +112,7 @@ const macTemplate = ({
   },
   createFileMenu(options),
   { role: 'editMenu' },
-  { role: 'viewMenu' },
+  createViewMenu(),
   { role: 'windowMenu' },
   { role: 'help' },
 ];
@@ -100,7 +120,7 @@ const macTemplate = ({
 const defaultTemplate = (options: ApplicationMenuOptions): MenuItemConstructorOptions[] => [
   createFileMenu(options),
   { role: 'editMenu' },
-  { role: 'viewMenu' },
+  createViewMenu(),
   { role: 'windowMenu' },
   { role: 'help' },
 ];

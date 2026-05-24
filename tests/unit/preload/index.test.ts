@@ -35,11 +35,21 @@ const loadPreloadApi = async () => {
       openWindow: () => Promise<void>;
       consumeInitialOpenFile: () => Promise<{ path: string; content: string } | null>;
       onResetCurrentWindow: (listener: () => void) => () => void;
+      onRefreshCurrentWindow: (listener: () => void) => () => void;
       onNavigationCommand: (
         listener: (command: 'browser-backward' | 'browser-forward') => void,
       ) => () => void;
     };
     logs: { onLine: (listener: (line: string) => void) => () => void };
+    file: {
+      refreshOpenFile: (request: { path: string; sourceToken: string }) => Promise<unknown>;
+      commitOpenFileSource: (request: { path: string; sourceToken: string }) => Promise<boolean>;
+      clearOpenFileSource: (request: {
+        path: string;
+        sourceToken: string;
+        scope: 'pending' | 'committed';
+      }) => Promise<boolean>;
+    };
     prettifier: {
       cancel: (request: { requestId: number }) => Promise<boolean>;
       onProgress: (listener: (event: { requestId: number; line: string }) => void) => () => void;
@@ -111,6 +121,21 @@ describe('preload bridge', () => {
     expect(removeListenerMock).toHaveBeenCalledWith('app:reset-current-window', wrappedListener);
   });
 
+  it('wires app.onRefreshCurrentWindow subscription and cleanup through ipcRenderer', async () => {
+    const api = await loadPreloadApi();
+    const refreshListener = vi.fn();
+
+    const unsubscribe = api.app.onRefreshCurrentWindow(refreshListener);
+    const wrappedListener = onMock.mock.calls[0]?.[1] as (() => void) | undefined;
+    wrappedListener?.();
+
+    expect(onMock).toHaveBeenCalledWith('app:refresh-current-window', expect.any(Function));
+    expect(refreshListener).toHaveBeenCalledTimes(1);
+
+    unsubscribe();
+    expect(removeListenerMock).toHaveBeenCalledWith('app:refresh-current-window', wrappedListener);
+  });
+
   it('wires app.onNavigationCommand subscription and cleanup through ipcRenderer', async () => {
     const api = await loadPreloadApi();
     const navigationListener = vi.fn();
@@ -172,5 +197,30 @@ describe('preload bridge', () => {
 
     expect(invokeMock).toHaveBeenCalledWith('prettifier:cancel', { requestId: 12 });
     expect(result).toBe(true);
+  });
+
+  it('exposes refresh-open-file IPC through the file bridge', async () => {
+    const api = await loadPreloadApi();
+    const request = { path: '/tmp/source.json', sourceToken: 'token-1' };
+
+    await api.file.refreshOpenFile(request);
+
+    expect(invokeMock).toHaveBeenCalledWith('file:refresh-open-file', request);
+  });
+
+  it('exposes commit and clear file-source IPC through the file bridge', async () => {
+    const api = await loadPreloadApi();
+    const commitRequest = { path: '/tmp/source.json', sourceToken: 'token-1' };
+    const clearRequest = {
+      path: '/tmp/source.json',
+      sourceToken: 'token-1',
+      scope: 'pending' as const,
+    };
+
+    await api.file.commitOpenFileSource(commitRequest);
+    await api.file.clearOpenFileSource(clearRequest);
+
+    expect(invokeMock).toHaveBeenCalledWith('file:commit-open-file-source', commitRequest);
+    expect(invokeMock).toHaveBeenCalledWith('file:clear-open-file-source', clearRequest);
   });
 });

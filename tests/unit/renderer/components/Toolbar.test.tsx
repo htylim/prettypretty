@@ -19,8 +19,10 @@ const createProps = (
   canPopSplit: false,
   canNavigateSplitLeft: false,
   canNavigateSplitRight: false,
+  canRefreshFile: false,
   visibleOutputPanePosition: null,
   onNew: vi.fn(),
+  onRefresh: vi.fn(),
   onPaneModeChange: vi.fn(),
   onCollapseAll: vi.fn(),
   onExpandAll: vi.fn(),
@@ -102,7 +104,7 @@ describe('Toolbar', () => {
   });
 
   it('uses shared style for toolbar action buttons', () => {
-    render(<Toolbar {...createProps({ paneMode: 'output' })} />);
+    render(<Toolbar {...createProps({ canRefreshFile: true, paneMode: 'output' })} />);
 
     const actionButtons = [
       'New',
@@ -110,6 +112,7 @@ describe('Toolbar', () => {
       'Expand',
       'Save',
       'Copy',
+      'Refresh',
       'Navigate splits left',
       'Navigate splits right',
       'Pop split',
@@ -122,7 +125,7 @@ describe('Toolbar', () => {
   });
 
   it('renders output actions in collapse-then-expand order', () => {
-    render(<Toolbar {...createProps({ paneMode: 'output' })} />);
+    render(<Toolbar {...createProps({ canRefreshFile: true, paneMode: 'output' })} />);
 
     const collapseButton = screen.getByRole('button', { name: 'Collapse' });
     const toolbarLeft = collapseButton.closest('.toolbar-left');
@@ -136,6 +139,7 @@ describe('Toolbar', () => {
       'Expand',
       'Save',
       'Copy',
+      'Refresh',
       'Navigate splits left',
       'Navigate splits right',
       'Pop split',
@@ -162,6 +166,10 @@ describe('Toolbar', () => {
       'title',
       'Copy (Cmd+Shift+C)',
     );
+    expect(screen.getByRole('button', { name: 'Refresh' })).toHaveAttribute(
+      'title',
+      'Refresh (Cmd+R)',
+    );
   });
 
   it('routes the New button to the provided new-window handler', async () => {
@@ -178,6 +186,39 @@ describe('Toolbar', () => {
   it('does not render a toolbar search input', () => {
     render(<Toolbar {...createProps({ paneMode: 'output' })} />);
     expect(screen.queryByTestId('search-input')).not.toBeInTheDocument();
+  });
+
+  it('renders refresh immediately before the indent dropdown', () => {
+    render(<Toolbar {...createProps({ canRefreshFile: true, paneMode: 'output' })} />);
+
+    const refreshButton = screen.getByRole('button', { name: 'Refresh' });
+    const indentSelect = screen.getByTestId('indent-size-select');
+
+    expect(
+      refreshButton.compareDocumentPosition(indentSelect) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(refreshButton.nextElementSibling).toContainElement(indentSelect);
+  });
+
+  it('gates refresh button by availability and routes clicks to onRefresh', async () => {
+    const user = userEvent.setup();
+    const onRefresh = vi.fn();
+    const { rerender } = render(
+      <Toolbar {...createProps({ canRefreshFile: false, onRefresh, paneMode: 'output' })} />,
+    );
+
+    const refreshButton = screen.getByRole('button', { name: 'Refresh' });
+    expect(refreshButton).toBeDisabled();
+    expect(refreshButton.className).toMatch(/\bbtn\b/);
+    expect(refreshButton.className).toMatch(/\bbtn-icon\b/);
+
+    await user.click(refreshButton);
+    expect(onRefresh).not.toHaveBeenCalled();
+
+    rerender(<Toolbar {...createProps({ canRefreshFile: true, onRefresh, paneMode: 'output' })} />);
+
+    await user.click(screen.getByRole('button', { name: 'Refresh' }));
+    expect(onRefresh).toHaveBeenCalledTimes(1);
   });
 
   it('renders pane segments with active/disabled states and explicit mode changes', async () => {

@@ -85,3 +85,4 @@ These are the durable patterns worth keeping in mind when changing the codebase.
 - Keep onboarding docs concise and current; move history and deep implementation detail out of the main docs.
 - When drafting a new spec, treat current code and current docs as the source of truth. Historical spec files are archival context only and must not drive new architecture decisions unless explicitly requested.
 - When an ingest guard needs a follow-up choice, store a typed prompt payload in session state instead of a raw message string so UI actions can resume the exact pending flow without reconstructing state from copy.
+- For file-backed ingest and refresh, commit/clear IPC must be treated as a transaction boundary. Capture renderer session snapshots before the async call, revalidate before visible mutation, and clear discarded pending tokens so main and renderer cannot disagree about the current refreshable source.

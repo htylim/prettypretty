@@ -206,6 +206,7 @@ describe('appDomain', () => {
       rejectionActual: MONACO_MAX_TOKENIZATION_LINE_LENGTH + 5,
       rejectionLimit: MONACO_MAX_TOKENIZATION_LINE_LENGTH,
       originalCharCount: MONACO_MAX_TOKENIZATION_LINE_LENGTH + 5,
+      pendingFileSource: null,
     });
 
     expect(
@@ -223,14 +224,17 @@ describe('appDomain', () => {
 
   it('maps ingest source to file-source predicate and trigger/event names', () => {
     expect(isFileIngestSource('open-file')).toBe(true);
+    expect(isFileIngestSource('refresh-file')).toBe(true);
     expect(isFileIngestSource('drop')).toBe(true);
     expect(isFileIngestSource('paste')).toBe(false);
 
     expect(getIngestTrigger('open-file')).toBe('ingest-open-file');
+    expect(getIngestTrigger('refresh-file')).toBe('refresh-file');
     expect(getIngestTrigger('drop')).toBe('ingest-drop');
     expect(getIngestTrigger('paste')).toBe('ingest-paste');
 
     expect(getIngestEventName('open-file')).toBe('renderer.ingest.open-file');
+    expect(getIngestEventName('refresh-file')).toBe('renderer.ingest.refresh-file');
     expect(getIngestEventName('drop')).toBe('renderer.ingest.drop');
     expect(getIngestEventName('paste')).toBe('renderer.ingest.paste');
   });

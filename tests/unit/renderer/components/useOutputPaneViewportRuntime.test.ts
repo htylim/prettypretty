@@ -39,6 +39,8 @@ const createOutputEditorHandle = (testId: string): OutputEditorHandle => ({
   expandAll: vi.fn(),
   focus: (focusMocksByTestId.get(testId) ?? vi.fn()) as () => void,
   openFind: vi.fn(),
+  captureViewportSnapshot: vi.fn().mockReturnValue(null),
+  restoreViewportSnapshot: vi.fn(),
 });
 
 const MockPane = forwardRef<OutputEditorHandle, { paneId: string; testId: string }>(

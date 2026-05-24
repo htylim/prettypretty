@@ -214,6 +214,19 @@ const bootstrap = async (): Promise<void> => {
     });
   };
 
+  const refreshFocusedDocumentWindow = (): void => {
+    const focusedWindow = BrowserWindow.getFocusedWindow();
+    if (!focusedWindow || !isMainWindow(focusedWindow)) {
+      return;
+    }
+
+    focusedWindow.webContents.send(IPCChannels.appRefreshCurrentWindow);
+    logger.info('app.window.refresh-requested', {
+      source: 'menu',
+      windowId: focusedWindow.id,
+    });
+  };
+
   configureApplicationMenu({
     onNewWindow: () => {
       const referenceBounds = getDocumentWindowReferenceBounds(BrowserWindow.getFocusedWindow());
@@ -224,6 +237,7 @@ const bootstrap = async (): Promise<void> => {
         });
       });
     },
+    onRefreshWindow: refreshFocusedDocumentWindow,
     onResetWindow: resetFocusedDocumentWindow,
     onViewLog: () => {
       void openOrFocusLogWindow(sessionLogStore, {

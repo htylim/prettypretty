@@ -167,10 +167,12 @@ describe('registerIpcHandlers preferences channels', () => {
 
     expect(onConsumeInitialOpenFile).toHaveBeenCalledTimes(1);
     expect(onConsumeInitialOpenFile).toHaveBeenCalledWith(parentWindow);
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       path: '/tmp/launch.json',
       content: '{"launch":true}',
+      sourceKind: 'startup-open-file',
     });
+    expect(result).toHaveProperty('sourceToken', expect.any(String));
   });
 
   it('forwards valid preferences update payloads to service', async () => {
@@ -208,7 +210,12 @@ describe('registerIpcHandlers preferences channels', () => {
       expect.objectContaining({ title: 'Open file' }),
     );
     expect(readFileMock).toHaveBeenCalledWith('/tmp/sample.json', 'utf8');
-    expect(result).toEqual({ path: '/tmp/sample.json', content: '{"a":1}' });
+    expect(result).toMatchObject({
+      path: '/tmp/sample.json',
+      content: '{"a":1}',
+      sourceKind: 'dialog-open-file',
+    });
+    expect(result).toHaveProperty('sourceToken', expect.any(String));
     expect(logger.info).toHaveBeenCalledWith('ingest.open-file', {
       fileExtension: '.json',
       contentLength: 7,

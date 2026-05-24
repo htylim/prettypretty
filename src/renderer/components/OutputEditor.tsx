@@ -8,12 +8,15 @@ import { getOutputEditorOptions } from '../output/outputEditorConfig';
 import type { OutputPaneSourceRange } from '../output/outputRange';
 import { useOutputEditorRuntime } from './useOutputEditorRuntime';
 import type { OutputEditorContextMenuRequest } from './useOutputEditorRuntime';
+import type { EditorViewportSnapshot } from './InputEditor';
 
 export type OutputEditorHandle = {
   collapseAll: () => void;
   expandAll: () => void;
   focus: () => void;
   openFind: () => void;
+  captureViewportSnapshot: () => EditorViewportSnapshot | null;
+  restoreViewportSnapshot: (snapshot: EditorViewportSnapshot | null) => void;
 };
 
 type OutputEditorProps = {
@@ -27,6 +30,7 @@ type OutputEditorProps = {
   lineNumberStart?: number | null | undefined;
   viewRange?: OutputPaneSourceRange | null | undefined;
   onFocus?: (() => void) | undefined;
+  onViewportInteraction?: (() => void) | undefined;
   onToggleExtractedSourcePane?:
     | ((content: {
         kind: 'extracted-source';
@@ -56,6 +60,7 @@ export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
       lineNumberStart = null,
       viewRange = null,
       onFocus,
+      onViewportInteraction,
       onToggleExtractedSourcePane,
       onContextMenu,
       testId = 'output-editor',
@@ -92,6 +97,8 @@ export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
         expandAll: outputEditorRuntime.expandAll,
         focus: outputEditorRuntime.focus,
         openFind: outputEditorRuntime.openFind,
+        captureViewportSnapshot: outputEditorRuntime.captureViewportSnapshot,
+        restoreViewportSnapshot: outputEditorRuntime.restoreViewportSnapshot,
       }),
       [outputEditorRuntime],
     );
@@ -101,7 +108,10 @@ export const OutputEditor = forwardRef<OutputEditorHandle, OutputEditorProps>(
         className="output-editor"
         data-testid={testId}
         onFocusCapture={outputEditorRuntime.onFocusCapture}
+        onKeyDownCapture={onViewportInteraction}
         onMouseDown={outputEditorRuntime.onMouseDown}
+        onMouseDownCapture={onViewportInteraction}
+        onWheelCapture={onViewportInteraction}
       >
         <Editor
           beforeMount={outputEditorRuntime.beforeMount}

@@ -8,6 +8,7 @@ import {
   getOutputPaneViewRange,
   getOutputPaneViewportPosition,
   invalidateOutputPaneDescendants,
+  mapOutputPaneViewportSnapshotToRoot,
   openOrReplaceDerivedOutputPane,
   shiftOutputPaneViewport,
   toggleExtractedSourceOutputPane,
@@ -240,5 +241,94 @@ describe('outputPaneDomain', () => {
     expect(closed.derivedPanes).toHaveLength(0);
     expect(closed.activePaneId).toBe('output-root-pane');
     expect(closed.leftVisiblePaneIndex).toBe(0);
+  });
+
+  it('maps source-range and extracted-source viewport snapshots back to root output lines', () => {
+    const sourceRangeState = openOrReplaceDerivedOutputPane(
+      createOutputPaneChainState(),
+      'output-root-pane',
+      rootContent,
+    );
+    expect(
+      mapOutputPaneViewportSnapshotToRoot(sourceRangeState, 'output-pane-1', {
+        lineNumber: 2,
+        column: 4,
+        topLineNumber: 1,
+        scrollLeft: 0,
+        scrollTop: 20,
+      }),
+    ).toEqual({
+      lineNumber: 2,
+      column: 4,
+      topLineNumber: 1,
+      scrollLeft: 0,
+      scrollTop: 20,
+      restoreScrollPosition: false,
+    });
+
+    const extractedState = toggleExtractedSourceOutputPane(
+      createOutputPaneChainState(),
+      'output-root-pane',
+      {
+        ...extractedSourceContent,
+        sourceRange: {
+          startLineNumber: 30,
+          startColumn: 1,
+          endLineNumber: 32,
+          endColumn: 2,
+        },
+        lineNumberStart: 9,
+      },
+    );
+    expect(
+      mapOutputPaneViewportSnapshotToRoot(extractedState, 'output-pane-1', {
+        lineNumber: 3,
+        column: 2,
+        topLineNumber: 2,
+        scrollLeft: 4,
+        scrollTop: 80,
+      }),
+    ).toEqual({
+      lineNumber: 11,
+      column: 2,
+      topLineNumber: 10,
+      scrollLeft: 4,
+      scrollTop: 80,
+      restoreScrollPosition: false,
+    });
+  });
+
+  it('falls back to previous root viewport or line one for independent panes', () => {
+    const state = openOrReplaceDerivedOutputPane(
+      createOutputPaneChainState(),
+      'output-root-pane',
+      childContent,
+    );
+    const paneSnapshot = {
+      lineNumber: 3,
+      column: 6,
+      topLineNumber: 2,
+      scrollLeft: 10,
+      scrollTop: 100,
+    };
+    const rootSnapshot = {
+      lineNumber: 9,
+      column: 1,
+      topLineNumber: 8,
+      scrollLeft: 0,
+      scrollTop: 400,
+    };
+
+    expect(
+      mapOutputPaneViewportSnapshotToRoot(state, 'output-pane-1', paneSnapshot, rootSnapshot),
+    ).toBe(rootSnapshot);
+    expect(mapOutputPaneViewportSnapshotToRoot(state, 'output-pane-1', paneSnapshot)).toEqual({
+      lineNumber: 1,
+      column: 6,
+      topLineNumber: 1,
+      scrollLeft: 10,
+      scrollTop: 100,
+      restoreScrollPosition: false,
+    });
   });
 });

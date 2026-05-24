@@ -7,6 +7,7 @@ import { isIndentSize } from '../preferences/preferencesTypes';
 
 const PRETTIFY_TRIGGERS: Set<PrettifyTrigger> = new Set([
   'ingest-open-file',
+  'refresh-file',
   'ingest-drop',
   'ingest-paste',
   'switch-output',

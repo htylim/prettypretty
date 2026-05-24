@@ -1,8 +1,16 @@
 import type { Preferences } from '../../shared/preferences';
 import type { PrettifyTrigger } from '../../shared/prettifier';
 import type { TelemetryEventName } from '../../shared/telemetry';
+import type { FileSourceKind } from '../../shared/ipc-contracts';
 
-export type IngestSource = 'open-file' | 'drop' | 'paste';
+export type IngestSource = 'open-file' | 'refresh-file' | 'drop' | 'paste';
+
+export type PendingIngestFileSource = {
+  sourceToken: string;
+  path: string;
+  sourceKind: FileSourceKind;
+  baselineText: string;
+};
 
 export type FallbackWaitState = {
   requestId: number;
@@ -26,12 +34,14 @@ export const MONACO_LARGE_FILE_LINE_COUNT_LIMIT = 300 * 1000;
 
 const INGEST_TRIGGER_BY_SOURCE: Record<IngestSource, PrettifyTrigger> = {
   'open-file': 'ingest-open-file',
+  'refresh-file': 'refresh-file',
   drop: 'ingest-drop',
   paste: 'ingest-paste',
 };
 
 const INGEST_EVENT_NAME_BY_SOURCE: Record<IngestSource, TelemetryEventName> = {
   'open-file': 'renderer.ingest.open-file',
+  'refresh-file': 'renderer.ingest.refresh-file',
   drop: 'renderer.ingest.drop',
   paste: 'renderer.ingest.paste',
 };
@@ -66,9 +76,11 @@ export type IngestRejectionPrompt = {
   recoveryText: string;
   source: IngestSource;
   originalCharCount: number;
+  switchToOutputOnComplete: boolean;
   rejectionReason: MonacoIngestRejectionReason;
   rejectionActual: number;
   rejectionLimit: number;
+  pendingFileSource: PendingIngestFileSource | null;
 };
 
 const formatCount = (value: number): string => {
@@ -243,6 +255,8 @@ export const getMonacoIngestPromptMessage = (
 export const createIngestRejectionPrompt = (
   value: string,
   source: IngestSource,
+  pendingFileSource: PendingIngestFileSource | null = null,
+  switchToOutputOnComplete = true,
 ): IngestRejectionPrompt | null => {
   const rejection = getMonacoIngestRejection(value);
   if (!rejection) {
@@ -256,9 +270,11 @@ export const createIngestRejectionPrompt = (
     recoveryText: readablePrefix.text,
     source,
     originalCharCount: rejection.metrics.charCount,
+    switchToOutputOnComplete,
     rejectionReason: rejection.reason,
     rejectionActual: rejection.actual,
     rejectionLimit: rejection.limit,
+    pendingFileSource,
   };
 };
 
@@ -292,7 +308,7 @@ export const getOutputDocumentId = (value: string): string => {
 };
 
 export const isFileIngestSource = (source: IngestSource): boolean => {
-  return source === 'open-file' || source === 'drop';
+  return source === 'open-file' || source === 'refresh-file' || source === 'drop';
 };
 
 /**

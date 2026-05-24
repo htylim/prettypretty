@@ -348,10 +348,12 @@ describe('main process window lifecycle', () => {
     const secondResult = await consumeInitialOpenFileHandler({ sender: {} });
 
     expect(readFileMock).toHaveBeenCalledWith('/tmp/launch.json', 'utf8');
-    expect(firstResult).toEqual({
+    expect(firstResult).toMatchObject({
       path: '/tmp/launch.json',
       content: '{"launch":true}',
+      sourceKind: 'startup-open-file',
     });
+    expect(firstResult).toHaveProperty('sourceToken', expect.any(String));
     expect(secondResult).toBeNull();
   });
 
@@ -413,6 +415,29 @@ describe('main process window lifecycle', () => {
     expect(focusedWindowSendMock).toHaveBeenCalledWith(IPCChannels.appResetCurrentWindow);
   });
 
+  it('sends refresh request to the focused document window only', async () => {
+    await loadMainEntry();
+
+    getMenuItem('Refresh File').click?.(undefined as never, undefined, {} as never);
+
+    expect(focusedWindowSendMock).toHaveBeenCalledWith(IPCChannels.appRefreshCurrentWindow);
+  });
+
+  it('does not send refresh request when the focused window is not a document window', async () => {
+    await loadMainEntry();
+    focusedWindow = {
+      id: 999,
+      isDestroyed: () => false,
+      webContents: {
+        send: focusedWindowSendMock,
+      },
+    } as unknown as BrowserWindowMock;
+
+    getMenuItem('Refresh File').click?.(undefined as never, undefined, {} as never);
+
+    expect(focusedWindowSendMock).not.toHaveBeenCalled();
+  });
+
   it('opens a new empty window when a second terminal invocation has no file path', async () => {
     await loadMainEntry();
 
@@ -469,10 +494,12 @@ describe('main process window lifecycle', () => {
 
     const result = await consumeInitialOpenFileHandler({ sender: {} });
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       path: launchPath,
       content: '{"second":true}',
+      sourceKind: 'startup-open-file',
     });
+    expect(result).toHaveProperty('sourceToken', expect.any(String));
   });
 
   it('quits on window-all-closed without platform exceptions', async () => {

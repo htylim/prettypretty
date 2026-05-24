@@ -21,6 +21,11 @@ const api: WindowApi = {
   },
   file: {
     save: (content: string) => ipcRenderer.invoke(IPCChannels.fileSave, content),
+    refreshOpenFile: (request) => ipcRenderer.invoke(IPCChannels.fileRefreshOpenFile, request),
+    commitOpenFileSource: (request) =>
+      ipcRenderer.invoke(IPCChannels.fileCommitOpenFileSource, request),
+    clearOpenFileSource: (request) =>
+      ipcRenderer.invoke(IPCChannels.fileClearOpenFileSource, request),
   },
   clipboard: {
     copy: async (content: string) => {
@@ -42,6 +47,17 @@ const api: WindowApi = {
 
       return () => {
         ipcRenderer.removeListener(IPCChannels.appResetCurrentWindow, wrappedListener);
+      };
+    },
+    onRefreshCurrentWindow: (listener) => {
+      const wrappedListener = () => {
+        listener();
+      };
+
+      ipcRenderer.on(IPCChannels.appRefreshCurrentWindow, wrappedListener);
+
+      return () => {
+        ipcRenderer.removeListener(IPCChannels.appRefreshCurrentWindow, wrappedListener);
       };
     },
     onNavigationCommand: (listener) => {

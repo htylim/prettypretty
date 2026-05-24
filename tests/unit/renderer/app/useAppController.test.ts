@@ -1,10 +1,15 @@
-import { act, render } from '@testing-library/react';
+import { act, render, waitFor } from '@testing-library/react';
 import { createElement, forwardRef, useImperativeHandle } from 'react';
 import type { RefObject } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { InputEditorHandle } from '../../../../src/renderer/components/InputEditor';
 import type { OutputEditorHandle } from '../../../../src/renderer/components/OutputEditor';
+import type { RefreshableOpenTextFile } from '../../../../src/shared/ipc-contracts';
 import { useAppController } from '../../../../src/renderer/app/useAppController';
+import {
+  createOutputPaneChainState,
+  openOrReplaceDerivedOutputPane,
+} from '../../../../src/renderer/app/outputPaneDomain';
 import { createInitialDocumentSessionState } from '../../../../src/renderer/app/session/documentSessionDomain';
 import { useDocumentSession } from '../../../../src/renderer/app/session/useDocumentSession';
 
@@ -16,6 +21,8 @@ const openWindowMock = vi.fn();
 const consumeInitialOpenFileMock = vi.fn();
 const dialogOpenFileMock = vi.fn();
 const fileSaveMock = vi.fn();
+const fileRefreshOpenFileMock = vi.fn();
+const fileClearOpenFileSourceMock = vi.fn();
 const clipboardCopyMock = vi.fn();
 const preferencesUpdateMock = vi.fn();
 const telemetryLogMock = vi.fn();
@@ -43,7 +50,7 @@ type HarnessHandle = {
 };
 
 type HarnessProps = {
-  initialOpenFile?: { path: string; content: string } | null;
+  initialOpenFile?: RefreshableOpenTextFile | null;
   inputEditorRef: RefObject<InputEditorHandle | null>;
 };
 
@@ -72,6 +79,8 @@ const createInputEditorRef = (
   current: {
     collapseAll: vi.fn(),
     expandAll: vi.fn(),
+    captureViewportSnapshot: vi.fn().mockReturnValue(null),
+    restoreViewportSnapshot: vi.fn(),
     ...overrides,
   },
 });
@@ -83,8 +92,19 @@ const createOutputEditorHandle = (
   expandAll: vi.fn(),
   focus: vi.fn(),
   openFind: vi.fn(),
+  captureViewportSnapshot: vi.fn().mockReturnValue(null),
+  restoreViewportSnapshot: vi.fn(),
   ...overrides,
 });
+
+const createDeferred = <T>() => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolver) => {
+    resolve = resolver;
+  });
+
+  return { promise, resolve };
+};
 
 describe('useAppController', () => {
   beforeEach(() => {
@@ -115,7 +135,7 @@ describe('useAppController', () => {
         durationMs: 1,
       }),
       runPrettifier: vi.fn(),
-      ingestInputText: vi.fn(),
+      ingestInputText: vi.fn().mockResolvedValue('accepted'),
       openReadableIngestSlice: vi.fn(),
       dismissIngestRejection: vi.fn(),
       resetPrettifierState: vi.fn(),
@@ -138,6 +158,13 @@ describe('useAppController', () => {
     consumeInitialOpenFileMock.mockReset().mockResolvedValue(null);
     dialogOpenFileMock.mockReset().mockResolvedValue(null);
     fileSaveMock.mockReset().mockResolvedValue(null);
+    fileRefreshOpenFileMock.mockReset().mockResolvedValue({
+      path: '/tmp/source.json',
+      content: '{"refreshed":true}',
+      sourceToken: 'refresh-token',
+      sourceKind: 'refresh-file',
+    });
+    fileClearOpenFileSourceMock.mockReset().mockResolvedValue(true);
     clipboardCopyMock.mockReset().mockResolvedValue(undefined);
     preferencesUpdateMock
       .mockReset()
@@ -156,6 +183,9 @@ describe('useAppController', () => {
         },
         file: {
           save: fileSaveMock,
+          refreshOpenFile: fileRefreshOpenFileMock,
+          commitOpenFileSource: vi.fn(),
+          clearOpenFileSource: fileClearOpenFileSourceMock,
         },
         clipboard: {
           copy: clipboardCopyMock,
@@ -168,6 +198,7 @@ describe('useAppController', () => {
             onResetCurrentWindowListener = listener;
             return resetCurrentWindowUnsubscribeMock;
           },
+          onRefreshCurrentWindow: vi.fn().mockImplementation(() => vi.fn()),
           onNavigationCommand: vi.fn().mockImplementation(() => vi.fn()),
           initialThemeMode: null,
         },
@@ -779,13 +810,21 @@ describe('useAppController', () => {
     });
   });
 
-  it('resets pane and renderer state on current-window reset', () => {
+  it('resets pane and renderer state on current-window reset', async () => {
     const inputEditorRef = createInputEditorRef();
     const ref = { current: null as HarnessHandle | null };
     const { rerender } = render(createElement(ControllerHarness, { inputEditorRef, ref }));
 
     act(() => {
-      useDocumentSession.setState({ paneMode: 'output' });
+      useDocumentSession.setState({
+        paneMode: 'output',
+        fileSource: {
+          sourceToken: 'token-1',
+          path: '/tmp/source.json',
+          sourceKind: 'dialog-open-file',
+          lastLoadedText: '{"a":1}',
+        },
+      });
     });
     rerender(createElement(ControllerHarness, { inputEditorRef, ref }));
 
@@ -796,17 +835,838 @@ describe('useAppController', () => {
       onResetCurrentWindowListener?.();
     });
 
-    expect(useDocumentSession.getState().paneMode).toBe('input');
+    await waitFor(() => {
+      expect(useDocumentSession.getState().paneMode).toBe('input');
+    });
     expect(useDocumentSession.getState().inputText).toBe('');
     expect(useDocumentSession.getState().ingestNotice).toBeNull();
+    expect(fileClearOpenFileSourceMock).toHaveBeenCalledWith({
+      sourceToken: 'token-1',
+      path: '/tmp/source.json',
+      scope: 'committed',
+    });
     expect(ref.current?.getController().outputPanes).toHaveLength(1);
     expect(usePrettifierFlowMock.mock.results[0]?.value.resetPrettifierState).toHaveBeenCalled();
+  });
+
+  it('stale reset clear result preserves newer input and disables local file source', async () => {
+    const clearDeferred = createDeferred<boolean>();
+    fileClearOpenFileSourceMock.mockReturnValueOnce(clearDeferred.promise);
+    const inputEditorRef = createInputEditorRef();
+    const ref = { current: null as HarnessHandle | null };
+    render(createElement(ControllerHarness, { inputEditorRef, ref }));
+
+    act(() => {
+      useDocumentSession.setState({
+        inputText: '{"old":true}',
+        fileSource: {
+          sourceToken: 'token-1',
+          path: '/tmp/source.json',
+          sourceKind: 'dialog-open-file',
+          lastLoadedText: '{"old":true}',
+        },
+      });
+    });
+
+    act(() => {
+      onResetCurrentWindowListener?.();
+      useDocumentSession.setState({ inputText: 'newer edit' });
+    });
+
+    await act(async () => {
+      clearDeferred.resolve(true);
+      await clearDeferred.promise;
+    });
+
+    expect(useDocumentSession.getState().inputText).toBe('newer edit');
+    expect(useDocumentSession.getState().fileSource).toBeNull();
+    expect(
+      usePrettifierFlowMock.mock.results[0]?.value.resetPrettifierState,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('stale reset clear result preserves newer session state when input is unchanged', async () => {
+    const clearDeferred = createDeferred<boolean>();
+    fileClearOpenFileSourceMock.mockReturnValueOnce(clearDeferred.promise);
+    const inputEditorRef = createInputEditorRef();
+    const ref = { current: null as HarnessHandle | null };
+    render(createElement(ControllerHarness, { inputEditorRef, ref }));
+
+    act(() => {
+      useDocumentSession.setState({
+        inputText: '{"old":true}',
+        outputText: '{\n  "old": true\n}',
+        fileSource: {
+          sourceToken: 'token-1',
+          path: '/tmp/source.json',
+          sourceKind: 'dialog-open-file',
+          lastLoadedText: '{"old":true}',
+        },
+      });
+    });
+
+    act(() => {
+      onResetCurrentWindowListener?.();
+      useDocumentSession.setState({
+        outputText: '{\n  "newer": true\n}',
+        ingestNotice: 'Newer state',
+      });
+    });
+
+    await act(async () => {
+      clearDeferred.resolve(true);
+      await clearDeferred.promise;
+    });
+
+    expect(useDocumentSession.getState().inputText).toBe('{"old":true}');
+    expect(useDocumentSession.getState().outputText).toContain('"newer": true');
+    expect(useDocumentSession.getState().ingestNotice).toBe('Newer state');
+    expect(useDocumentSession.getState().fileSource).toBeNull();
+    expect(
+      usePrettifierFlowMock.mock.results[0]?.value.resetPrettifierState,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('exposes refresh availability only for refreshable idle file-backed sessions', () => {
+    const inputEditorRef = createInputEditorRef();
+    const ref = { current: null as HarnessHandle | null };
+    const { rerender } = render(createElement(ControllerHarness, { inputEditorRef, ref }));
+
+    expect(ref.current?.getController().canRefreshFile).toBe(false);
+
+    act(() => {
+      useDocumentSession.setState({
+        inputText: '{"old":true}',
+        fileSource: {
+          sourceToken: 'token-1',
+          path: '/tmp/source.json',
+          sourceKind: 'dialog-open-file',
+          lastLoadedText: '{"old":true}',
+        },
+      });
+    });
+    rerender(createElement(ControllerHarness, { inputEditorRef, ref }));
+
+    expect(ref.current?.getController().canRefreshFile).toBe(true);
+  });
+
+  it('refresh reads the current file and routes refreshed content through refresh ingestion', async () => {
+    const inputEditorRef = createInputEditorRef();
+    const ref = { current: null as HarnessHandle | null };
+    render(createElement(ControllerHarness, { inputEditorRef, ref }));
+
+    act(() => {
+      useDocumentSession.setState({
+        paneMode: 'output',
+        inputText: '{"old":true}',
+        fileSource: {
+          sourceToken: 'token-1',
+          path: '/tmp/source.json',
+          sourceKind: 'dialog-open-file',
+          lastLoadedText: '{"old":true}',
+        },
+      });
+    });
+
+    act(() => {
+      ref.current?.getController().onRefreshFile();
+    });
+
+    await waitFor(() => {
+      expect(fileRefreshOpenFileMock).toHaveBeenCalledWith({
+        path: '/tmp/source.json',
+        sourceToken: 'token-1',
+      });
+    });
+    expect(usePrettifierFlowMock.mock.results[0]?.value.ingestInputText).toHaveBeenCalledWith(
+      '{"refreshed":true}',
+      'refresh-file',
+      {
+        fileSource: {
+          sourceToken: 'refresh-token',
+          path: '/tmp/source.json',
+          sourceKind: 'refresh-file',
+          baselineText: '{"refreshed":true}',
+        },
+        switchToOutputOnComplete: true,
+        awaitPrettifierCompletion: true,
+        isCurrent: expect.any(Function),
+      },
+    );
+    const refreshOptions = usePrettifierFlowMock.mock.results[0]?.value.ingestInputText.mock
+      .calls[0]?.[2] as { isCurrent: () => boolean };
+    expect(refreshOptions.isCurrent()).toBe(true);
+
+    act(() => {
+      useDocumentSession.setState({ paneMode: 'input' });
+    });
+
+    expect(refreshOptions.isCurrent()).toBe(false);
+  });
+
+  it('restores output refresh viewport on the root pane after derived panes reset', async () => {
+    const rootHandle = createOutputEditorHandle();
+    const derivedHandle = createOutputEditorHandle({
+      captureViewportSnapshot: vi.fn().mockReturnValue({
+        lineNumber: 2,
+        column: 3,
+        topLineNumber: 1,
+        scrollLeft: 0,
+        scrollTop: 40,
+      }),
+    });
+    const outputPaneChainState = openOrReplaceDerivedOutputPane(
+      createOutputPaneChainState(),
+      'output-root-pane',
+      {
+        kind: 'source-range',
+        documentId: 'root-doc',
+        value: '{"old":true}',
+        sourceRange: {
+          startLineNumber: 10,
+          startColumn: 1,
+          endLineNumber: 12,
+          endColumn: 2,
+        },
+      },
+    );
+    const inputEditorRef = createInputEditorRef();
+    const ref = { current: null as HarnessHandle | null };
+    useDocumentSession.setState({
+      paneMode: 'output',
+      inputText: '{"old":true}',
+      outputPaneChainState,
+      fileSource: {
+        sourceToken: 'token-1',
+        path: '/tmp/source.json',
+        sourceKind: 'dialog-open-file',
+        lastLoadedText: '{"old":true}',
+      },
+    });
+    render(createElement(ControllerHarness, { inputEditorRef, ref }));
+    const ingestInputText = usePrettifierFlowMock.mock.results[0]?.value
+      .ingestInputText as ReturnType<typeof vi.fn>;
+    ingestInputText.mockImplementationOnce(async (content: string) => {
+      useDocumentSession.setState({
+        inputText: content,
+        fileSource: {
+          sourceToken: 'refresh-token',
+          path: '/tmp/source.json',
+          sourceKind: 'refresh-file',
+          lastLoadedText: content,
+        },
+      });
+      return 'accepted';
+    });
+
+    act(() => {
+      ref.current?.getController().onOutputPaneHandleChange('output-root-pane', rootHandle);
+      ref.current?.getController().onOutputPaneHandleChange('output-pane-1', derivedHandle);
+    });
+
+    act(() => {
+      ref.current?.getController().onRefreshFile();
+    });
+
+    await waitFor(() => {
+      expect(usePrettifierFlowMock.mock.results[0]?.value.ingestInputText).toHaveBeenCalledWith(
+        '{"refreshed":true}',
+        'refresh-file',
+        expect.any(Object),
+      );
+    });
+    act(() => {
+      ref.current?.getController().onOutputPaneHandleChange('output-root-pane', rootHandle);
+    });
+
+    await waitFor(() => {
+      expect(rootHandle.restoreViewportSnapshot).toHaveBeenCalledWith({
+        lineNumber: 2,
+        column: 3,
+        topLineNumber: 1,
+        scrollLeft: 0,
+        scrollTop: 40,
+        restoreScrollPosition: false,
+      });
+    });
+    expect(derivedHandle.restoreViewportSnapshot).not.toHaveBeenCalled();
+  });
+
+  it('clears output context state when output refresh ingests an empty file into input mode', async () => {
+    const outputPaneChainState = openOrReplaceDerivedOutputPane(
+      createOutputPaneChainState(),
+      'output-root-pane',
+      {
+        kind: 'source-range',
+        documentId: 'root-doc',
+        value: '{"old":true}',
+        sourceRange: {
+          startLineNumber: 1,
+          startColumn: 1,
+          endLineNumber: 1,
+          endColumn: 13,
+        },
+      },
+    );
+    const inputEditorRef = createInputEditorRef();
+    const ref = { current: null as HarnessHandle | null };
+    fileRefreshOpenFileMock.mockResolvedValueOnce({
+      path: '/tmp/source.json',
+      content: '',
+      sourceToken: 'refresh-token',
+      sourceKind: 'refresh-file',
+    });
+    useDocumentSession.setState({
+      paneMode: 'output',
+      inputText: '{"old":true}',
+      outputPaneChainState,
+      fileSource: {
+        sourceToken: 'token-1',
+        path: '/tmp/source.json',
+        sourceKind: 'dialog-open-file',
+        lastLoadedText: '{"old":true}',
+      },
+    });
+    render(createElement(ControllerHarness, { inputEditorRef, ref }));
+    const ingestInputText = usePrettifierFlowMock.mock.results[0]?.value
+      .ingestInputText as ReturnType<typeof vi.fn>;
+    ingestInputText.mockImplementationOnce(async (content: string) => {
+      useDocumentSession.setState({
+        paneMode: 'input',
+        inputText: content,
+        fileSource: {
+          sourceToken: 'refresh-token',
+          path: '/tmp/source.json',
+          sourceKind: 'refresh-file',
+          lastLoadedText: content,
+        },
+      });
+      return 'accepted';
+    });
+
+    act(() => {
+      ref.current?.getController().onOutputPaneContextMenu(
+        'output-root-pane',
+        {
+          anchorX: 12,
+          anchorY: 24,
+          isContentHit: true,
+          position: { lineNumber: 1, column: 2 },
+          hasSelection: false,
+        },
+        '{"old":true}',
+        'json',
+      );
+    });
+    expect(ref.current?.getController().outputContextMenuState).not.toBeNull();
+    expect(useDocumentSession.getState().outputPaneChainState.derivedPanes).toHaveLength(1);
+
+    act(() => {
+      ref.current?.getController().onRefreshFile();
+    });
+
+    await waitFor(() => {
+      expect(ref.current?.getController().outputContextMenuState).toBeNull();
+    });
+    expect(useDocumentSession.getState().outputPaneChainState).toEqual(
+      createOutputPaneChainState(),
+    );
+    expect(inputEditorRef.current?.restoreViewportSnapshot).not.toHaveBeenCalled();
+  });
+
+  it('ignores duplicate refresh invocations while a read is in flight', async () => {
+    const refreshDeferred = createDeferred<{
+      path: string;
+      content: string;
+      sourceToken: string;
+      sourceKind: 'refresh-file';
+    }>();
+    fileRefreshOpenFileMock.mockReturnValueOnce(refreshDeferred.promise);
+    const inputEditorRef = createInputEditorRef();
+    const ref = { current: null as HarnessHandle | null };
+    render(createElement(ControllerHarness, { inputEditorRef, ref }));
+
+    act(() => {
+      useDocumentSession.setState({
+        inputText: '{"old":true}',
+        fileSource: {
+          sourceToken: 'token-1',
+          path: '/tmp/source.json',
+          sourceKind: 'dialog-open-file',
+          lastLoadedText: '{"old":true}',
+        },
+      });
+    });
+
+    act(() => {
+      ref.current?.getController().onRefreshFile();
+      ref.current?.getController().onRefreshFile();
+    });
+
+    expect(fileRefreshOpenFileMock).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      refreshDeferred.resolve({
+        path: '/tmp/source.json',
+        content: '{"refreshed":true}',
+        sourceToken: 'refresh-token',
+        sourceKind: 'refresh-file',
+      });
+      await refreshDeferred.promise;
+    });
+  });
+
+  it('reset clears an in-flight refresh guard before the stale refresh settles', async () => {
+    const refreshDeferred = createDeferred<{
+      path: string;
+      content: string;
+      sourceToken: string;
+      sourceKind: 'refresh-file';
+    }>();
+    fileRefreshOpenFileMock.mockReturnValueOnce(refreshDeferred.promise);
+    const inputEditorRef = createInputEditorRef();
+    const ref = { current: null as HarnessHandle | null };
+    const { rerender } = render(createElement(ControllerHarness, { inputEditorRef, ref }));
+
+    act(() => {
+      useDocumentSession.setState({
+        inputText: '{"old":true}',
+        fileSource: {
+          sourceToken: 'token-1',
+          path: '/tmp/source.json',
+          sourceKind: 'dialog-open-file',
+          lastLoadedText: '{"old":true}',
+        },
+      });
+    });
+    rerender(createElement(ControllerHarness, { inputEditorRef, ref }));
+
+    act(() => {
+      ref.current?.getController().onRefreshFile();
+    });
+    await waitFor(() => {
+      expect(ref.current?.getController().isRefreshingFile).toBe(true);
+    });
+
+    act(() => {
+      onResetCurrentWindowListener?.();
+    });
+
+    await waitFor(() => {
+      expect(ref.current?.getController().isRefreshingFile).toBe(false);
+    });
+
+    await act(async () => {
+      refreshDeferred.resolve({
+        path: '/tmp/source.json',
+        content: '{"refreshed":true}',
+        sourceToken: 'refresh-token',
+        sourceKind: 'refresh-file',
+      });
+      await refreshDeferred.promise;
+    });
+    expect(ref.current?.getController().isRefreshingFile).toBe(false);
+  });
+
+  it('does not restore a stale refresh viewport after reset during refresh ingestion', async () => {
+    const ingestDeferred = createDeferred<'accepted'>();
+    const rootHandle = createOutputEditorHandle({
+      captureViewportSnapshot: vi.fn().mockReturnValue({
+        lineNumber: 4,
+        column: 2,
+        topLineNumber: 3,
+        scrollLeft: 0,
+        scrollTop: 120,
+      }),
+    });
+    const inputEditorRef = createInputEditorRef();
+    const ref = { current: null as HarnessHandle | null };
+    useDocumentSession.setState({
+      paneMode: 'output',
+      inputText: '{"old":true}',
+      fileSource: {
+        sourceToken: 'token-1',
+        path: '/tmp/source.json',
+        sourceKind: 'dialog-open-file',
+        lastLoadedText: '{"old":true}',
+      },
+    });
+    render(createElement(ControllerHarness, { inputEditorRef, ref }));
+    const ingestInputText = usePrettifierFlowMock.mock.results[0]?.value
+      .ingestInputText as ReturnType<typeof vi.fn>;
+    ingestInputText.mockReturnValueOnce(ingestDeferred.promise);
+
+    act(() => {
+      ref.current?.getController().onOutputPaneHandleChange('output-root-pane', rootHandle);
+      ref.current?.getController().onRefreshFile();
+    });
+    await waitFor(() => {
+      expect(ingestInputText).toHaveBeenCalled();
+    });
+
+    act(() => {
+      onResetCurrentWindowListener?.();
+    });
+
+    await act(async () => {
+      ingestDeferred.resolve('accepted');
+      await ingestDeferred.promise;
+    });
+    expect(rootHandle.restoreViewportSnapshot).not.toHaveBeenCalled();
+  });
+
+  it('blocked refresh ingest keeps existing output context state untouched', async () => {
+    const inputEditorRef = createInputEditorRef();
+    const ref = { current: null as HarnessHandle | null };
+    render(createElement(ControllerHarness, { inputEditorRef, ref }));
+    const ingestInputText = usePrettifierFlowMock.mock.results[0]?.value
+      .ingestInputText as ReturnType<typeof vi.fn>;
+    ingestInputText.mockResolvedValueOnce('blocked');
+
+    act(() => {
+      useDocumentSession.setState({
+        paneMode: 'output',
+        inputText: '{"old":true}',
+        fileSource: {
+          sourceToken: 'token-1',
+          path: '/tmp/source.json',
+          sourceKind: 'dialog-open-file',
+          lastLoadedText: '{"old":true}',
+        },
+      });
+      ref.current?.getController().onOutputPaneContextMenu(
+        'output-root-pane',
+        {
+          anchorX: 12,
+          anchorY: 24,
+          isContentHit: true,
+          position: { lineNumber: 2, column: 4 },
+          hasSelection: false,
+        },
+        '{\n  "query": "{ leaf }"\n}',
+        'json',
+      );
+    });
+
+    expect(ref.current?.getController().outputContextMenuState).not.toBeNull();
+
+    act(() => {
+      ref.current?.getController().onRefreshFile();
+    });
+
+    await waitFor(() => {
+      expect(ingestInputText).toHaveBeenCalledWith(
+        '{"refreshed":true}',
+        'refresh-file',
+        expect.any(Object),
+      );
+    });
+    expect(ref.current?.getController().outputContextMenuState).not.toBeNull();
+  });
+
+  it('stale refresh after pane mode changes clears the pending token without ingesting', async () => {
+    const refreshDeferred = createDeferred<{
+      path: string;
+      content: string;
+      sourceToken: string;
+      sourceKind: 'refresh-file';
+    }>();
+    fileRefreshOpenFileMock.mockReturnValueOnce(refreshDeferred.promise);
+    const inputEditorRef = createInputEditorRef();
+    const ref = { current: null as HarnessHandle | null };
+    render(createElement(ControllerHarness, { inputEditorRef, ref }));
+    const ingestInputText = usePrettifierFlowMock.mock.results[0]?.value
+      .ingestInputText as ReturnType<typeof vi.fn>;
+
+    act(() => {
+      useDocumentSession.setState({
+        paneMode: 'output',
+        inputText: '{"old":true}',
+        fileSource: {
+          sourceToken: 'token-1',
+          path: '/tmp/source.json',
+          sourceKind: 'dialog-open-file',
+          lastLoadedText: '{"old":true}',
+        },
+      });
+      ref.current?.getController().onRefreshFile();
+      useDocumentSession.setState({ paneMode: 'input' });
+    });
+
+    await act(async () => {
+      refreshDeferred.resolve({
+        path: '/tmp/source.json',
+        content: '{"refreshed":true}',
+        sourceToken: 'refresh-token',
+        sourceKind: 'refresh-file',
+      });
+      await refreshDeferred.promise;
+    });
+
+    expect(fileClearOpenFileSourceMock).toHaveBeenCalledWith({
+      sourceToken: 'refresh-token',
+      path: '/tmp/source.json',
+      scope: 'pending',
+    });
+    expect(ingestInputText).not.toHaveBeenCalled();
+  });
+
+  it('refresh blocked by a newer ingest prompt clears the pending token without ingesting', async () => {
+    const refreshDeferred = createDeferred<{
+      path: string;
+      content: string;
+      sourceToken: string;
+      sourceKind: 'refresh-file';
+    }>();
+    fileRefreshOpenFileMock.mockReturnValueOnce(refreshDeferred.promise);
+    const inputEditorRef = createInputEditorRef();
+    const ref = { current: null as HarnessHandle | null };
+    render(createElement(ControllerHarness, { inputEditorRef, ref }));
+    const ingestInputText = usePrettifierFlowMock.mock.results[0]?.value
+      .ingestInputText as ReturnType<typeof vi.fn>;
+
+    act(() => {
+      useDocumentSession.setState({
+        inputText: '{"old":true}',
+        fileSource: {
+          sourceToken: 'token-1',
+          path: '/tmp/source.json',
+          sourceKind: 'dialog-open-file',
+          lastLoadedText: '{"old":true}',
+        },
+      });
+      ref.current?.getController().onRefreshFile();
+      useDocumentSession.setState({
+        ingestRejectionPrompt: {
+          message: 'too large',
+          recoveryText: '{"old":true}',
+          source: 'paste',
+          originalCharCount: 10,
+          switchToOutputOnComplete: true,
+          rejectionReason: 'char-count',
+          rejectionActual: 10,
+          rejectionLimit: 9,
+          pendingFileSource: null,
+        },
+      });
+    });
+
+    await act(async () => {
+      refreshDeferred.resolve({
+        path: '/tmp/source.json',
+        content: '{"refreshed":true}',
+        sourceToken: 'refresh-token',
+        sourceKind: 'refresh-file',
+      });
+      await refreshDeferred.promise;
+    });
+
+    await waitFor(() => {
+      expect(fileClearOpenFileSourceMock).toHaveBeenCalledWith({
+        sourceToken: 'refresh-token',
+        path: '/tmp/source.json',
+        scope: 'pending',
+      });
+    });
+    expect(ingestInputText).not.toHaveBeenCalled();
+  });
+
+  it('refresh blocked by newer fallback wait state clears the pending token without ingesting', async () => {
+    const refreshDeferred = createDeferred<{
+      path: string;
+      content: string;
+      sourceToken: string;
+      sourceKind: 'refresh-file';
+    }>();
+    fileRefreshOpenFileMock.mockReturnValueOnce(refreshDeferred.promise);
+    const inputEditorRef = createInputEditorRef();
+    const ref = { current: null as HarnessHandle | null };
+    render(createElement(ControllerHarness, { inputEditorRef, ref }));
+    const ingestInputText = usePrettifierFlowMock.mock.results[0]?.value
+      .ingestInputText as ReturnType<typeof vi.fn>;
+
+    act(() => {
+      useDocumentSession.setState({
+        inputText: '{"old":true}',
+        fileSource: {
+          sourceToken: 'token-1',
+          path: '/tmp/source.json',
+          sourceKind: 'dialog-open-file',
+          lastLoadedText: '{"old":true}',
+        },
+      });
+      ref.current?.getController().onRefreshFile();
+      useDocumentSession.setState({
+        fallbackWaitState: {
+          requestId: 1,
+          formatLabel: 'JSON',
+          agentName: 'Codex',
+          progressLines: ['working...'],
+        },
+      });
+    });
+
+    await act(async () => {
+      refreshDeferred.resolve({
+        path: '/tmp/source.json',
+        content: '{"refreshed":true}',
+        sourceToken: 'refresh-token',
+        sourceKind: 'refresh-file',
+      });
+      await refreshDeferred.promise;
+    });
+
+    await waitFor(() => {
+      expect(fileClearOpenFileSourceMock).toHaveBeenCalledWith({
+        sourceToken: 'refresh-token',
+        path: '/tmp/source.json',
+        scope: 'pending',
+      });
+    });
+    expect(ingestInputText).not.toHaveBeenCalled();
+  });
+
+  it('dirty refresh opens confirmation and cancel leaves current content untouched', () => {
+    const inputEditorRef = createInputEditorRef();
+    const ref = { current: null as HarnessHandle | null };
+    render(createElement(ControllerHarness, { inputEditorRef, ref }));
+
+    act(() => {
+      useDocumentSession.setState({
+        inputText: '{"dirty":true}',
+        outputText: '{\n  "old": true\n}',
+        fileSource: {
+          sourceToken: 'token-1',
+          path: '/tmp/source.json',
+          sourceKind: 'dialog-open-file',
+          lastLoadedText: '{"old":true}',
+        },
+      });
+    });
+
+    act(() => {
+      ref.current?.getController().onRefreshFile();
+    });
+
+    expect(ref.current?.getController().dirtyRefreshPrompt).toMatchObject({
+      inputText: '{"dirty":true}',
+    });
+    expect(fileRefreshOpenFileMock).not.toHaveBeenCalled();
+
+    act(() => {
+      ref.current?.getController().onCancelDirtyRefresh();
+    });
+
+    expect(ref.current?.getController().dirtyRefreshPrompt).toBeNull();
+    expect(useDocumentSession.getState().inputText).toBe('{"dirty":true}');
+    expect(useDocumentSession.getState().outputText).toContain('"old": true');
+  });
+
+  it('confirming dirty refresh revalidates the prompt snapshot before reading', async () => {
+    const inputEditorRef = createInputEditorRef();
+    const ref = { current: null as HarnessHandle | null };
+    render(createElement(ControllerHarness, { inputEditorRef, ref }));
+
+    act(() => {
+      useDocumentSession.setState({
+        inputText: '{"dirty":true}',
+        fileSource: {
+          sourceToken: 'token-1',
+          path: '/tmp/source.json',
+          sourceKind: 'dialog-open-file',
+          lastLoadedText: '{"old":true}',
+        },
+      });
+    });
+
+    act(() => {
+      ref.current?.getController().onRefreshFile();
+      useDocumentSession.setState({ inputText: '{"newer":true}' });
+      ref.current?.getController().onConfirmDirtyRefresh();
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(fileRefreshOpenFileMock).not.toHaveBeenCalled();
+  });
+
+  it('refresh read failure preserves content and shows refresh failure notice', async () => {
+    fileRefreshOpenFileMock.mockRejectedValueOnce(new Error('missing'));
+    const inputEditorRef = createInputEditorRef();
+    const ref = { current: null as HarnessHandle | null };
+    render(createElement(ControllerHarness, { inputEditorRef, ref }));
+
+    act(() => {
+      useDocumentSession.setState({
+        inputText: '{"old":true}',
+        outputText: '{\n  "old": true\n}',
+        fileSource: {
+          sourceToken: 'token-1',
+          path: '/tmp/source.json',
+          sourceKind: 'dialog-open-file',
+          lastLoadedText: '{"old":true}',
+        },
+      });
+    });
+
+    act(() => {
+      ref.current?.getController().onRefreshFile();
+    });
+
+    await waitFor(() => {
+      expect(useDocumentSession.getState().ingestNotice).toBe('Unable to refresh file.');
+    });
+    expect(useDocumentSession.getState().inputText).toBe('{"old":true}');
+    expect(usePrettifierFlowMock.mock.results[0]?.value.ingestInputText).not.toHaveBeenCalled();
+  });
+
+  it('stale refresh read failure does not show refresh failure notice', async () => {
+    let rejectRefresh!: (error: Error) => void;
+    fileRefreshOpenFileMock.mockReturnValueOnce(
+      new Promise((_, reject) => {
+        rejectRefresh = reject;
+      }),
+    );
+    const inputEditorRef = createInputEditorRef();
+    const ref = { current: null as HarnessHandle | null };
+    render(createElement(ControllerHarness, { inputEditorRef, ref }));
+
+    act(() => {
+      useDocumentSession.setState({
+        inputText: '{"old":true}',
+        outputText: '{\n  "old": true\n}',
+        fileSource: {
+          sourceToken: 'token-1',
+          path: '/tmp/source.json',
+          sourceKind: 'dialog-open-file',
+          lastLoadedText: '{"old":true}',
+        },
+      });
+    });
+
+    act(() => {
+      ref.current?.getController().onRefreshFile();
+      useDocumentSession.setState({ inputText: '{"newer":true}' });
+    });
+
+    await act(async () => {
+      rejectRefresh(new Error('missing'));
+      await Promise.resolve();
+    });
+
+    expect(useDocumentSession.getState().ingestNotice).toBeNull();
+    expect(useDocumentSession.getState().inputText).toBe('{"newer":true}');
+    expect(usePrettifierFlowMock.mock.results[0]?.value.ingestInputText).not.toHaveBeenCalled();
   });
 
   it('consumes an initial launch file and routes it through open-file ingestion', async () => {
     const initialOpenFile = {
       path: '/tmp/launch.json',
       content: '{"launch":true}',
+      sourceToken: 'startup-token',
+      sourceKind: 'startup-open-file' as const,
     };
     const inputEditorRef = createInputEditorRef();
     const ref = { current: null as HarnessHandle | null };
@@ -827,6 +1687,14 @@ describe('useAppController', () => {
     expect(usePrettifierFlowMock.mock.results[0]?.value.ingestInputText).toHaveBeenCalledWith(
       '{"launch":true}',
       'open-file',
+      {
+        fileSource: {
+          sourceToken: 'startup-token',
+          path: '/tmp/launch.json',
+          sourceKind: 'startup-open-file',
+          baselineText: '{"launch":true}',
+        },
+      },
     );
 
     firstRender.unmount();

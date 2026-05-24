@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PrettifyRunResponse } from '../../../src/shared/prettifier';
@@ -12,6 +12,9 @@ const useUiStore = useDocumentSession;
 
 const openFileMock = vi.fn();
 const saveMock = vi.fn();
+const refreshOpenFileMock = vi.fn();
+const commitOpenFileSourceMock = vi.fn();
+const clearOpenFileSourceMock = vi.fn();
 const copyMock = vi.fn();
 const preferencesGetAllMock = vi.fn();
 const preferencesUpdateMock = vi.fn();
@@ -23,6 +26,7 @@ const telemetryLogMock = vi.fn();
 const openWindowMock = vi.fn();
 const consumeInitialOpenFileMock = vi.fn();
 const appOnResetCurrentWindowMock = vi.fn();
+const appOnRefreshCurrentWindowMock = vi.fn();
 const outputCollapseAllMock = vi.fn();
 const outputExpandAllMock = vi.fn();
 const outputFocusMock = vi.fn();
@@ -32,6 +36,7 @@ const openFindMock = vi.fn();
 let onPrettifierProgressListener: ((event: { requestId: number; line: string }) => void) | null =
   null;
 let onResetCurrentWindowListener: (() => void) | null = null;
+let onRefreshCurrentWindowListener: (() => void) | null = null;
 
 const getPrimaryModifierKey = (): 'Control' | 'Meta' => {
   return /mac|iphone|ipad|ipod/iu.test(window.navigator.platform) ? 'Meta' : 'Control';
@@ -132,6 +137,8 @@ vi.mock('../../../src/renderer/components/InputEditor', async () => {
           () => ({
             collapseAll: inputCollapseAllMock,
             expandAll: inputExpandAllMock,
+            captureViewportSnapshot: vi.fn().mockReturnValue(null),
+            restoreViewportSnapshot: vi.fn(),
           }),
           [],
         );
@@ -164,6 +171,8 @@ vi.mock('../../../src/renderer/components/OutputEditor', async () => {
             expandAll: outputExpandAllMock,
             focus: outputFocusMock,
             openFind: openFindMock,
+            captureViewportSnapshot: vi.fn().mockReturnValue(null),
+            restoreViewportSnapshot: vi.fn(),
           }),
           [],
         );
@@ -177,6 +186,9 @@ vi.mock('../../../src/renderer/components/OutputEditor', async () => {
 beforeEach(() => {
   openFileMock.mockReset();
   saveMock.mockReset();
+  refreshOpenFileMock.mockReset();
+  commitOpenFileSourceMock.mockReset();
+  clearOpenFileSourceMock.mockReset();
   copyMock.mockReset();
   preferencesGetAllMock.mockReset();
   preferencesUpdateMock.mockReset();
@@ -191,6 +203,10 @@ beforeEach(() => {
     onResetCurrentWindowListener = listener;
     return vi.fn();
   });
+  appOnRefreshCurrentWindowMock.mockReset().mockImplementation((listener: () => void) => {
+    onRefreshCurrentWindowListener = listener;
+    return vi.fn();
+  });
   outputCollapseAllMock.mockReset();
   outputExpandAllMock.mockReset();
   outputFocusMock.mockReset();
@@ -200,6 +216,14 @@ beforeEach(() => {
 
   openFileMock.mockResolvedValue(null);
   saveMock.mockResolvedValue(null);
+  refreshOpenFileMock.mockResolvedValue({
+    path: '/tmp/example.json',
+    content: '{"a":1}',
+    sourceToken: 'refresh-token',
+    sourceKind: 'refresh-file',
+  });
+  commitOpenFileSourceMock.mockResolvedValue(true);
+  clearOpenFileSourceMock.mockResolvedValue(true);
   copyMock.mockResolvedValue(undefined);
   preferencesGetAllMock.mockResolvedValue(createPreferences());
   preferencesUpdateMock.mockImplementation(
@@ -233,13 +257,19 @@ beforeEach(() => {
     configurable: true,
     value: {
       dialog: { openFile: openFileMock },
-      file: { save: saveMock },
+      file: {
+        save: saveMock,
+        refreshOpenFile: refreshOpenFileMock,
+        commitOpenFileSource: commitOpenFileSourceMock,
+        clearOpenFileSource: clearOpenFileSourceMock,
+      },
       clipboard: { copy: copyMock },
       app: {
         getInfo: vi.fn().mockResolvedValue({ name: 'prettypretty', version: '0.3.0' }),
         openWindow: openWindowMock,
         consumeInitialOpenFile: consumeInitialOpenFileMock,
         onResetCurrentWindow: appOnResetCurrentWindowMock,
+        onRefreshCurrentWindow: appOnRefreshCurrentWindowMock,
         onNavigationCommand: vi.fn().mockImplementation(() => vi.fn()),
         initialThemeMode: null,
       },
@@ -264,6 +294,7 @@ beforeEach(() => {
   });
   onPrettifierProgressListener = null;
   onResetCurrentWindowListener = null;
+  onRefreshCurrentWindowListener = null;
 });
 
 describe('App', () => {
@@ -278,7 +309,12 @@ describe('App', () => {
 
   it('uses open file ingestion path to switch to output and render local formatted content', async () => {
     const user = userEvent.setup();
-    openFileMock.mockResolvedValue({ path: '/tmp/example.json', content: '{"a":1}' });
+    openFileMock.mockResolvedValue({
+      path: '/tmp/example.json',
+      content: '{"a":1}',
+      sourceToken: 'dialog-token',
+      sourceKind: 'dialog-open-file',
+    });
 
     await renderApp();
 
@@ -293,6 +329,8 @@ describe('App', () => {
     openFileMock.mockResolvedValue({
       path: '/tmp/too-large.json',
       content: 'x'.repeat(MONACO_MAX_TOKENIZATION_LINE_LENGTH),
+      sourceToken: 'dialog-token',
+      sourceKind: 'dialog-open-file',
     });
 
     await renderApp();
@@ -321,6 +359,37 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: 'New' }));
 
     expect(openWindowMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('passes refresh availability and handler to the toolbar', async () => {
+    const user = userEvent.setup();
+
+    await renderApp();
+
+    const refreshButton = screen.getByRole('button', { name: 'Refresh' });
+    expect(refreshButton).toBeDisabled();
+
+    act(() => {
+      useUiStore.setState({
+        inputText: '{"old":true}',
+        fileSource: {
+          sourceToken: 'token-1',
+          path: '/tmp/example.json',
+          sourceKind: 'dialog-open-file',
+          lastLoadedText: '{"old":true}',
+        },
+      });
+    });
+
+    expect(refreshButton).toBeEnabled();
+    await user.click(refreshButton);
+
+    await waitFor(() => {
+      expect(refreshOpenFileMock).toHaveBeenCalledWith({
+        path: '/tmp/example.json',
+        sourceToken: 'token-1',
+      });
+    });
   });
 
   it('uses drop ingestion path to switch to output and render local formatted content', async () => {
@@ -409,7 +478,12 @@ describe('App', () => {
 
   it('stays in input mode and shows notice for empty open-file content', async () => {
     const user = userEvent.setup();
-    openFileMock.mockResolvedValue({ path: '/tmp/empty.json', content: '' });
+    openFileMock.mockResolvedValue({
+      path: '/tmp/empty.json',
+      content: '',
+      sourceToken: 'dialog-token',
+      sourceKind: 'dialog-open-file',
+    });
 
     await renderApp();
     await user.click(screen.getByRole('button', { name: 'Click' }));
@@ -1056,7 +1130,12 @@ describe('App', () => {
   it('hydrates indent size from preferences and applies it to local formatted output', async () => {
     preferencesGetAllMock.mockResolvedValue(createPreferences({ indentSize: 4 }));
     const user = userEvent.setup();
-    openFileMock.mockResolvedValue({ path: '/tmp/example.json', content: '{"outer":{"inner":1}}' });
+    openFileMock.mockResolvedValue({
+      path: '/tmp/example.json',
+      content: '{"outer":{"inner":1}}',
+      sourceToken: 'dialog-token',
+      sourceKind: 'dialog-open-file',
+    });
 
     await renderApp();
     await user.click(screen.getByRole('button', { name: 'Click' }));
@@ -1067,7 +1146,12 @@ describe('App', () => {
 
   it('reindents already prettified output when indentation preference changes without rerunning prettifier', async () => {
     const user = userEvent.setup();
-    openFileMock.mockResolvedValue({ path: '/tmp/example.json', content: '{"outer":{"inner":1}}' });
+    openFileMock.mockResolvedValue({
+      path: '/tmp/example.json',
+      content: '{"outer":{"inner":1}}',
+      sourceToken: 'dialog-token',
+      sourceKind: 'dialog-open-file',
+    });
 
     render(<App />);
     await user.click(screen.getByRole('button', { name: 'Click' }));
@@ -1184,6 +1268,47 @@ describe('App', () => {
     expect(screen.getByTestId('pane-segment-output')).toHaveAttribute('aria-pressed', 'false');
   });
 
+  it('renders dirty-refresh confirmation modal and wires cancel and confirm actions', async () => {
+    const user = userEvent.setup();
+
+    act(() => {
+      useUiStore.setState({
+        paneMode: 'input',
+        inputText: '{"dirty":true}',
+        fileSource: {
+          sourceToken: 'token-1',
+          path: '/tmp/example.json',
+          sourceKind: 'dialog-open-file',
+          lastLoadedText: '{"old":true}',
+        },
+      });
+    });
+
+    await renderApp();
+
+    await pressPrimaryShortcut(user, 'r');
+    expect(screen.getByRole('dialog')).toHaveTextContent('Refresh file?');
+    expect(refreshOpenFileMock).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByText('Refresh file?')).not.toBeInTheDocument();
+    expect(useUiStore.getState().inputText).toBe('{"dirty":true}');
+
+    await pressPrimaryShortcut(user, 'r');
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Refresh' }));
+
+    await waitFor(() => {
+      expect(refreshOpenFileMock).toHaveBeenCalledWith({
+        path: '/tmp/example.json',
+        sourceToken: 'token-1',
+      });
+    });
+    expect(commitOpenFileSourceMock).toHaveBeenCalledWith({
+      path: '/tmp/example.json',
+      sourceToken: 'refresh-token',
+    });
+  });
+
   it('resets the current window when the main process requests it', async () => {
     act(() => {
       useUiStore.setState({
@@ -1203,5 +1328,32 @@ describe('App', () => {
     expect(screen.getByTestId('pane-segment-output')).toHaveAttribute('aria-pressed', 'false');
     expect(useUiStore.getState().inputText).toBe('');
     expect(useUiStore.getState().ingestNotice).toBeNull();
+  });
+
+  it('refreshes the current file when the main process requests it', async () => {
+    act(() => {
+      useUiStore.setState({
+        inputText: '{"old":true}',
+        fileSource: {
+          sourceToken: 'token-1',
+          path: '/tmp/example.json',
+          sourceKind: 'dialog-open-file',
+          lastLoadedText: '{"old":true}',
+        },
+      });
+    });
+
+    await renderApp();
+
+    act(() => {
+      onRefreshCurrentWindowListener?.();
+    });
+
+    await waitFor(() => {
+      expect(refreshOpenFileMock).toHaveBeenCalledWith({
+        path: '/tmp/example.json',
+        sourceToken: 'token-1',
+      });
+    });
   });
 });

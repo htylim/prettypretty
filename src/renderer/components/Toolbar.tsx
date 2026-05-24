@@ -5,6 +5,7 @@ import {
   VscCollapseAll,
   VscCopy,
   VscExpandAll,
+  VscRefresh,
   VscSave,
 } from 'react-icons/vsc';
 import type { PaneMode, ThemeMode } from '../../shared/types';
@@ -19,6 +20,7 @@ type ToolbarProps = {
   fallbackAgentId: string | null;
   fallbackAgentOptions: FallbackAgentOption[];
   hasContent: boolean;
+  canRefreshFile: boolean;
   canPopSplit: boolean;
   canNavigateSplitLeft: boolean;
   canNavigateSplitRight: boolean;
@@ -27,6 +29,7 @@ type ToolbarProps = {
     total: number;
   } | null;
   onNew: () => void;
+  onRefresh: () => void;
   onPaneModeChange: (nextMode: PaneMode) => void;
   onCollapseAll: () => void;
   onExpandAll: () => void;
@@ -54,6 +57,7 @@ const tooltips = {
   collapse: 'Collapse',
   save: 'Save (Cmd+S)',
   copy: 'Copy (Cmd+Shift+C)',
+  refresh: 'Refresh (Cmd+R)',
   splitPop: 'Pop rightmost split (Escape)',
   splitLeft: 'View previous split (Ctrl+Left)',
   splitRight: 'View next split (Ctrl+Right)',
@@ -73,11 +77,13 @@ export const Toolbar = ({
   fallbackAgentId,
   fallbackAgentOptions,
   hasContent,
+  canRefreshFile,
   canPopSplit,
   canNavigateSplitLeft,
   canNavigateSplitRight,
   visibleOutputPanePosition,
   onNew,
+  onRefresh,
   onPaneModeChange,
   onCollapseAll,
   onExpandAll,
@@ -174,6 +180,16 @@ export const Toolbar = ({
             type="button"
           >
             <VscCopy />
+          </button>
+          <button
+            aria-label="Refresh"
+            className={`${buttonClass} btn-icon`}
+            disabled={!canRefreshFile}
+            onClick={onRefresh}
+            title={tooltips.refresh}
+            type="button"
+          >
+            <VscRefresh />
           </button>
         </>
 

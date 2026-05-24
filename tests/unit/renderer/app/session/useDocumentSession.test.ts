@@ -72,6 +72,28 @@ describe('useDocumentSession', () => {
     expect(useDocumentSession.getState().lastPrettifiedInput).toBe('{"content":true}');
   });
 
+  it('sets and clears refreshable file source', () => {
+    useDocumentSession.setState(createInitialDocumentSessionState());
+
+    useDocumentSession.getState().setFileSource({
+      sourceToken: 'token-1',
+      path: '/tmp/source.json',
+      sourceKind: 'dialog-open-file',
+      lastLoadedText: '{"a":1}',
+    });
+
+    expect(useDocumentSession.getState().fileSource).toEqual({
+      sourceToken: 'token-1',
+      path: '/tmp/source.json',
+      sourceKind: 'dialog-open-file',
+      lastLoadedText: '{"a":1}',
+    });
+
+    useDocumentSession.getState().setFileSource(null);
+
+    expect(useDocumentSession.getState().fileSource).toBeNull();
+  });
+
   it('reset clears editor content and returns to input mode', () => {
     useDocumentSession.setState({
       ...createInitialDocumentSessionState(),
@@ -115,6 +137,12 @@ describe('useDocumentSession', () => {
       },
       fallbackModalState: { kind: 'agent-selection' },
       lastPrettifiedInput: '{"content":true}',
+      fileSource: {
+        sourceToken: 'token-1',
+        path: '/tmp/source.json',
+        sourceKind: 'dialog-open-file',
+        lastLoadedText: '{"content":true}',
+      },
     });
 
     useDocumentSession.getState().reset();
@@ -140,5 +168,6 @@ describe('useDocumentSession', () => {
     expect(useDocumentSession.getState().fallbackWaitState).toBeNull();
     expect(useDocumentSession.getState().fallbackModalState).toBeNull();
     expect(useDocumentSession.getState().lastPrettifiedInput).toBeNull();
+    expect(useDocumentSession.getState().fileSource).toBeNull();
   });
 });

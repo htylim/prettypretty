@@ -78,6 +78,13 @@ const flushAsyncClick = async (): Promise<void> => {
   });
 };
 
+const flattenMenuItems = (items: MenuItemConstructorOptions[]): MenuItemConstructorOptions[] => {
+  return items.flatMap((item) => {
+    const submenu = Array.isArray(item.submenu) ? flattenMenuItems(item.submenu) : [];
+    return [item, ...submenu];
+  });
+};
+
 describe('configureApplicationMenu', () => {
   beforeEach(() => {
     setPlatform('darwin');
@@ -143,9 +150,10 @@ describe('configureApplicationMenu', () => {
 
   it('adds View Log item with Cmd+L and invokes callback', () => {
     const onNewWindow = vi.fn();
+    const onRefreshWindow = vi.fn();
     const onResetWindow = vi.fn();
     const onViewLog = vi.fn();
-    configureApplicationMenu({ onNewWindow, onResetWindow, onViewLog });
+    configureApplicationMenu({ onNewWindow, onRefreshWindow, onResetWindow, onViewLog });
 
     const [template] = buildFromTemplateMock.mock.calls[0] as [MenuItemConstructorOptions[]];
     const appMenu = template[0];
@@ -154,21 +162,38 @@ describe('configureApplicationMenu', () => {
     const fileSubmenu = (fileMenu?.submenu ?? []) as MenuItemConstructorOptions[];
     const viewLogItem = submenu.find((item) => item.label === 'View Log');
     const newWindowItem = fileSubmenu.find((item) => item.label === 'New Window');
+    const refreshWindowItem = fileSubmenu.find((item) => item.label === 'Refresh File');
     const resetWindowItem = fileSubmenu.find((item) => item.label === 'Reset Window');
 
     expect(viewLogItem).toBeDefined();
     expect(viewLogItem?.accelerator).toBe('Cmd+L');
     expect(fileMenu?.label).toBe('File');
     expect(newWindowItem?.accelerator).toBe('CommandOrControl+N');
+    expect(refreshWindowItem?.accelerator).toBe('CommandOrControl+R');
     expect(resetWindowItem?.accelerator).toBe('CommandOrControl+Shift+N');
 
     viewLogItem?.click?.(undefined as never, undefined, {} as never);
     newWindowItem?.click?.(undefined as never, undefined, {} as never);
+    refreshWindowItem?.click?.(undefined as never, undefined, {} as never);
     resetWindowItem?.click?.(undefined as never, undefined, {} as never);
 
     expect(onViewLog).toHaveBeenCalledTimes(1);
     expect(onNewWindow).toHaveBeenCalledTimes(1);
+    expect(onRefreshWindow).toHaveBeenCalledTimes(1);
     expect(onResetWindow).toHaveBeenCalledTimes(1);
     expect(setApplicationMenuMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not include the default reload accelerator from the Electron view menu', () => {
+    configureApplicationMenu();
+
+    const [template] = buildFromTemplateMock.mock.calls[0] as [MenuItemConstructorOptions[]];
+    const items = flattenMenuItems(template);
+
+    expect(items.some((item) => item.role === 'viewMenu')).toBe(false);
+    expect(items.some((item) => item.role === 'reload' || item.role === 'forceReload')).toBe(false);
+    expect(
+      items.filter((item) => item.accelerator === 'CommandOrControl+R').map((item) => item.label),
+    ).toEqual(['Refresh File']);
   });
 });

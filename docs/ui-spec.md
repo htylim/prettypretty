@@ -33,6 +33,10 @@
   - disabled when there is no content
 - `Save` / `Copy`
   - enabled only in output mode
+- `Refresh`
+  - icon-only button immediately before `Indent`
+  - enabled only when the current document was loaded from a refreshable trusted file
+  - re-reads the same file, reruns prettify, and preserves the current input/output mode when possible
 - `Indent`
   - custom dropdown with values `1..8`
 - `Fallback`
@@ -57,6 +61,8 @@
   - save output
 - `Cmd/Ctrl+Shift+C`
   - copy output
+- `Cmd/Ctrl+R`
+  - refresh the current file-backed document window
 - `Cmd/Ctrl+F`
   - open Monaco find in output mode
 
@@ -65,6 +71,13 @@
 - Input uses an editable Monaco editor.
 - Output uses a read-only Monaco editor.
 - Open, drop, and paste use the same ingest path.
+- Opening a file through the dialog or launch payload creates a refreshable file-backed document.
+- Document-level paste and current renderer-only drop ingestion clear refreshable file state.
+- Editing inside the input editor preserves file-backed state and makes refresh ask for confirmation before replacing dirty edits.
+- Refresh cancel leaves input, output, mode, and viewport intact.
+- Refresh confirm reloads from disk, updates the clean baseline, and reruns prettify.
+- Empty refreshed files stay refreshable, show the existing empty-file notice, and switch to input mode because output is unavailable.
+- Refresh read failures preserve the current document and show `Unable to refresh file.`
 - Output is recomputed only on ingest or explicit output-mode requests, not on every keystroke.
 - Empty open/drop keeps the app in input mode and shows `File has no content.`
 - Empty paste keeps the app in input mode without the file-empty notice.

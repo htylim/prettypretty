@@ -33,6 +33,7 @@ type OutputPaneStripProps = {
     paneDocumentLanguage: import('../output/detectOutputLanguage').OutputLanguageId,
   ) => void;
   onNavigatePaneViewport: (stepDelta: number) => void;
+  onViewportInteraction?: (() => void) | undefined;
 };
 
 export const OutputPaneStrip = ({
@@ -47,6 +48,7 @@ export const OutputPaneStrip = ({
   onToggleExtractedSourcePane,
   onPaneContextMenu,
   onNavigatePaneViewport,
+  onViewportInteraction,
 }: OutputPaneStripProps) => {
   const isSplit = panes.length > 1;
   const paneWidth = isSplit ? '50%' : '100%';
@@ -97,6 +99,7 @@ export const OutputPaneStrip = ({
                   onPaneFocus(pane.paneId);
                 }
               }}
+              onViewportInteraction={onViewportInteraction}
               onToggleExtractedSourcePane={
                 onToggleExtractedSourcePane
                   ? (content) => {

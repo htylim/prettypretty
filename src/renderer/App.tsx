@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import type { OpenTextFile } from '../shared/ipc-contracts';
+import type { RefreshableOpenTextFile } from '../shared/ipc-contracts';
 import { useAppController } from './app/useAppController';
 import { ConfirmationModal } from './components/ConfirmationModal';
 import { EditorShell } from './components/EditorShell';
@@ -8,7 +8,7 @@ import type { InputEditorHandle } from './components/InputEditor';
 import { Toolbar } from './components/Toolbar';
 
 type AppProps = {
-  initialOpenFile?: OpenTextFile | null;
+  initialOpenFile?: RefreshableOpenTextFile | null;
 };
 
 export const App = ({ initialOpenFile = null }: AppProps) => {
@@ -32,11 +32,13 @@ export const App = ({ initialOpenFile = null }: AppProps) => {
           fallbackAgentId={controller.fallbackAgentId}
           fallbackAgentOptions={controller.fallbackAgentOptions}
           hasContent={controller.hasContent}
+          canRefreshFile={controller.canRefreshFile}
           canPopSplit={controller.hasDerivedOutputPane}
           canNavigateSplitLeft={controller.canNavigateOutputPaneLeft}
           canNavigateSplitRight={controller.canNavigateOutputPaneRight}
           visibleOutputPanePosition={controller.visibleOutputPanePosition}
           onNew={controller.onNew}
+          onRefresh={controller.onRefreshFile}
           onPaneModeChange={controller.onPaneModeChange}
           onCollapseAll={controller.onCollapseAll}
           onExpandAll={controller.onExpandAll}
@@ -75,6 +77,7 @@ export const App = ({ initialOpenFile = null }: AppProps) => {
           onDismissOutputContextMenu={controller.onDismissOutputContextMenu}
           onTriggerOutputContextPrettify={controller.onTriggerOutputContextPrettify}
           onNavigateOutputPaneViewport={controller.onNavigateOutputPaneViewport}
+          onViewportInteraction={controller.onViewportInteraction}
         />
       </div>
 
@@ -132,6 +135,16 @@ export const App = ({ initialOpenFile = null }: AppProps) => {
         onCancel={controller.onCancelFallback}
         onConfirm={isLargeContentFallbackModal ? controller.onConfirmFallback : undefined}
         title={isLargeContentFallbackModal ? 'Large content' : 'Call fallback agent'}
+      />
+
+      <ConfirmationModal
+        cancelLabel="Cancel"
+        confirmLabel="Refresh"
+        isOpen={controller.dirtyRefreshPrompt !== null}
+        message="Changes made in the input editor will be lost. Do you want to continue?"
+        onCancel={controller.onCancelDirtyRefresh}
+        onConfirm={controller.onConfirmDirtyRefresh}
+        title="Refresh file?"
       />
     </main>
   );
